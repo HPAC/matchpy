@@ -1,0 +1,29 @@
+* classes
+** class hierarchy
+- Expression
+  - Operator
+  - Atom
+    - Symbol
+    - Wildcard
+      - WildcardDot
+      - WildcardSymbol (low priority)
+      - WildcardStar
+** Pattern class
+- patt_expr
+- constraint
+- what to do to linearizing them?
+** ReplacementRule class
+- Pattern
+- Replacement
+* one-to-one syntactic matching necessary?
+- if yes, implement
+* implement discrimination nets (many-to-one, syntactic)
+- linearize patterns
+* general stuff
+- be carefull with optimizations regarding copy: I think at the moment, I don't copy symbols at all, because I never modify them. If you want to modify symbols, don't forget to copy them.
+- function attributes (associative, ...) as class variables?
+- let's collect test/special cases in mathematica
+- 
+* profiling
+- cProfile
+- https://github.com/rkern/line_profiler
