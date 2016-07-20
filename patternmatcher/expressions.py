@@ -3,16 +3,11 @@ import math
 from typing import Optional, Any, Tuple, Dict, Callable
 from enum import Enum
 from collections import Counter as Multiset
-
-# TODO: Is this needed?
-# class MatchType(Enum):
-#     constant = 1
-#     static = 2
-#     dynamic = 3
+from .utils import isidentifier
 
 class Arity(tuple, Enum):
     """Arity of an operator as (`int`, `int`) tuple.
-    
+
     First component is the minimum number of operands, second the maximum number.
     Hence, the first component of the tuple must not be larger than the second.
     """
@@ -28,14 +23,11 @@ Constraint = Callable[[Match], bool]
 
 class Expression(object):
     """Base class for all expressions.
-    
+
     All expressions are immutable, i.e. their attributes should not be changed,
     as several attributes are computed at instantiation and are not refreshed.
-    
+
     Attributes:
-        head
-            The head of the expression, i.e. the operator for an `Operation` or
-            the type for an `Atom`.
         min_count
             For a pattern, this is the minimal count of expression which
             are needed to match (e.g. `x, y` needs at two expressions for a match).
@@ -54,10 +46,9 @@ class Expression(object):
             to verify it.
     """
 
-    def __init__(self, head: Any, constraint : Optional[Constraint] = None):
+    def __init__(self, constraint : Optional[Constraint] = None):
         self._parent = None # type: Optional[Expression]
         self._position = None # type: Optional[int]
-        self.head = head
         self.min_count = 1
         self.max_count = 1
         self.flexible_match = False
@@ -84,12 +75,9 @@ class Expression(object):
         """True, if the expression is linear, i.e. every variable may occur at most once."""
         return self.is_constant or self.variables.most_common(1)[0][1] == 1
 
-class Operator(object):
-    """Base class for all expressions.
-    
-    All expressions are immutable, i.e. their attributes should not be changed,
-    as several attributes are computed at instantiation and are not refreshed.
-    
+class Operation(Expression):
+    """Base class for all operations.
+
     Attributes:
         name
             Name or symbol for the operator.
@@ -97,25 +85,25 @@ class Operator(object):
             The arity of the operator as (`int`, `int`) tuple. The first component represents
             the minimum number of operands, the second the maximum number. See the :class:`Arity` enum.
         associative
-            The arity of the operator as (`int`, `int`) tuple. The first component represents
-            the minimum number of operands, the second the maximum number. See the :class:`Arity` enum.
+            True if the operation is associative, i.e. `f(a, f(b, c)) = f(f(a, b), c)`.
+            This property is used to flatten nested associative operations of the same type.
+            Therefore, the `arity` of an associative operation has to have an unconstraint maximum
+            number of operand. 
+        commutative
+            True if the operation is commutative, i.e. `f(a, b) = f(b, a)`. Note that commutative
+            operations will always be converted into canonical form with sorted operands.
+        one_identity
+            True if the operation with a single argument is equivalent to the identity function, i.e.
+            `f(a) = a`. This property is used to simplify expressions.
     """
+    name = None # type: str
+    arity = Arity.variadic # type: Tuple[int, int]
+    associative = False
+    commutative = False
+    one_identity = False
 
-    def __init__(self, name: str, arity: Tuple[int, int], associative: bool = False, commutative: bool = False, oneIdentity: bool = False, neutralElement: Optional[Expression] = None) -> None:
-        self.name = name
-        self.arity = arity
-        self.associative = associative
-        self.commutative = commutative
-        self.oneIdentity = oneIdentity
-        self.neutralElement = neutralElement
-
-    def __str__(self):
-        return self.name
-
-class Operation(Expression):
-    def __init__(self, operator: Operator, *operands: Expression, constraint:Optional[Constraint]=None) -> None:
-        super().__init__(operator)
-        self.operator = operator
+    def __init__(self, *operands: Expression, constraint:Optional[Constraint]=None) -> None:
+        super().__init__(constraint)
         self.operands = list(operands)
         self.constraint = constraint
 
@@ -124,36 +112,110 @@ class Operation(Expression):
             o._parent = self
             o._position = i
 
-        self.flexible_match = operator.associative or any(o.flexible_match for o in operands)
+        self.flexible_match = self.associative or any(o.flexible_match for o in operands)
 
     def __str__(self):
-        return '%s(%s)' % (str(self.operator), ', '.join(str(o) for o in self.operands))
+        return '%s(%s)' % (self.name, ', '.join(str(o) for o in self.operands))
+
+    @staticmethod
+    def new(name : str, arity : Tuple[int, int], class_name : str = None, **attributes) -> Any:
+        """Utility method to create a new operation type.
+
+        Example:
+
+        >>> Times = Operator.new('*', Arity.polyadic, 'Times', associative=True, commutative=True, one_identity=True)
+        >>> Times
+        <class 'patternmatcher.expressions.Times'>
+        >>> str(Times(Symbol('a')))
+        '*(a)'
+
+        Arguments:
+            name
+                Name or symbol for the operator. Will be used as name for the new class if
+                `class_name` is not specified.
+            arity
+                The arity of the operator as explained in the documentation of :class:`Operation`.
+            class_name
+                Name for the new operation class to be used instead of name. This argument
+                is required if `name` is not a valid python identifier.
+            attributes
+                Attributes to set in the new class. For a list of possible attributes see the
+                docstring of :class:`Operation`.
+        """
+        class_name = class_name or name
+        assert isidentifier(class_name), 'invalid identifier'
+
+        return type(class_name, (Operation,), dict({
+            'name': name,
+            'arity': arity
+        }, **attributes))
 
 class Atom(Expression):
     pass
 
 class Symbol(Atom):
-    def __init__(self, name: str) -> None:
-        super().__init__(Symbol)
+    def __init__(self, name: str, constraint:Optional[Constraint]=None) -> None:
+        super().__init__(constraint)
         self.name = name
 
     def __str__(self):
         return self.name
 
-class Wildcard(Atom):
-    def __init__(self, name: str) -> None:
-        super().__init__(Symbol)
+class Variable(Atom):
+    def __init__(self, name: str, expression: Expression, constraint:Optional[Constraint]=None) -> None:
+        super().__init__(constraint)
         self.name = name
+        self.expression = expression
         self.variables.update([name])
 
+    @staticmethod
+    def dot(name: str, constraint:Optional[Constraint]=None):
+        return Variable(name, Wildcard.dot(), constraint)
+
+    @staticmethod
+    def star(name: str, constraint:Optional[Constraint]=None):
+        return Variable(name, Wildcard.star(), constraint)
+
+    @staticmethod
+    def plus(name: str, constraint:Optional[Constraint]=None):
+        return Variable(name, Wildcard.plus(), constraint)
+
     def __str__(self):
-        return self.name + '_'
+        if isinstance(self.expression, Wildcard):
+            return self.name + str(self.expression)
+
+        return '%s_: %s' % (self.name, self.expression)
+
+class Wildcard(Atom):
+    def __init__(self, min_count: int, max_count: int, constraint: Optional[Constraint]=None) -> None:
+        super().__init__(constraint)
+        self.min_count = min_count
+        self.max_count = max_count
+
+    @staticmethod
+    def dot():
+        return Wildcard(min_count=1, max_count=1)
+
+    @staticmethod
+    def star():
+        return Wildcard(min_count=0, max_count=math.inf)
+
+    @staticmethod
+    def plus():
+        return Wildcard(min_count=1, max_count=math.inf)
+
+    def __str__(self):
+        if self.min_count == 0 and self.max_count == math.inf:
+            return '___'
+        if self.min_count == 1 and self.max_count == math.inf:
+            return '__'
+        return '_'
 
 if __name__ == '__main__':
-    f = Operator('f', Arity.binary)
-    x = Wildcard('x')
-    y = Wildcard('y')
+    f = Operation.new('f', Arity.binary, associative = False)
+    x = Variable.dot('x')
+    y = Variable.star('y')
 
-    expr = Operation(f, x, y)
+    expr = f(x, y)
 
-    print(expr.is_linear)
+    print(expr)
