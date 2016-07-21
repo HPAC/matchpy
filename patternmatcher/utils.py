@@ -2,6 +2,7 @@
 from typing import TypeVar, Tuple, List, Sequence, Iterator
 import itertools
 import ast
+import math
 
 T = TypeVar('T')
 
@@ -89,12 +90,22 @@ def fixed_sum_vector_iter(minVect : Sequence[int], maxVect : Sequence[int], tota
 
     remaining = total - minSum
 
-    realMins = [max(total - maxSum + maximum, minimum) for minimum, maximum in zip(minVect, maxVect)]
-    realMaxs = [min(remaining + minimum, maximum) for minimum, maximum in zip(minVect, maxVect)]
+    realMins = list(minVect)
+    realMaxs = list(maxVect)
+
+    for i, (minimum, maximum) in enumerate(zip(minVect, maxVect)):
+        left_over_sum = sum(maxVect[:i] + maxVect[i+1:])
+        if left_over_sum != math.inf:
+            realMins[i] = max(total - left_over_sum, minimum)
+        realMaxs[i] = min(remaining + minimum, maximum)
 
     values = list(realMins)
 
     remaining = total - sum(realMins)
+
+    if remaining == 0:
+        yield values
+        return
 
     j = count - 1
     while remaining > 0:
@@ -104,7 +115,7 @@ def fixed_sum_vector_iter(minVect : Sequence[int], maxVect : Sequence[int], tota
         j -= 1
 
     while True:
-        pos = len(realMins) - 2
+        pos = count - 2
         yield values[:]
         while True:
             values[pos] += 1
@@ -112,11 +123,23 @@ def fixed_sum_vector_iter(minVect : Sequence[int], maxVect : Sequence[int], tota
             if values[-1] < realMins[-1] or values[pos] > realMaxs[pos]:
                 if pos == 0:
                     return
+                variable_amount = values[pos] - realMins[pos] 
                 values[pos] = realMins[pos] # reset current position
-                values[-1] = total - sum(values[:-1]) # reset last position
+                values[-1] += variable_amount # reset last position
+
+                if values[-1] > realMaxs[-1]:
+                    remaining = values[-1] - realMaxs[-1] - 1
+                    values[-1] = realMaxs[-1] + 1
+                    j = count - 2
+                    while remaining > 0:
+                        toAdd = min(realMaxs[j] - values[j], remaining)
+                        values[j] += toAdd
+                        remaining -= toAdd
+                        j -= 1
                 pos -= 1
             else:
                 break
+
 
 # http://stackoverflow.com/questions/12700893/how-to-check-if-a-string-is-a-valid-python-identifier-including-keyword-check
 def isidentifier(ident):
