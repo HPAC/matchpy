@@ -111,7 +111,7 @@ class Operation(Expression):
     the expression `f(a)` if simplified to `a`.
     """
 
-    def __init__(self, *operands: Expression, constraint:Optional[Constraint]=None) -> None:
+    def __new__(cls, *operands: Expression, constraint:Optional[Constraint]=None):
         """Base class for all expressions.
 
         All expressions are immutable, i.e. their attributes should not be changed,
@@ -124,16 +124,25 @@ class Operation(Expression):
                 An optional constraint expression, which is checked for each match
                 to verify it.
         """
-        super().__init__(constraint)
-        self.operands = list(operands)
-        self.constraint = constraint
+        operation = object.__new__(cls)
+        Expression.__init__(operation, constraint)
 
-        for i, o in enumerate(operands):
-            self.variables.update(o.variables)
-            o._parent = self
-            o._position = i
+        operation.operands = list(operands)
+        operation = cls._simplify(operation)
 
-        self.flexible_match = self.associative or any(o.flexible_match for o in operands)
+        if type(operation) == cls:
+            for i, o in enumerate(operands):
+                operation.variables.update(o.variables)
+                o._parent = operation
+                o._position = i
+
+            operation.flexible_match = operation.associative or any(o.flexible_match for o in operands)
+
+        return operation
+
+    def __init__(self, *operands: Expression, constraint:Optional[Constraint]=None): # pylint: disable=W0231
+        # Expression.__init__ is called in __new__()
+        pass
 
     def __str__(self):
         return '%s(%s)' % (self.name, ', '.join(str(o) for o in self.operands))
@@ -171,6 +180,68 @@ class Operation(Expression):
             'arity': arity
         }, **attributes))
 
+    def __lt__(self, other):
+        if isinstance(other, Symbol):
+            return False
+
+        if type(self) != type(other):
+            return type(self).__name__ < type(other).__name__
+
+        if len(self.operands) != len(other.operands):
+            return len(self.operands) < len(other.operands)
+        
+        for left, right in zip(self.operands, other.operands):
+            if left < right:
+                return True
+
+        return False
+
+    def __eq__(self, other):
+        return type(self) == type(other) and \
+               self.constraint == other.constraint and \
+               len(self.operands) == len(other.operands) and \
+               all(x == y for x,y in zip(self.operands, other.operands))
+
+    @staticmethod
+    def _simplify(operation: 'Operation') -> Expression:        
+        if operation.associative:
+            newOperands = []
+            for operand in operation.operands:
+                if type(operand) == type(operation):
+                    newOperands.extend(operand.operands)
+                else:
+                    newOperands.append(operand)
+            operation.operands = newOperands
+        
+        if operation.one_identity and len(operation.operands) == 1:
+            return operation.operands[0]
+
+        if operation.commutative:
+            operation.operands.sort()
+        
+        return operation
+      
+    # TODO: Use this version?
+    def simplify(self) -> Expression:
+        operands = [o.simplify() for o in self.operands]
+        
+        if self.associative:
+            newOperands = []
+            for operand in operands:
+                if type(operand) == type(self):
+                    newOperands.extend(operand.operands)
+                else:
+                    newOperands.append(operand)
+            operands = newOperands
+        
+        if self.one_identity and len(operands) == 1:
+            return operands[0]
+
+        if self.commutative:
+            operands.sort()
+        
+        return Operation(*operands, constraint=self.constraint)
+
 class Atom(Expression):
     pass
 
@@ -182,8 +253,31 @@ class Symbol(Atom):
     def __str__(self):
         return self.name
 
+    def __lt__(self, other):
+        if isinstance(other, Symbol):
+            return self.name < other.name
+        return True
+
 class Variable(Atom):
+    """A variable that is captured during a match.
+
+    Wraps another pattern expression that is used to match. On match, the matched
+    value is captured for the variable.
+    """
+
     def __init__(self, name: str, expression: Expression, constraint:Optional[Constraint]=None) -> None:
+        """
+        Arguments:
+            name
+                The name of the variable that is used to capture its value in the match.
+                Can be used to access its value in constraints or for replacement.
+            expression
+                The expression that is used for matching. On match, its value will be
+                assigned to the variable. Usually, a :class:`Wildcard` is used to match
+                any expression.
+            constraint
+                See :class:`Expression`.
+        """
         super().__init__(constraint)
         self.name = name
         self.expression = expression
@@ -191,14 +285,17 @@ class Variable(Atom):
 
     @staticmethod
     def dot(name: str, constraint:Optional[Constraint]=None):
+        """Creates a `Variable` with a :class:`Wildcard` that matches exactly one argument."""
         return Variable(name, Wildcard.dot(), constraint)
 
     @staticmethod
     def star(name: str, constraint:Optional[Constraint]=None):
+        """Creates a `Variable` with :class:`Wildcard` that matches any number of arguments."""
         return Variable(name, Wildcard.star(), constraint)
 
     @staticmethod
     def plus(name: str, constraint:Optional[Constraint]=None):
+        """Creates a `Variable` with :class:`Wildcard` that matches at least one and up to any number of arguments."""
         return Variable(name, Wildcard.plus(), constraint)
 
     def __str__(self):
@@ -206,6 +303,13 @@ class Variable(Atom):
             return self.name + str(self.expression)
 
         return '%s_: %s' % (self.name, self.expression)
+
+    def __lt__(self, other):
+        if isinstance(other, Symbol):
+            return False
+        if isinstance(other, Variable):
+            return self.name < other.name
+        return type(self).__name__ < type(other).__name__
 
 class Wildcard(Atom):
     """A wildcard that matches any expression.
@@ -251,17 +355,25 @@ class Wildcard(Atom):
         return Wildcard(min_count=1, max_count=math.inf)
 
     def __str__(self):
-        if self.min_count == 0 and self.max_count == math.inf:
-            return '___'
-        if self.min_count == 1 and self.max_count == math.inf:
-            return '__'
+        if self.max_count == math.inf:
+            if self.min_count == 0:
+                return '___'
+            elif self.min_count == 1:
+                return '__'
         return '_'
 
+    def __lt__(self, other):
+        return isinstance(other, Wildcard)
+
 if __name__ == '__main__':
-    f = Operation.new('f', Arity.binary, associative = False)
+    f = Operation.new('f', Arity.binary, associative = True, commutative=True, one_identity=True)
     x = Variable.dot('x')
     y = Variable.star('y')
+    z = Variable.plus('z')
+    a = Symbol('a')
+    b = Symbol('b')
+    c = Symbol('c')
 
-    expr = f(x, y)
+    expr = f(f(b), a)
 
     print(expr)
