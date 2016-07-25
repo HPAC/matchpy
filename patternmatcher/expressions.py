@@ -145,7 +145,9 @@ class Operation(Expression):
         pass
 
     def __str__(self):
-        return '%s(%s)' % (self.name, ', '.join(str(o) for o in self.operands))
+        if self.constraint:
+            return '%s(%s) /; %s' % (self.name, ', '.join(str(o) for o in self.operands), str(self.constraint)) 
+        return '%s(%s)' % (self.name, ', '.join(str(o) for o in self.operands)) 
 
     @staticmethod
     def new(name : str, arity : Tuple[int, int], class_name : str = None, **attributes) -> Any:
@@ -300,9 +302,13 @@ class Variable(Atom):
 
     def __str__(self):
         if isinstance(self.expression, Wildcard):
-            return self.name + str(self.expression)
+            value = self.name + str(self.expression)
+        else:
+            value = '%s_: %s' % (self.name, self.expression)
+        if self.constraint:
+            value += ' /; %s' % str(self.constraint)
 
-        return '%s_: %s' % (self.name, self.expression)
+        return value
 
     def __lt__(self, other):
         if isinstance(other, Symbol):

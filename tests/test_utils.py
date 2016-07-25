@@ -26,6 +26,14 @@ class FixedSumVectorIteratorTest(unittest.TestCase):
                                 self.assertGreaterEqual(v, l[0])
                                 self.assertLessEqual(v, l[1])
 
+    def is_unique_list(self, l):
+        for i, v1 in enumerate(l):
+            for v2 in l[:i]:
+                if v1 == v2:
+                    return False
+        return True
+
+
     def test_completeness(self):
         for m in range(1, self.max_partition_count + 1):
             for limits in itertools.product(self.limits, repeat=m):
@@ -33,6 +41,8 @@ class FixedSumVectorIteratorTest(unittest.TestCase):
                     with self.subTest(n=n, limits=limits):
                         minVect, maxVect = zip(*limits)
                         results = list(fixed_sum_vector_iter(minVect, maxVect, n))
+                        self.assertTrue(self.is_unique_list(results)) # no duplicate results
+
                         realLimits = [(minimum, min(maximum, n)) for minimum, maximum in limits]
                         ranges = [list(range(minimum, maximum + 1)) for minimum, maximum in realLimits]
                         for possibleResult in itertools.product(*ranges):

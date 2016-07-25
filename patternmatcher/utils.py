@@ -3,6 +3,8 @@ from typing import TypeVar, Tuple, List, Sequence, Iterator
 import itertools
 import ast
 import math
+import inspect
+import re
 
 T = TypeVar('T')
 
@@ -140,6 +142,14 @@ def fixed_sum_vector_iter(minVect : Sequence[int], maxVect : Sequence[int], tota
             else:
                 break
 
+def get_lambda_source(l):
+    src = inspect.getsource(l)
+    match = re.search("lambda.*?:(.*)$", src)
+
+    if match is None:
+        return l.__name__
+
+    return match.group(1)
 
 # http://stackoverflow.com/questions/12700893/how-to-check-if-a-string-is-a-valid-python-identifier-including-keyword-check
 def isidentifier(ident):
