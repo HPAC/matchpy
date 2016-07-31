@@ -371,6 +371,11 @@ class Wildcard(Atom):
     def __lt__(self, other):
         return isinstance(other, Wildcard)
 
+    def __eq__(self, other):
+        return isinstance(other, Wildcard) and \
+               other.min_count == self.min_count and \
+               other.max_count == self.max_count
+
 if __name__ == '__main__':
     f = Operation.new('f', Arity.binary, associative = True, commutative=True, one_identity=True)
     x = Variable.dot('x')

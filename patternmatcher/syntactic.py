@@ -3,7 +3,41 @@ import itertools
 import math
 from graphviz import Digraph
 
-from patternmatcher.expressions import Variable, Operation, Arity, Symbol, Wildcard
+from patternmatcher.expressions import Variable, Operation, Arity, Symbol, Wildcard, Atom
+
+class OperationEnd(object):
+    def __str__(self):
+        return ')'
+
+OPERATION_END = OperationEnd()
+
+def flatterm_iter(expression):
+    if isinstance(expression, Variable):
+        yield from flatterm_iter(expression.expression)
+    elif isinstance(expression, Operation):
+        yield type(expression)
+        for operand in expression.operands:
+            yield from flatterm_iter(operand)
+        yield OPERATION_END
+    elif isinstance(expression, Atom):
+        yield expression
+    else:
+        raise TypeError()
+
+class Flatterm(list):
+    def __init__(self, expression):
+        list.__init__(self, flatterm_iter(expression))
+
+    def _term_str(self, term):
+        if isinstance(term, type) and issubclass(term, Operation):
+            return term.name + '('
+        elif isinstance(term, Wildcard):
+            return '*[%s,%s]' % (term.min_count, term.max_count)
+        else:
+            return str(term)
+
+    def __str__(self):
+        return ' '.join(map(self._term_str, self))
 
 def get_flatterm(expression):
     if isinstance(expression, Variable):
@@ -124,89 +158,7 @@ def generate_net(pattern):
 
     return root
 
-def product_net(node1, node2, new_node=None, keep1=True, keep2=True):
-    new_node = new_node or Node()
-
-    #print(node1, node2)
-
-    if type(node1) == list or type(node2) == list:
-        if type(node1) != list or type(node2) != list:
-            return
-        if keep1 and keep2:
-            return node1 + node2
-        elif keep1:
-            return node1
-        elif keep2:
-            return node2
-        else:
-            return []
-
-    for key1, next1 in node1.items():
-        for key2, next2 in node2.items():
-            print(key1, key2)
-            if key1 == key2:
-                try:
-                    child = product_net(next1, next2, new_node[key1], keep1, keep2)
-                    if child is not None:
-                        new_node[key1] = child
-                except KeyError:
-                    child = product_net(next1, next2, keep1=keep1, keep2=keep2)
-                    if child is not None:
-                        new_node[key1] = child
-            elif key1 == '*':
-                if key2 != ')':
-                    try:
-                        child = product_net(next1, next2, new_node[key1], keep1, keep2)
-                        if child is not None:
-                            new_node[key2] = child
-                    except KeyError:
-                        child = product_net(next1, next2, keep1=keep1, keep2=keep2)
-                        if child is not None:
-                            new_node[key2] = child
-                try:
-                    if next1 == node1 and '*' not in new_node:
-                        new_node1 = new_node
-                    else:
-                        if next1 == new_node:
-                            return new_node
-                        new_node1 = new_node['*']
-                    child = product_net(next1, key2 != ')' and next2 or node2, new_node1, keep1, False)
-                    if child is not None:
-                        new_node['*'] = child
-                except KeyError:
-                    child = product_net(next1, next2, keep1=keep1, keep2=False)
-                    if child is not None:
-                        new_node['*'] = child
-            elif key2 == '*':
-                if key1 != ')':
-                    try:
-                        child = product_net(next1, next2, new_node[key1], keep1, keep2)
-                        if child is not None:
-                            new_node[key1] = child
-                    except KeyError:
-                        child = product_net(next1, next2, keep1=keep1, keep2=keep2)
-                        if child is not None:
-                            new_node[key1] = child
-                try:
-                    print('!', next2, new_node)
-                    if next2 == node2 and '*' not in new_node:
-                        new_node2 = new_node
-                    else:
-                        if next2.id == new_node.id:
-                            return new_node
-                        new_node2 = new_node['*']
-                    new_node['*'] = new_node2
-                    child = product_net(key1 != ')' and next1 or node1, next2, new_node2, False, keep2)
-                    if child is not None:
-                        new_node['*'] = child
-                except KeyError:
-                    child = product_net(next1, next2, keep1=False, keep2=keep2)
-                    if child is not None:
-                        new_node['*'] = child
-
-    return new_node
-
-def product_net2(node1, node2):
+def product_net(node1, node2):
     root = Node()
     nodes = {(node1.id, node2.id): root}
     queue = [(node1, node2)]
@@ -227,8 +179,6 @@ def product_net2(node1, node2):
 
         keys = list(keys)
         keys.sort()
-
-        #print (id1, id2, keys)
 
         node = nodes[(id1, id2)]
 
@@ -274,7 +224,6 @@ def product_net2(node1, node2):
                     nt.id = 100 * id1 + id2
                     nodes[(id1, id2)] = nt
                     queue.append((t1, t2))
-                    #print ('q', id1, id2, t1, t2)
                 
                 node[k] = nodes[(id1, id2)]
             else:
@@ -300,78 +249,7 @@ class DiscriminationNet(object):
         self._net = Node()
 
     def add(self, pattern):
-        nodes = [self._net]
-        flat = combine_wildcards(get_flatterm(pattern))
-
-        DiscriminationNet._add(pattern, flat, self._net)
-        return
-
-        last = len(flat) - 1
-        
-        for i, e in enumerate(flat):
-            is_wildcard = e[0] == '*' and (e[-1] == '*' or e[-1] == '+')
-            if not is_wildcard:
-                newNodes = []
-                for n in nodes:
-                    try:
-                        _ = n[e]
-                    except KeyError:
-                        n[e] = (i != last and (dict(), 0) or ([], 0))[0]
-                    newNodes.append(n[e])
-            else:
-                pass
-
-    @staticmethod
-    def _add(pattern, flat, node, last_wildcard = None, stack_depth = 0):
-        #print(flat, node, last_wildcard, stack_depth)
-        if type(node) == list:
-            node.append(pattern)
-        else:
-            expr = flat[0]
-
-            if last_wildcard:
-                if last_wildcard == '+':
-                    try:
-                        DiscriminationNet._add(pattern, flat, node['*'])
-                    except KeyError:
-                        node['*'] = node                        
-                else:        
-                    if not '*' in node:
-                        nn = node['*'] = Node()
-                        for _ in range(stack_depth):
-                            nn['*'] = nn
-                            nn = nn[')'] = Node()
-                    for key, next_node in node.items():
-                        #print ('!', key)
-                        if key[-1] == '(':
-                            DiscriminationNet._add(pattern, flat, next_node, last_wildcard, stack_depth + 1)
-                        elif key == ')':
-                            if stack_depth == 1:
-                                new_wildcard =  last_wildcard[1:]
-                            else:
-                                new_wildcard =  last_wildcard
-                            DiscriminationNet._add(pattern, flat, next_node, new_wildcard, stack_depth - 1)
-                        elif next_node != node:
-                            if stack_depth > 0:
-                                new_wildcard =  last_wildcard
-                            else:
-                                new_wildcard =  last_wildcard[1:]
-                            DiscriminationNet._add(pattern, flat, next_node, new_wildcard, stack_depth)
-                    return
-
-            if is_wildcard(expr):
-                DiscriminationNet._add(pattern, flat[1:], node, expr)
-                return
-
-            try:
-                next_node = node[expr]
-            except KeyError:
-                if len(flat) == 1:
-                    next_node = node[expr] = []
-                else:
-                    next_node = node[expr] = Node()
-
-            DiscriminationNet._add(pattern, flat[1:], next_node)
+        pass
 
     def match(self, expression):
         pass
@@ -427,8 +305,11 @@ if __name__ == '__main__':
     #expr2 = f(x, z)
     expr2 = f(z)
     #expr3 = f(z, g(a))
-    expr3 = f(z, b, b)
+    expr3 = f(g(a))
     expr4 = f(a, z)
+
+    ft = Flatterm(f(z, g(a)))
+    print(ft)
 
     #print (' '.join(str(x) for x in combine_wildcards(get_flatterm(expr))))
     net = DiscriminationNet()
@@ -438,13 +319,13 @@ if __name__ == '__main__':
     net3 = generate_net(expr3)
     net4 = generate_net(expr4)
 
-    net5 = product_net2(net3, net4)
-    net._net = net3 # product_net2(net4, net3)
+    net5 = product_net(net2, net3)
+    net._net = net5 # product_net2(net4, net3)
 
     #net.add(expr1)
     #net.add(expr2)
 
     graph = net.dot()
-    print(graph.source)
+    #print(graph.source)
 
-    #graph.render()
+    graph.render()
