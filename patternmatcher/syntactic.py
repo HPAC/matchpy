@@ -48,6 +48,8 @@ def combined_wildcards_iter(flatterm):
                 yield last_wildcard
                 last_wildcard = None
             yield term
+    if last_wildcard is not None:
+        yield last_wildcard
 
 class Flatterm(list):
     def __init__(self, expression):
@@ -79,7 +81,7 @@ def generate_net(pattern):
     # Used to add backtracking edges in case the "match" fails later 
     wildcard_states = [_WildcardState()]
     root = node = Node()
-    flatterm = list(combined_wildcards_iter(flatterm_iter(pattern)))
+    flatterm = Flatterm(pattern)
 
     #i = 2
     for j, term in enumerate(flatterm):
@@ -89,7 +91,8 @@ def generate_net(pattern):
         # For wildcards, generate a chain of #min_count Wildcard edges
         # If the wildcard is unbounded (max_count = math.inf),
         # add a wildcard self loop at the end
-        if isinstance(term, Wildcard):
+        if isinstance(term, Wildcard):            
+            last_term = Wildcard
             for _ in range(term.min_count):
                 node[Wildcard] = Node()
                 node = node[Wildcard]
@@ -151,81 +154,114 @@ def generate_net(pattern):
     return root
 
 class _NodeQueueItem(object):
-    def __init__(self, node1, node2, id1, id2):
+    def __init__(self, node1, node2):
         self.node1 = node1
         self.node2 = node2
-        self.id1 = id1
-        self.id2 = id2
+        try:
+            self.id1 = node1.id
+        except AttributeError:
+            self.id1 = 0
+        try:
+            self.id2 = node2.id
+        except AttributeError:
+            self.id2 = 0
         self.depth = 0
         self.fixed = 0
 
     @property
     def keys(self):
         keys = set()
-        if self.node1 is not None:
+        if self.node1 is not None and self.fixed != 1:
             keys.update(self.node1.keys())
-        if self.node2 is not None:
+        if self.node2 is not None and self.fixed != 2:
             keys.update(self.node2.keys())
+        if self.fixed != 0:
+            if self.fixed == 1 and self.node2 is None:
+                keys.add(OPERATION_END)
+            elif self.fixed == 2 and self.node1 is None:
+                keys.add(OPERATION_END)
+            keys.add(Wildcard)
         return keys
 
 def product_net(node1, node2):
-    def get_keys_and_ids(*nodes):
-        keys = set()
-        ids = []
-        for node in nodes:
-            if node is not None:
-                keys.update(node.keys())
-                ids.append(node.id)
-            else:
-                ids.append(0)
-
-        return keys, tuple(ids)
-
-    def get_child_with_id(node, key):
+    def get_child(node, key, fixed):
+        if fixed:
+            return node, False
         if node is not None:
             try:
                 try:
-                    child = node[key]
+                    return node[key], False
                 except (KeyError):
                     if key == OPERATION_END:
-                        return None, 0
-                    child = node[Wildcard]
-                return child, child.id
+                        return None, False
+                    return node[Wildcard], True
             except KeyError:
-                return None, 0
-            except AttributeError:
-                return child, 0
-        return None, 0
+                return None, False
+        return None, False
 
     root = Node()
     nodes = {(node1.id, node2.id): root}
-    queue = [(node1, node2)]
+    queue = [_NodeQueueItem(node1, node2)]
     
     while len(queue) > 0:
-        n1, n2 = queue.pop(0)
-        keys, (id1, id2) = get_keys_and_ids(n1, n2)
+        state = queue.pop(0)
+        node = nodes[(state.id1, state.id2)]
 
-        node = nodes[(id1, id2)]
+        print(state.fixed, state.depth, state.node1, state.node2)
 
-        for k in list(keys):
+        for k in list(state.keys):
+            print ('k', k)
+            t1, with_wildcard1 = get_child(state.node1, k, state.fixed == 1)
+            t2, with_wildcard2 = get_child(state.node2, k, state.fixed == 2)
 
-            t1, id1 = get_child_with_id(n1, k)
-            t2, id2 = get_child_with_id(n2, k)
+            child_state = _NodeQueueItem(t1, t2)
+            child_state.depth = state.depth
+            child_state.fixed = state.fixed
+
+            if is_operation(k):
+                if state.fixed:
+                    child_state.depth += 1
+                elif with_wildcard1:
+                    child_state.fixed = 1
+                    child_state.depth = 1
+                    child_state.node1 = state.node1
+                elif with_wildcard2:
+                    child_state.fixed = 2
+                    child_state.depth = 1
+                    child_state.node2 = state.node2
+            elif k == OPERATION_END and state.fixed:
+                child_state.depth -= 1
+
+                if child_state.depth == 0:
+                    if child_state.fixed == 1:
+                        child_state.node1 = child_state.node1[Wildcard]
+                        try:
+                            child_state.id1 = child_state.node1.id
+                        except AttributeError:
+                            child_state.id1 = 0
+                    elif child_state.fixed == 2:
+                        child_state.node2 = child_state.node2[Wildcard]
+                        try:
+                            child_state.id2 = child_state.node2.id
+                        except AttributeError:
+                            child_state.id2 = 0
+                    else:
+                        assert False # unreachable
+                    child_state.fixed = 0
             
-            if id1 != 0 or id2 != 0:
-                if (id1, id2) not in nodes:
-                    nt = Node()
-                    nodes[(id1, id2)] = nt
-                    queue.append((t1, t2))
+            if child_state.id1 != 0 or child_state.id2 != 0:
+                if (child_state.id1, child_state.id2) not in nodes:
+                    nodes[(child_state.id1, child_state.id2)] = Node()
+                    queue.append(child_state)
                 
-                node[k] = nodes[(id1, id2)]
+                node[k] = nodes[(child_state.id1, child_state.id2)]
             else:
-                if type(t1) == list and type(t2) == list:
-                    node[k] = t1 + t2               
-                elif type(t1) == list:
-                    node[k] = t1              
-                elif type(t2) == list:
-                    node[k] = t2
+                if type(child_state.node1) == list and type(child_state.node2) == list:
+                    node[k] = child_state.node1 + child_state.node2               
+                elif type(child_state.node1) == list:
+                    node[k] = child_state.node1              
+                elif type(child_state.node2) == list:
+                    node[k] = child_state.node2
 
     return root
 
@@ -236,6 +272,25 @@ class Node(dict):
         super().__init__(self)
         self.id = Node._id
         Node._id += 1
+
+    def _term_str(self, term):
+        if is_operation(term):
+            return term.name + '('
+        elif term == Wildcard:
+            return '*'
+        else:
+            return str(term)
+
+    def _val_str(self, value):
+        if value is self:
+            return 'self'
+        elif isinstance(value, list):
+            return repr(list(map(str, value)))
+        else:
+            return str(value)
+
+    def __repr__(self):
+        return '{NODE %s}' % (', '.join('%s:%s' % (self._term_str(k), self._val_str(v)) for k, v in self.items()))
 
 class DiscriminationNet(object):
     def __init__(self):
@@ -318,7 +373,7 @@ if __name__ == '__main__':
     net3 = generate_net(expr3)
     net4 = generate_net(expr4)
 
-    net5 = product_net(net1, net4)
+    net5 = product_net(net2, net3)
     net._net = net5 # product_net2(net4, net3)
 
     graph = net.dot()
