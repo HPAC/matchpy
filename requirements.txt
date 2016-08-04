@@ -2,3 +2,4 @@ Sphinx
 pylint
 ddt
 graphviz
+coverage

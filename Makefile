@@ -6,3 +6,7 @@ test:
 
 check:
 	pylint patternmatcher
+
+coverage:
+    coverage run -m --branch tests.test_syntactic
+    coverage html
