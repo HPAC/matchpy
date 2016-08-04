@@ -137,6 +137,15 @@ class DiscriminationNet(object):
     def add(self, pattern):
         net = DiscriminationNet._generate_net(pattern)
         self._net = DiscriminationNet._product_net(self._net, net)
+
+    @staticmethod
+    def _build_fail_nodes(node, wildcard_states):        
+        for last_state in reversed(wildcard_states[:-1]):
+            node[OPERATION_END] = last_state.last_wildcard or last_state.fail_node or _Node()
+            if last_state.fail_node is not None or last_state.last_wildcard is not None:
+                break
+            last_state.fail_node = node = node[OPERATION_END]
+            node[Wildcard] = node
     
     @staticmethod
     def _generate_net(pattern):
@@ -168,6 +177,13 @@ class DiscriminationNet(object):
                     state.last_wildcard = node
                     state.symbol_after = None
                     state.all_same = True
+                # Add backtracking edge for ')' if there was an unbounded wildcard on a higher level
+                if any(s.last_wildcard is not None for s in wildcard_states[:-1]):
+                    try:
+                        if flatterm[j+1] != OPERATION_END:
+                            DiscriminationNet._build_fail_nodes(node, wildcard_states)
+                    except IndexError:
+                        pass
             else:
                 node[term] = _Node()
                 node = node[term]
@@ -195,7 +211,7 @@ class DiscriminationNet(object):
                         # Also add an edge for the symbol directly after the wildcard to
                         # its respecitive node (or as a self loop if all symbols are the same)
                         if next_term != state.symbol_after:
-                            if state.all_same and next_term == OPERATION_END:
+                            if state.all_same and next_term == OPERATION_END and not is_operation(state.symbol_after):
                                 node[state.symbol_after] = node
                             else:
                                 node[state.symbol_after] = state.last_wildcard[state.symbol_after]
@@ -205,15 +221,12 @@ class DiscriminationNet(object):
                     # wildcard is reached
                     elif any(s.last_wildcard is not None for s in wildcard_states):
                         if state.fail_node is None:
-                            state.fail_node = fn = _Node()
-                            fn[Wildcard] = fn
-                            for last_state in reversed(wildcard_states[:-1]):
-                                fn[OPERATION_END] = last_state.last_wildcard or last_state.fail_node or _Node()
-                                if last_state.fail_node is not None or last_state.last_wildcard is not None:
-                                    break
-                                last_state.fail_node = fn = fn[OPERATION_END]
-                                fn[Wildcard] = fn
+                            state.fail_node = _Node()
+                            state.fail_node[Wildcard] = state.fail_node
+                            DiscriminationNet._build_fail_nodes(state.fail_node, wildcard_states)
                         node[Wildcard] = state.fail_node
+                        if next_term != OPERATION_END:
+                            node[OPERATION_END] = state.fail_node[OPERATION_END]
 
         last_node[last_term] = [pattern]
 
@@ -315,6 +328,8 @@ class DiscriminationNet(object):
                     except KeyError:
                         if is_operation(term):
                             depth = 1
+                        elif term == OPERATION_END:
+                            return []
                         node = node[Wildcard]
                 except KeyError:
                     return []
