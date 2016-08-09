@@ -18,26 +18,28 @@ def is_operation(term):
 
 class Flatterm(list):
     def __init__(self, expression):
-        list.__init__(self, self._combined_wildcards_iter(self._flatterm_iter(expression)))
+        list.__init__(self, Flatterm._combined_wildcards_iter(Flatterm._flatterm_iter(expression)))
 
-    def _flatterm_iter(self, expression):
+    @staticmethod
+    def _flatterm_iter(expression):
         """Generator that yields the atoms of the expressions in prefix notation with operation end markers.
         
         See :class:`Flatterm` for details of the flatterm form.
         """
         if isinstance(expression, Variable):
-            yield from self._flatterm_iter(expression.expression)
+            yield from Flatterm._flatterm_iter(expression.expression)
         elif isinstance(expression, Operation):
             yield type(expression)
             for operand in expression.operands:
-                yield from self._flatterm_iter(operand)
+                yield from Flatterm._flatterm_iter(operand)
             yield OPERATION_END
         elif isinstance(expression, Atom):
             yield expression
         else:
             raise TypeError()
 
-    def _combined_wildcards_iter(self, flatterm):
+    @staticmethod
+    def _combined_wildcards_iter( flatterm):
         """Combines consecutive wildcards in a flatterm into a single one"""
         last_wildcard = None
         for term in flatterm:
@@ -384,6 +386,47 @@ class DiscriminationNet(object):
 
         return dot
 
+def _logic_test():
+    lxor = Operation.new('xor', Arity.binary, 'LXor') #, commutative=True, associative=True)
+    land = Operation.new('and', Arity.binary, 'LAnd') #, commutative=True, associative=True)
+    lor  = Operation.new('or', Arity.binary, 'Lor') #, commutative=True, associative=True)
+    lnot = Operation.new('not', Arity.unary, 'LNot')
+    limplies = Operation.new('implies', Arity.binary, 'LImplies')
+    liff = Operation.new('iff', Arity.binary, 'LIff')
+
+    lbot = Symbol('bot')
+    ltop = Symbol('top')
+
+    dot_ = Wildcard.dot()
+    plus__ = Wildcard.plus()
+    star___ = Wildcard.star()
+
+    net = DiscriminationNet()
+    # xor(x,⊥) → x
+    net.add(lxor(star___, lbot, star___))
+    # xor(x, x) → ⊥
+    net.add(lxor(star___, x, star___, x, star___))
+    # and(x,⊤) → x
+    net.add(land(star___, ltop, star___))
+    # and(x,⊥) → ⊥
+    net.add(land(star___, lbot, star___))
+    # and(x, x) → x
+    net.add(land(star___, x, star___, x, star___))
+    # and(x, xor(y, z)) → xor(and(x, y), and(x, z))
+    net.add(land(star___, lxor(dot_, plus__), star___))
+    # implies(x, y) → not(xor(x, and(x, y)))
+    net.add(limplies(dot_, dot_))
+    # not(x) → xor(x,⊤)
+    net.add(lnot(dot_))
+    # or(x, y) → xor(and(x, y), xor(x, y))
+    net.add(lor(dot_, dot_))
+    # iff(x, y) → not(xor(x, y))
+    net.add(liff(dot_, dot_))
+
+    graph = net.as_graph()
+
+    graph.render()
+
 if __name__ == '__main__':
     f = Operation.new('f', arity=Arity.binary)
     g = Operation.new('g', arity=Arity.unary)
@@ -394,22 +437,11 @@ if __name__ == '__main__':
     y = Variable.star('y')
     z = Variable.plus('z')
 
-    #expr1 = f(a, g(b))
-    expr1 = f(a)
-    #expr2 = f(x, z)
-    expr2 = f(z)
-    #expr3 = f(z, g(a))
-    expr3 = f(g(a))
-    expr4 = f(a, z)
-
-    # EDGE CASE: f(z, a, x, b)
-
     net = DiscriminationNet()
-    net.add(expr1)
-    net.add(expr2)
-    net.add(expr3)
-    net.add(expr4)
+
+    net.add(f(z, a, x, b))
 
     graph = net.as_graph()
 
     graph.render()
+
