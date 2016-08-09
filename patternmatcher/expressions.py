@@ -57,10 +57,6 @@ class Expression(object):
         self.variables = Multiset() # type: Multiset[str]
         self.constraint = constraint
 
-    def simplify(self):
-        """Simplifies the expression using properties like operation associativity, etc."""
-        return self
-
     @property
     def is_constant(self):
         """True, if the expression does not contain any variables."""
@@ -222,27 +218,6 @@ class Operation(Expression):
             operation.operands.sort()
         
         return operation
-      
-    # TODO: Use this version?
-    def simplify(self) -> Expression:
-        operands = [o.simplify() for o in self.operands]
-        
-        if self.associative:
-            newOperands = []
-            for operand in operands:
-                if type(operand) == type(self):
-                    newOperands.extend(operand.operands)
-                else:
-                    newOperands.append(operand)
-            operands = newOperands
-        
-        if self.one_identity and len(operands) == 1:
-            return operands[0]
-
-        if self.commutative:
-            operands.sort()
-        
-        return Operation(*operands, constraint=self.constraint)
 
 class Atom(Expression):
     pass
@@ -284,6 +259,8 @@ class Variable(Atom):
         self.name = name
         self.expression = expression
         self.variables.update([name])
+        self.min_count = expression.min_count
+        self.max_count = expression.max_count
 
     @staticmethod
     def dot(name: str, constraint:Optional[Constraint]=None):
