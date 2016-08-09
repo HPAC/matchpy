@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import math
+
 from patternmatcher.expressions import Variable, Operation, Arity, Wildcard, Symbol
 from patternmatcher.constraints import Constraint, CustomConstraint, EqualVariablesConstraint, MultiConstraint
 from patternmatcher.utils import partitions_with_limits
@@ -49,6 +51,10 @@ def match(exprs, pattern, subst=None):
     if subst is None:
         subst = {}
     if isinstance(pattern, Variable):
+        if pattern.name in subst:
+            if exprs == subst[pattern.name]:
+                yield subst
+            return
         for newSubst in match(exprs, pattern.expression, subst):
             newSubst = newSubst.copy()
             newSubst[pattern.name] = exprs
@@ -64,20 +70,41 @@ def match(exprs, pattern, subst=None):
             return
         yield from _match_operation(exprs[0].operands, pattern, subst)
 
+def _associative_operand_max(operand):
+    while isinstance(operand, Variable):
+        operand = operand.expression
+    if isinstance(operand, Wildcard):
+        return math.inf
+    return operand.max_count
+
+def _associative_fix_operand_max(parts, maxs, operation):
+    newParts = list(parts)
+    for i, (part, max_count) in enumerate(zip(parts, maxs)):
+        if len(part) > max_count:
+            fixed = part[:max_count-1]
+            variable = part[max_count-1:]
+            newParts[i] = fixed + [operation(*variable)]
+    return newParts
+
+
 def _match_operation(exprs, operation, subst):
     mins = list(o.min_count for o in operation.operands)
     maxs = list(o.max_count for o in operation.operands)
-    min_count = sum(mins)
-    max_count = sum(maxs)
-    if len(exprs) < min_count or len(exprs) > max_count:
+    if operation.associative:
+        fake_maxs = list(_associative_operand_max(o) for o in operation.operands)
+    else:
+        fake_maxs = maxs
+    if len(exprs) < sum(mins) or len(exprs) > sum(fake_maxs):
         return
     if len(exprs) == 0:
         yield subst
         return
-    limits = list(zip(mins, maxs))
+    limits = list(zip(mins, fake_maxs))
     parts = partitions_with_limits(exprs, limits)
 
     for part in parts:
+        if operation.associative:
+            part = _associative_fix_operand_max(part, maxs, type(operation))
         o_count = len(operation.operands)
         iterators = [None] * o_count
         next_subst = subst
@@ -98,17 +125,18 @@ def _match_operation(exprs, operation, subst):
                     break
 
 def _main():
-    f = Operation.new('f', arity=Arity.binary)
+    f = Operation.new('f', arity=Arity.binary, associative=True)
     g = Operation.new('g', arity=Arity.unary)
     a = Symbol('a')
     b = Symbol('b')
     c = Symbol('c')
     x = Variable.dot('x')
+    x2 = Variable.dot('x2')
     y = Variable.star('y')
     z = Variable.plus('z')
 
-    expr = f(a, b, b, c)
-    pattern = f(y, b, z)
+    expr = f(a, g(b), g(b), g(c), c)
+    pattern = f(x, g(Wildcard.dot()), x2)
 
     for m in match([expr], pattern, {}):
         print('match:')
