@@ -5,6 +5,7 @@ import ast
 import math
 import inspect
 import re
+from collections import Counter as Multiset
 
 T = TypeVar('T')
 
@@ -74,29 +75,29 @@ def partitions_with_count(n, m):
         
         a[0] = s
 
-def fixed_sum_vector_iter(minVect : Sequence[int], maxVect : Sequence[int], total : int) -> Iterator[List[int]]:
-    assert len(minVect) == len(maxVect), 'len(minVect) != len(maxVect)'
-    assert all(minValue <= maxValue for minValue, maxValue in zip(minVect, maxVect)), 'minVect > maxVect'
+def fixed_sum_vector_iter(min_vect : Sequence[int], max_vect : Sequence[int], total : int) -> Iterator[List[int]]:
+    assert len(min_vect) == len(max_vect), 'len(min_vect) != len(max_vect)'
+    assert all(minValue <= maxValue for minValue, maxValue in zip(min_vect, max_vect)), 'min_vect > max_vect'
 
-    minSum = sum(minVect)
-    maxSum = sum(maxVect)
+    minSum = sum(min_vect)
+    maxSum = sum(max_vect)
 
     if minSum > total or maxSum < total:
         return
 
-    count = len(maxVect)
+    count = len(max_vect)
 
     if count <= 1:
-        yield len(maxVect) == 1 and [total] or []
+        yield len(max_vect) == 1 and [total] or []
         return
 
     remaining = total - minSum
 
-    realMins = list(minVect)
-    realMaxs = list(maxVect)
+    realMins = list(min_vect)
+    realMaxs = list(max_vect)
 
-    for i, (minimum, maximum) in enumerate(zip(minVect, maxVect)):
-        left_over_sum = sum(maxVect[:i] + maxVect[i+1:])
+    for i, (minimum, maximum) in enumerate(zip(min_vect, max_vect)):
+        left_over_sum = sum(max_vect[:i] + max_vect[i+1:])
         if left_over_sum != math.inf:
             realMins[i] = max(total - left_over_sum, minimum)
         realMaxs[i] = min(remaining + minimum, maximum)
@@ -142,6 +143,44 @@ def fixed_sum_vector_iter(minVect : Sequence[int], maxVect : Sequence[int], tota
             else:
                 break
 
+def commutative_partition_iter(values: Sequence[T], min_vect: Sequence[int], max_vect: Sequence[int]) -> Iterator[Tuple[List[T], ...]]:
+    counts = list(Multiset(values).items())
+    counts.sort()
+    value_count = len(counts)
+    iterators = [None] * value_count
+    values = [None] * value_count
+    new_min = tuple(min_count == max_count and min_count or 0 for min_count, max_count in zip(min_vect, max_vect))
+    iterators[0] = fixed_sum_vector_iter(new_min, max_vect, counts[0][1])
+    try:
+        values[0] = iterators[0].__next__()
+    except IndexError:
+        return
+    i = 1
+    while True:
+        try:
+            while i < value_count:
+                if iterators[i] is None:
+                    #other_counts = tuple(map(sum, zip(*values[:i])))
+                    #new_min = tuple(max(min_count - s, 0) for min_count, s in zip(min_vect, other_counts))
+                    #new_max = tuple(max(max_count - s, 0) for max_count, s in zip(max_vect, other_counts))
+                    iterators[i] = fixed_sum_vector_iter(new_min, max_vect, counts[i][1])
+                values[i] = iterators[i].__next__()
+                i += 1
+            sums = tuple(map(sum, zip(*values)))
+            if all(minc <= s and s <= maxc for minc, s, maxc in zip(min_vect, sums, max_vect)):
+                partiton = tuple([] for _ in range(len(min_vect)))
+                for cs, (v, _) in zip(values, counts):
+                    for j, c in enumerate(cs):
+                        partiton[j].extend([v] * c)
+                yield partiton
+            i -= 1
+        except StopIteration:
+            #print('s', i)
+            iterators[i] = None
+            i -= 1
+            if i < 0:
+                return
+
 def get_lambda_source(l):
     src = inspect.getsource(l)
     match = re.search("lambda.*?:(.*)$", src)
@@ -184,4 +223,9 @@ def isidentifier(ident):
     return True
 
 if __name__ == '__main__':
-    print(list(fixed_sum_vector_iter((0,1,1), (8000,2,2), 5)))
+    #print(list(fixed_sum_vector_iter((0,1,1), (8000,2,2), 5)))
+    values = ('a', 'a', 'b', 'b', 'c')
+    mins = (0, 2)
+    maxs = (math.inf, math.inf)
+    for p in commutative_partition_iter(values, mins, maxs):
+        print(p)
