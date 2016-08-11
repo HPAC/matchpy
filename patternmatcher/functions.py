@@ -3,7 +3,7 @@ import math
 
 from patternmatcher.expressions import Variable, Operation, Arity, Wildcard, Symbol
 from patternmatcher.constraints import Constraint, CustomConstraint, EqualVariablesConstraint, MultiConstraint
-from patternmatcher.utils import partitions_with_limits
+from patternmatcher.utils import partitions_with_limits, commutative_partition_iter
 
 def linearize(expression, variables=None, constraints=None):
     if variables is None:
@@ -100,7 +100,10 @@ def _match_operation(exprs, operation, subst):
         yield subst
         return
     limits = list(zip(mins, fake_maxs))
-    parts = partitions_with_limits(exprs, limits)
+    if operation.commutative:
+        parts = commutative_partition_iter(exprs, mins, fake_maxs)
+    else:
+        parts = partitions_with_limits(exprs, limits)
 
     for part in parts:
         if operation.associative:
@@ -125,7 +128,7 @@ def _match_operation(exprs, operation, subst):
                     break
 
 def _main():
-    f = Operation.new('f', arity=Arity.binary, associative=True)
+    f = Operation.new('f', arity=Arity.binary, associative=True, commutative=True)
     g = Operation.new('g', arity=Arity.unary)
     a = Symbol('a')
     b = Symbol('b')
