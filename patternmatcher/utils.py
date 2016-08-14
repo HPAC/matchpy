@@ -176,9 +176,6 @@ def commutative_partition_iter(values: Sequence[T], min_vect: Sequence[int], max
         try:
             while i < value_count:
                 if iterators[i] is None:
-                    #other_counts = tuple(map(sum, zip(*pvalues[:i])))
-                    #new_min = tuple(max(min_count - s, 0) for min_count, s in zip(min_vect, other_counts))
-                    #new_max = tuple(max(max_count - s, 0) for max_count, s in zip(max_vect, other_counts))
                     iterators[i] = fixed_sum_vector_iter(new_min, max_vect, counts[i][1])
                 pvalues[i] = iterators[i].__next__()
                 i += 1

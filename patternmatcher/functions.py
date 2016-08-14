@@ -66,7 +66,7 @@ def match(exprs, pattern, subst=None):
         if len(exprs) == 1 and exprs[0] == pattern:
             yield subst
     elif isinstance(pattern, Operation):
-        if len(exprs) != 1 or not isinstance(exprs[0], Operation):
+        if len(exprs) != 1 or type(exprs[0]) != type(pattern):
             return
         yield from _match_operation(exprs[0].operands, pattern, subst)
 
@@ -96,8 +96,9 @@ def _match_operation(exprs, operation, subst):
         fake_maxs = maxs
     if len(exprs) < sum(mins) or len(exprs) > sum(fake_maxs):
         return
-    if len(exprs) == 0:
-        yield subst
+    if len(operation.operands) == 0:
+        if len(exprs) == 0:
+            yield subst
         return
     limits = list(zip(mins, fake_maxs))
     if operation.commutative:
