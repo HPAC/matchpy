@@ -51,13 +51,17 @@ def match(exprs, pattern, subst=None):
     if subst is None:
         subst = {}
     if isinstance(pattern, Variable):
+        if pattern.min_count == 1 and pattern.max_count == 1:
+            expr = exprs[0]
+        else:
+            expr = exprs
         if pattern.name in subst:
-            if exprs == subst[pattern.name]:
+            if expr == subst[pattern.name]:
                 yield subst
             return
         for newSubst in match(exprs, pattern.expression, subst):
             newSubst = newSubst.copy()
-            newSubst[pattern.name] = exprs
+            newSubst[pattern.name] = expr
             yield newSubst
     elif isinstance(pattern, Wildcard):
         if len(exprs) >= pattern.min_count and len(exprs) <= pattern.max_count:
@@ -129,6 +133,7 @@ def _match_operation(exprs, operation, subst):
                     break
 
 def _main():
+    from patternmatcher.utils import match_repr_str
     f = Operation.new('f', arity=Arity.binary, associative=True, commutative=True)
     g = Operation.new('g', arity=Arity.unary)
     a = Symbol('a')
@@ -144,8 +149,7 @@ def _main():
 
     for m in match([expr], pattern, {}):
         print('match:')
-        for k, v in m.items():
-            print('%s: %s' % (k, ', '.join(str(x) for x in v)))
+        print(match_repr_str(m))
 
 def _main2():
     f = Operation.new('f', Arity.polyadic)

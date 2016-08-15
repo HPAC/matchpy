@@ -326,6 +326,14 @@ def solve_linear_diop(total: int, *coeffs: int) -> Iterator[Tuple[int, ...]]:
         for remainder_solution in solve_linear_diop(remainder_gcd_solution, *coeffs[1:]):
             yield (coeff0_solution, ) + remainder_solution
 
+def _match_value_repr_str(value):
+    if type(value) == list:
+        return '(%s)' % (', '.join(str(x) for x in value))
+    return str(value)
+
+def match_repr_str(match):
+    return ', '.join('%s: %s' % (k, _match_value_repr_str(v)) for k, v in match.items())
+
 if __name__ == '__main__':
     print(list(solve_linear_diop(5, 2, 3, 1)))
     #for a in range(1, 6):
