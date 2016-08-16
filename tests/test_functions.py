@@ -10,6 +10,7 @@ from patternmatcher.utils import match_repr_str
 f = Operation.new('f', Arity.variadic)
 g = Operation.new('g', Arity.variadic)
 h = Operation.new('h', Arity.variadic, commutative=True)
+fa = Operation.new('fa', Arity.variadic, associative=True)
 a = Symbol('a')
 b = Symbol('b')
 c = Symbol('c')
@@ -115,6 +116,27 @@ class MatchTest(unittest.TestCase):
 
     @unpack
     @data(
+        (fa(a),                 fa(x),         [{'x': a}]),
+        (fa(a, b),              fa(x),         [{'x': fa(a, b)}]),
+        (fa(a, b),              fa(a, x),      [{'x': b}]),
+        (fa(a, b, c),           fa(a, x),      [{'x': fa(b, c)}]),
+        (fa(a, b, c),           fa(x, c),      [{'x': fa(a, b)}]),
+        (fa(a, b, c),           fa(x),         [{'x': fa(a, b, c)}]),
+        (fa(a, b, a, b),        fa(x, x),      [{'x': fa(a, b)}]),
+        (fa(a, b, a),           fa(x, b, x),   [{'x': a}]),
+        (fa(a, a, b, a, a),     fa(x, b, x),   [{'x': fa(a, a)}]),
+        (fa(a, b, c),           fa(x, x2),     [{'x': a,        'x2': fa(b, c)}, \
+                                                {'x': fa(a, b), 'x2': c}])
+    )
+    def test_associative_wildcard_dot_match(self, expr, pattern, expected_matches):
+        result = list(match([expr], pattern))
+        for expected_match in expected_matches:
+            self.assertIn(expected_match, result, 'Expression %s and %s did not yield the match %s but were supposed to' % (expr, pattern, match_repr_str(expected_match)))
+        for result_match in result:
+            self.assertIn(result_match, expected_matches, 'Expression %s and %s yielded the unexpected match %s' % (expr, pattern, match_repr_str(result_match)))
+
+    @unpack
+    @data(
         (a,                         s,              [{'s': [a]}]),
         (f(a),                      f(s),           [{'s': [a]}]),
         (f(),                       f(s),           [{'s': []}]),
@@ -171,8 +193,6 @@ class MatchTest(unittest.TestCase):
     )
     def test_wildcard_star_match(self, expr, pattern, expected_matches):
         result = list(match([expr], pattern))
-        #self.assertEqual(len(result), len(expected_matches), 'Expression %s and pattern %s did not yield expected number of matched' % (expr, pattern))
-        #self.assertEqual(result, expected_matches, 'Expression %s and %s did not match as %s but were supposed to' % (expr, pattern, match_str))
         for expected_match in expected_matches:
             self.assertIn(expected_match, result, 'Expression %s and %s did not yield the match %s but were supposed to' % (expr, pattern, match_repr_str(expected_match)))
         for result_match in result:
@@ -221,8 +241,6 @@ class MatchTest(unittest.TestCase):
     )
     def test_wildcard_plus_match(self, expr, pattern, expected_matches):
         result = list(match([expr], pattern))
-        #self.assertEqual(len(result), len(expected_matches), 'Expression %s and pattern %s did not yield expected number of matched' % (expr, pattern))
-        #self.assertEqual(result, expected_matches, 'Expression %s and %s did not match as %s but were supposed to' % (expr, pattern, match_str))
         for expected_match in expected_matches:
             self.assertIn(expected_match, result, 'Expression %s and %s did not yield the match %s but were supposed to' % (expr, pattern, match_repr_str(expected_match)))
         for result_match in result:
