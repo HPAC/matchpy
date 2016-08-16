@@ -37,9 +37,6 @@ class Expression(object):
             For a pattern, this is the maximal count of expression which
             can be matched. This will either be a constant for patterns with constant
             length or `math.inf` if the pattern contains unbounded wildcards (at top level).
-        flexible_match
-            `True`, if the expressions contains associative operations
-            and hence allows a flexible operand count.
         variables
             Contains a list of all variables in the expression
             with a count of their occurence.
@@ -49,11 +46,8 @@ class Expression(object):
     """
 
     def __init__(self, constraint : Optional[Constraint] = None):
-        self._parent = None # type: Optional[Expression]
-        self._position = None # type: Optional[int]
         self.min_count = 1
         self.max_count = 1
-        self.flexible_match = False
         self.variables = Multiset() # type: Multiset[str]
         self.constraint = constraint
 
@@ -70,7 +64,19 @@ class Expression(object):
     @property
     def is_linear(self):
         """True, if the expression is linear, i.e. every variable may occur at most once."""
-        return self.is_constant or self.variables.most_common(1)[0][1] == 1
+        if self.is_constant:
+            return True
+        common = self.variables.most_common(2)
+        if common[0][1] == 1:
+            return True
+        if common[0][0] == '_' and (len(common) == 1 or common[1][1] == 1):
+            return True
+        return False
+
+    def preorder_iter(self, predicate=None):
+        """Iterates over all subexpressions that match the (optional) `predicate`."""
+        if filter is None or predicate(self):
+            yield self
 
 class Operation(Expression):
     """Base class for all operations."""
@@ -129,10 +135,6 @@ class Operation(Expression):
         if type(operation) == cls:
             for i, o in enumerate(operands):
                 operation.variables.update(o.variables)
-                o._parent = operation
-                o._position = i
-
-            operation.flexible_match = operation.associative or any(o.flexible_match for o in operands)
 
         return operation
 
@@ -218,6 +220,12 @@ class Operation(Expression):
             operation.operands.sort()
         
         return operation
+
+    def preorder_iter(self, predicate=None):
+        """Iterates over all subexpressions that match the (optional) `predicate`."""
+        yield from super().preorder_iter(predicate)
+        for operand in self.operands:
+            yield from operand.preorder_iter(predicate)
 
 class Atom(Expression):
     pass
@@ -319,6 +327,7 @@ class Wildcard(Atom):
         assert min_count <= max_count, 'min_count > max_count'
 
         super().__init__(constraint)
+        self.variables.update(['_'])
         self.min_count = min_count
         self.max_count = max_count
 

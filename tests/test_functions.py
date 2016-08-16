@@ -18,8 +18,10 @@ x = Variable.dot('x')
 x2 = Variable.dot('x2')
 y = Wildcard.plus()
 z = Variable.plus('z')
+z2 = Variable.plus('z2')
 t = Wildcard.star()
 s = Variable.star('s')
+s2 = Variable.star('s2')
 
 @ddt
 class MatchTest(unittest.TestCase):
@@ -86,13 +88,12 @@ class MatchTest(unittest.TestCase):
         (f(a, b),           f(x, a),        None),
         (f(a, b),           f(a, x),        {'x': b}),
         (f(a, b),           f(x, x),        None),
-        (f(a, b),           f(x, x),        None),
         (f(a, a),           f(x, x),        {'x': a}),
-        (f(a, b),           f(x, x2),       {'x': a, 'x2': b}),
+        (f(a, b),           f(x, x2),       {'x': a,    'x2': b}),
         (f(a),              f(x, x2),       None),
         (f(a, b, c),        f(x, x2),       None),
-        (f(a, g(b)),        f(x, x2),       {'x': a, 'x2': g(b)}),
-        (f(a, g(b)),        f(x, g(x2)),    {'x': a, 'x2': b}),
+        (f(a, g(b)),        f(x, x2),       {'x': a,    'x2': g(b)}),
+        (f(a, g(b)),        f(x, g(x2)),    {'x': a,    'x2': b}),
         (f(a, g(b)),        f(x, g(x)),     None),
         (f(a, g(a)),        f(x, g(x)),     {'x': a}),
         (f(g(a), g(b)),     f(x, x),        None),
@@ -102,14 +103,130 @@ class MatchTest(unittest.TestCase):
         (f(f(a, b)),        f(x, x2),       None),
         (f(f(a, b)),        f(x),           {'x': f(a, b)}),
         (g(a, b),           f(x, x2),       None),
-        (f(f(a, b)),        f(f(x, x2)),     {'x': a, 'x2': b})
+        (f(f(a, b)),        f(f(x, x2)),    {'x': a,    'x2': b})
     )
     def test_wildcard_dot_match(self, expr, pattern, expected_match):
         result = list(match([expr], pattern))
         if expected_match is not None:
-            self.assertEqual(result, [expected_match], 'Expression %s and %s did not match as %s but were supposed to' % (expr, pattern, match_repr_str(expected_match)))
+            self.assertEqual(result, [expected_match], 'Expression %s and %s did not match as %s but were supposed to' \
+                % (expr, pattern, match_repr_str(expected_match)))
         else:
             self.assertEqual(result, [], 'Expression %s and %s did match but were not supposed to' % (expr, pattern))
+
+    @unpack
+    @data(
+        (a,                         s,              [{'s': [a]}]),
+        (f(a),                      f(s),           [{'s': [a]}]),
+        (f(),                       f(s),           [{'s': []}]),
+        (f(a),                      s,              [{'s': [f(a)]}]),
+        (g(a),                      f(s),           []),
+        (f(a, b),                   f(s),           [{'s': [a, b]}]),
+        (f(a, b),                   f(s, b),        [{'s': [a]}]),
+        (f(a, b),                   f(s, a),        []),
+        (f(a, b),                   f(a, s),        [{'s': [b]}]),
+        (f(a, b),                   f(s, s),        []),
+        (f(a, a),                   f(s, s),        [{'s': [a]}]),
+        (f(a, b),                   f(s, s2),       [{'s': [],           's2': [a, b]},     \
+                                                     {'s': [a],          's2': [b]},        \
+                                                     {'s': [a, b],       's2': []}]),
+        (f(a),                      f(s, s2),       [{'s': [],           's2': [a]},        \
+                                                     {'s': [a],          's2': []}]),
+        (f(a, b, c),                f(s, s2),       [{'s': [],           's2': [a, b, c]},  \
+                                                     {'s': [a],          's2': [b, c]},     \
+                                                     {'s': [a, b],       's2': [c]},        \
+                                                     {'s': [a, b, c],    's2': []}]),
+        (f(a, g(b)),                f(s, s2),       [{'s': [],           's2': [a, g(b)]},  \
+                                                     {'s': [a],          's2': [g(b)]},     \
+                                                     {'s': [a, g(b)],    's2': []}]),
+        (f(a, g(b)),                f(s, g(s2)),    [{'s': [a],          's2': [b]}]),
+        (f(a, g(b)),                f(s, g(s)),     []),
+        (f(a, g(a)),                f(s, g(s)),     [{'s': [a]}]),
+        (f(g(a), g(b)),             f(s, s),        []),
+        (f(g(a), g(b)),             f(s, s2),       [{'s': [g(a), g(b)], 's2': []},         \
+                                                     {'s': [g(a)],       's2': [g(b)]},     \
+                                                     {'s': [],           's2': [g(a), g(b)]}]),
+        (f(g(a), a),                f(s, s),        []),
+        (f(g(a), a),                f(g(s), s),     [{'s': [a]}]),
+        (f(f(a, b)),                f(s, s2),       [{'s': [f(a, b)],    's2': []},         \
+                                                     {'s': [],           's2': [f(a, b)]}]),
+        (f(f(a, b)),                f(s),           [{'s': [f(a, b)]}]),
+        (g(a, b),                   f(s, s2),       []),
+        (f(a, a, a),                f(s, b, s2),    []),
+        (f(a, a, a),                f(s, a, s2),    [{'s': [],           's2': [a, a]},     \
+                                                     {'s': [a],          's2': [a]},        \
+                                                     {'s': [a, a],       's2': []}]),
+        (f(a),                      f(s, a, s2),    [{'s': [],           's2': []}]),
+        (f(a, a),                   f(s, a, s2),    [{'s': [a],          's2': []},         \
+                                                     {'s': [],           's2': [a]}]),
+        (f(a, b, a),                f(s, a, s2),    [{'s': [],           's2': [b, a]},     \
+                                                     {'s': [a, b],       's2': []}]),
+        (f(a, b, a, b),             f(s, s),        [{'s': [a, b]}]),
+        (f(a, b, a, a),             f(s, s),        []),
+        (f(a, b, a),                f(s, b, s),     [{'s': [a]}]),
+        (f(a, b, a, a),             f(s, b, s),     []),
+        (f(a, a, b, a),             f(s, b, s),     []),
+        (f(a, b, a, b, a, b, a),    f(s, b, s),     [{'s': [a, b, a]}]),
+        (f(a, b, a, b),             f(s, b, s2),    [{'s': [a, b, a],    's2': []},         \
+                                                     {'s': [a],          's2': [a, b]}]),
+    )
+    def test_wildcard_star_match(self, expr, pattern, expected_matches):
+        result = list(match([expr], pattern))
+        #self.assertEqual(len(result), len(expected_matches), 'Expression %s and pattern %s did not yield expected number of matched' % (expr, pattern))
+        #self.assertEqual(result, expected_matches, 'Expression %s and %s did not match as %s but were supposed to' % (expr, pattern, match_str))
+        for expected_match in expected_matches:
+            self.assertIn(expected_match, result, 'Expression %s and %s did not yield the match %s but were supposed to' % (expr, pattern, match_repr_str(expected_match)))
+        for result_match in result:
+            self.assertIn(result_match, expected_matches, 'Expression %s and %s yielded the unexpected match %s' % (expr, pattern, match_repr_str(result_match)))
+    
+    @unpack
+    @data(
+        (a,                         z,              [{'z': [a]}]),
+        (f(a),                      f(z),           [{'z': [a]}]),
+        (f(),                       f(z),           []),
+        (f(a),                      z,              [{'z': [f(a)]}]),
+        (g(a),                      f(z),           []),
+        (f(a, b),                   f(z),           [{'z': [a, b]}]),
+        (f(a, b),                   f(z, b),        [{'z': [a]}]),
+        (f(a, b),                   f(z, a),        []),
+        (f(a, b),                   f(a, z),        [{'z': [b]}]),
+        (f(a, b),                   f(z, z),        []),
+        (f(a, a),                   f(z, z),        [{'z': [a]}]),
+        (f(a, b),                   f(z, z2),       [{'z': [a],          'z2': [b]}]),
+        (f(a),                      f(z, z2),       []),
+        (f(a, b, c),                f(z, z2),       [{'z': [a],          'z2': [b, c]},     \
+                                                     {'z': [a, b],       'z2': [c]}]),
+        (f(a, g(b)),                f(z, z2),       [{'z': [a],          'z2': [g(b)]}]),
+        (f(a, g(b)),                f(z, g(z2)),    [{'z': [a],          'z2': [b]}]),
+        (f(a, g(b)),                f(z, g(z)),     []),
+        (f(a, g(a)),                f(z, g(z)),     [{'z': [a]}]),
+        (f(g(a), g(b)),             f(z, z),        []),
+        (f(g(a), g(b)),             f(z, z2),       [{'z': [g(a)],       'z2': [g(b)]}]),
+        (f(g(a), a),                f(z, z),        []),
+        (f(g(a), a),                f(g(z), z),     [{'z': [a]}]),
+        (f(f(a, b)),                f(z, z2),       []),
+        (f(f(a, b)),                f(z),           [{'z': [f(a, b)]}]),
+        (g(a, b),                   f(z, z2),       []),
+        (f(a, a, a),                f(z, b, z2),    []),
+        (f(a, a, a),                f(z, a, z2),    [{'z': [a],          'z2': [a]}]),
+        (f(a),                      f(z, a, z2),    []),
+        (f(a, a),                   f(z, a, z2),    []),
+        (f(a, b, a),                f(z, a, z2),    []),
+        (f(a, b, a, b),             f(z, z),        [{'z': [a, b]}]),
+        (f(a, b, a, a),             f(z, z),        []),
+        (f(a, b, a),                f(z, b, z),     [{'z': [a]}]),
+        (f(a, b, a, a),             f(z, b, z),     []),
+        (f(a, a, b, a),             f(z, b, z),     []),
+        (f(a, b, a, b, a, b, a),    f(z, b, z),     [{'z': [a, b, a]}]),
+        (f(a, b, a, b),             f(z, b, z2),    [{'z': [a],          'z2': [a, b]}]),
+    )
+    def test_wildcard_plus_match(self, expr, pattern, expected_matches):
+        result = list(match([expr], pattern))
+        #self.assertEqual(len(result), len(expected_matches), 'Expression %s and pattern %s did not yield expected number of matched' % (expr, pattern))
+        #self.assertEqual(result, expected_matches, 'Expression %s and %s did not match as %s but were supposed to' % (expr, pattern, match_str))
+        for expected_match in expected_matches:
+            self.assertIn(expected_match, result, 'Expression %s and %s did not yield the match %s but were supposed to' % (expr, pattern, match_repr_str(expected_match)))
+        for result_match in result:
+            self.assertIn(result_match, expected_matches, 'Expression %s and %s yielded the unexpected match %s' % (expr, pattern, match_repr_str(result_match)))
 
 if __name__ == '__main__':
     unittest.main()
