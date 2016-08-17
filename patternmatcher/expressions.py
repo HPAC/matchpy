@@ -37,9 +37,6 @@ class Expression(object):
             For a pattern, this is the maximal count of expression which
             can be matched. This will either be a constant for patterns with constant
             length or `math.inf` if the pattern contains unbounded wildcards (at top level).
-        variables
-            Contains a list of all variables in the expression
-            with a count of their occurence.
         constraint
             An optional constraint expression, which is checked for each match
             to verify it.
@@ -48,13 +45,20 @@ class Expression(object):
     def __init__(self, constraint : Optional[Constraint] = None):
         self.min_count = 1
         self.max_count = 1
-        self.variables = Multiset() # type: Multiset[str]
         self.constraint = constraint
+    
+    @property
+    def variables(self):
+        return Multiset()
+
+    @property
+    def symbols(self):
+        return Multiset()
 
     @property
     def is_constant(self):
-        """True, if the expression does not contain any variables."""
-        return len(self.variables) == 0
+        """True, if the expression does not contain any wildcards."""
+        return True
 
     @property
     def is_static(self):
@@ -131,10 +135,6 @@ class Operation(Expression):
 
         operation.operands = list(operands)
         operation = cls._simplify(operation)
-
-        if type(operation) == cls:
-            for i, o in enumerate(operands):
-                operation.variables.update(o.variables)
 
         return operation
 
@@ -221,6 +221,19 @@ class Operation(Expression):
         
         return operation
 
+    @property
+    def is_constant(self):
+        """True, if the expression does not contain any wildcards."""
+        return all(x.is_constant for x in self.operands)
+
+    @property
+    def variables(self):
+        return sum((x.variables for x in self.operands), Multiset())
+
+    @property
+    def symbols(self):
+        return sum((x.symbols for x in self.operands), Multiset([self.name]))
+
     def preorder_iter(self, predicate=None):
         """Iterates over all subexpressions that match the (optional) `predicate`."""
         yield from super().preorder_iter(predicate)
@@ -237,6 +250,10 @@ class Symbol(Atom):
 
     def __str__(self):
         return self.name
+
+    @property
+    def symbols(self):
+        return Multiset([self.name])
 
     def __lt__(self, other):
         if isinstance(other, Symbol):
@@ -266,9 +283,23 @@ class Variable(Atom):
         super().__init__(constraint)
         self.name = name
         self.expression = expression
-        self.variables.update([name])
         self.min_count = expression.min_count
         self.max_count = expression.max_count
+
+    @property
+    def is_constant(self):
+        """True, if the expression does not contain any wildcards."""
+        return self.expression.is_constant
+
+    @property
+    def variables(self):
+        variables = self.expression.variables
+        variables[self.name] += 1
+        return variables
+
+    @property
+    def symbols(self):
+        return self.expression.symbols
 
     @staticmethod
     def dot(name: str, constraint:Optional[Constraint]=None):
@@ -330,9 +361,13 @@ class Wildcard(Atom):
         assert min_count <= max_count, 'min_count > max_count'
 
         super().__init__(constraint)
-        self.variables.update(['_'])
         self.min_count = min_count
         self.max_count = max_count
+
+    @property
+    def is_constant(self):
+        """True, if the expression does not contain any wildcards."""
+        return False
 
     @staticmethod
     def dot():

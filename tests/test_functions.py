@@ -250,6 +250,47 @@ class MatchTest(unittest.TestCase):
         for result_match in result:
             self.assertIn(result_match, expected_matches, 'Expression %s and %s yielded the unexpected match %s' % (expr, pattern, match_repr_str(result_match)))
 
+from hypothesis import given, assume
+import hypothesis.strategies as st
+
+def func_wrap_strategy(args, func):
+    return st.lists(args, min_size=1, max_size=4).map(lambda a: func(*a))
+
+ExpressionStrategy = st.recursive(st.sampled_from([a, b, c, x_, y_, x__, y__, x___, y___]), lambda args: func_wrap_strategy(args, f) | func_wrap_strategy(args, f2), max_leaves=10)
+
+class RandomizedMatchTest(unittest.TestCase):
+    @given(ExpressionStrategy, ExpressionStrategy)
+    def test_correctness(self, expr, pattern):
+        # expr must be constant, pattern cannot be constant
+        assume(expr.is_constant)
+        assume(not pattern.is_constant)
+
+        expr_symbols = expr.symbols
+        pattern_symbols = pattern.symbols
+
+        # pattern must not be just a single variable
+        assume(sum(pattern_symbols.values()) > 0)
+
+        diff1 = sum((expr_symbols - pattern_symbols).values())
+        diff2 = sum((pattern_symbols - expr_symbols).values())
+
+        # Pattern cannot contain symbols which are not contained in the expression
+        assume(diff2 < 1)
+
+        #var_count = sum(pattern.variables.values())
+        #assume(abs(var_count - diff1) < 3)
+
+        results = list(match(expr, pattern))
+
+        # exclude non-matching pairs
+        assume(len(results) > 0)
+        #print(expr, pattern)
+        for result in results:
+            #print('->', match_repr_str(result))
+            reverse, replaced = substitute(pattern, result)
+            if isinstance(reverse, list) and len(reverse) == 1:
+                reverse = reverse[0]
+            self.assertEqual(expr, reverse)
 
 @ddt
 class SubstituteTest(unittest.TestCase):

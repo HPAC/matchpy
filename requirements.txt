@@ -4,3 +4,4 @@ ddt
 graphviz
 coverage
 sphinx-autodoc-typehints
+hypothesis
