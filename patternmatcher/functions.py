@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 import math
+from typing import Dict, Tuple, Union, List, Iterator
 
-from patternmatcher.expressions import Variable, Operation, Arity, Wildcard, Symbol
+from patternmatcher.expressions import Variable, Operation, Arity, Wildcard, Symbol, Expression
 from patternmatcher.constraints import Constraint, CustomConstraint, EqualVariablesConstraint, MultiConstraint
 from patternmatcher.utils import partitions_with_limits, commutative_partition_iter
+
+Substitution = Dict[str, Union[Expression, List[Expression]]]
 
 def linearize(expression, variables=None, constraints=None):
     if variables is None:
@@ -47,9 +50,23 @@ def linearize(expression, variables=None, constraints=None):
         for operand in expression.operands:
             linearize(operand, variables, constraints)
 
-def match(exprs, pattern, subst=None):
-    if subst is None:
-        subst = {}
+
+def match(expression: Expression, pattern: Expression) -> Iterator[Substitution]:
+    """Tries to match the given `pattern` to the given `expression`.
+
+    Yields each match in form of a substitution that when applied to `pattern` results in the original
+    `expression`. 
+
+    :param expression: An expression to match.
+    :param pattern: The pattern to match.
+
+    :returns: Yields all possible substitutions as dictionaries where each key is the name of the variable
+        and the corresponding value is the variables substitution. Applying the substitution to the pattern
+        results in the original expression (except for :class:`Wildcard`s)
+    """
+    return _match([expression], pattern, {})
+
+def _match(exprs: List[Expression], pattern: Expression, subst: Substitution) -> Iterator[Substitution]:
     if isinstance(pattern, Variable):
         if pattern.min_count == 1 and pattern.max_count == 1:
             expr = exprs[0]
@@ -59,7 +76,7 @@ def match(exprs, pattern, subst=None):
             if expr == subst[pattern.name]:
                 yield subst
             return
-        for newSubst in match(exprs, pattern.expression, subst):
+        for newSubst in _match(exprs, pattern.expression, subst):
             newSubst = newSubst.copy()
             newSubst[pattern.name] = expr
             yield newSubst
@@ -121,7 +138,7 @@ def _match_operation(exprs, operation, subst):
             try:
                 while i < o_count:
                     if iterators[i] is None:
-                        iterators[i] = match(part[i], operation.operands[i], next_subst)
+                        iterators[i] = _match(part[i], operation.operands[i], next_subst)
                     next_subst = iterators[i].__next__()
                     i += 1
                 yield next_subst
@@ -131,6 +148,45 @@ def _match_operation(exprs, operation, subst):
                 i -= 1
                 if i < 0:
                     break
+
+def substitute(expression: Expression, substitution: Substitution) -> Tuple[Union[Expression, List[Expression]], bool]:
+    """Replaces variables in the given `expression` by the given `substitution`.
+    
+    In addition to the resulting expression(s), a bool is returned indicating whether anything was substituted.
+    If nothing was substituted, the original expression is returned.
+    Not that this function returns a list of expressions iff the expression is a variable and its substitution
+    is a list of expressions. In other cases were a substitution is a list of expressions, the expressions will
+    be integrated as operands in the surrounding operation:
+
+    >>> substitute(f(x, c), {'x': [a, b]}})
+    f(a, b, c), True
+
+    :param expression: An expression in which variables are substituted.
+    :param substitution: A substitution dictionary. The key is the name of the variable,
+        the value either an expression or a list of expression to use as a replacement for
+        the variable.
+    """
+    if isinstance(expression, Variable):
+        if expression.name in substitution:
+            return substitution[expression.name], True
+        result, replaced = substitute(expression.expression, substitution)
+        if replaced:
+            return Variable(expression.name, result), True
+    elif isinstance(expression, Operation):
+        any_replaced = False
+        new_operands = []
+        for operand in expression.operands:
+            result, replaced = substitute(operand, substitution)
+            if replaced:
+                any_replaced = True 
+            if isinstance(result, list):
+                new_operands.extend(result)
+            else:
+                new_operands.append(result)
+        if any_replaced:
+            return type(expression)(*new_operands), True
+
+    return expression, False
 
 def _main():
     from patternmatcher.utils import match_repr_str
@@ -147,7 +203,7 @@ def _main():
     expr = f(a, g(b), g(b), g(c), c)
     pattern = f(x, g(Wildcard.dot()), x2)
 
-    for m in match([expr], pattern, {}):
+    for m in match(expr, pattern):
         print('match:')
         print(match_repr_str(m))
 

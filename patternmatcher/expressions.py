@@ -295,6 +295,9 @@ class Variable(Atom):
 
         return value
 
+    def __eq__(self, other):
+        return isinstance(other, Variable) and self.name == other.name and self.expression == other.expression
+
     def __lt__(self, other):
         if isinstance(other, Symbol):
             return False

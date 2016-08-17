@@ -12,6 +12,14 @@ patternmatcher.expressions module
     :undoc-members:
     :show-inheritance:
 
+patternmatcher.functions module
+-------------------------------
+
+.. automodule:: patternmatcher.functions
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 patternmatcher.utils module
 ---------------------------
 
