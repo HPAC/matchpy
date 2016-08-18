@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-from typing import Dict, Callable, Tuple
+from typing import Dict, Callable, Union, List
 import inspect
 
 from patternmatcher.expressions import Expression
 from patternmatcher.utils import get_lambda_source
 
-Match = Dict[str, Tuple[Expression]]
+Match = Dict[str, Union[Expression, List[Expression]]]
 
 class Constraint(object):
     def __call__(self, match: Match) -> bool:
@@ -25,9 +25,14 @@ class EqualVariablesConstraint(Constraint):
     def __init__(self, *variables: str) -> None:
         self.variables = list(variables)
 
+    def _wrap_expr(self, expr):
+        if not isinstance(expr, list):
+            return [expr]
+        return expr
+
     def __call__(self, match: Match) -> bool:
-        v1 = self.variables[0]
-        return all(match[v1] == match[v2] for v2 in self.variables[1:])
+        v1 = self._wrap_expr(match[self.variables[0]])
+        return all(v1 == self._wrap_expr(match[v2]) for v2 in self.variables[1:])
 
     def __str__(self):
         return '(%s)' % ' == '.join(self.variables)
@@ -61,5 +66,7 @@ class CustomConstraint(Constraint):
 
 if __name__ == '__main__':
     cc = CustomConstraint(lambda x, y: x == y)
+    vc = EqualVariablesConstraint('x', 'y')
     print(cc.variables)
     print(cc({'x': 1, 'y': 1, 'z': 5, 'k': 8}))
+    print(vc({'x': 1, 'y': 2, 'z': 5, 'k': 8}))

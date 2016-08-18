@@ -77,28 +77,35 @@ def _match(exprs: List[Expression], pattern: Expression, subst: Substitution) ->
             expr = exprs
         if pattern.name in subst:
             if expr == subst[pattern.name]:
-                yield subst
+                if pattern.constraint is None or pattern.constraint(subst):
+                    yield subst
             return
         for newSubst in _match(exprs, pattern.expression, subst):
             newSubst = newSubst.copy()
             newSubst[pattern.name] = expr
-            yield newSubst
+            if pattern.constraint is None or pattern.constraint(newSubst):
+                yield newSubst
 
     elif isinstance(pattern, Wildcard):
         if pattern.fixed_size:
             if len(exprs) == pattern.min_count:
-                yield subst
+                if pattern.constraint is None or pattern.constraint(subst):
+                    yield subst
         elif len(exprs) >= pattern.min_count:
-            yield subst
+            if pattern.constraint is None or pattern.constraint(subst):
+                yield subst
 
     elif isinstance(pattern, Symbol):
         if len(exprs) == 1 and exprs[0] == pattern:
-            yield subst
+            if pattern.constraint is None or pattern.constraint(subst):
+                yield subst
 
     elif isinstance(pattern, Operation):
         if len(exprs) != 1 or type(exprs[0]) != type(pattern):
             return
-        yield from _match_operation(exprs[0].operands, pattern, subst)
+        for result in _match_operation(exprs[0].operands, pattern, subst):            
+            if pattern.constraint is None or pattern.constraint(result):
+                yield result 
 
 def _associative_operand_max(operand):
     while isinstance(operand, Variable):

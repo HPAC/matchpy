@@ -256,7 +256,9 @@ import hypothesis.strategies as st
 def func_wrap_strategy(args, func):
     return st.lists(args, min_size=1, max_size=4).map(lambda a: func(*a))
 
-ExpressionStrategy = st.recursive(st.sampled_from([a, b, c, x_, y_, x__, y__, x___, y___]), lambda args: func_wrap_strategy(args, f) | func_wrap_strategy(args, f2), max_leaves=10)
+ExpressionBaseStrategy = st.sampled_from([a, b, c, x_, y_, x__, y__, x___, y___])
+ExpressionRecurseStrategy = lambda args: func_wrap_strategy(args, f) | func_wrap_strategy(args, f2)
+ExpressionStrategy = st.recursive(ExpressionBaseStrategy, ExpressionRecurseStrategy, max_leaves=10)
 
 class RandomizedMatchTest(unittest.TestCase):
     @given(ExpressionStrategy, ExpressionStrategy)
