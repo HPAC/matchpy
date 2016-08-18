@@ -59,14 +59,10 @@ class Expression(object):
     @property
     def is_linear(self):
         """True, if the expression is linear, i.e. every variable may occur at most once."""
-        if self.is_constant:
-            return True
-        common = self.variables.most_common(2)
-        if common[0][1] == 1:
-            return True
-        if common[0][0] == '_' and (len(common) == 1 or common[1][1] == 1):
-            return True
-        return False
+        return self._is_linear(set())
+
+    def _is_linear(self, variables):
+        return True
 
     def preorder_iter(self, predicate=None):
         """Iterates over all subexpressions that match the (optional) `predicate`."""
@@ -237,6 +233,9 @@ class Operation(Expression, metaclass=OperationMeta):
     def symbols(self):
         return sum((x.symbols for x in self.operands), Multiset([self.name]))
 
+    def _is_linear(self, variables):
+        return all(o._is_linear(variables) for o in self.operands)
+
     def preorder_iter(self, predicate=None):
         """Iterates over all subexpressions that match the (optional) `predicate`."""
         yield from super().preorder_iter(predicate)
@@ -321,6 +320,12 @@ class Variable(Atom):
     def plus(name: str, constraint:Optional[Constraint]=None):
         """Creates a `Variable` with :class:`Wildcard` that matches at least one and up to any number of arguments."""
         return Variable(name, Wildcard.plus(), constraint)
+
+    def _is_linear(self, variables):
+        if self.name in variables:
+            return False
+        variables.add(self.name)
+        return True
 
     def __str__(self):
         if isinstance(self.expression, Wildcard):
@@ -416,6 +421,7 @@ class Wildcard(Atom):
 
 if __name__ == '__main__':
     f = Operation.new('f', Arity.binary, associative = True, commutative=True, one_identity=True)
+    g = Operation.new('g', Arity.binary)
     x = Variable.dot('x')
     y = Variable.star('y')
     z = Variable.plus('z')
