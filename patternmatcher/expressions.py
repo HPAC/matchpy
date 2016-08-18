@@ -20,6 +20,9 @@ class Arity(tuple, Enum):
     polyadic = (2, math.inf)
     variadic = (1, math.inf)
 
+    def __repr__(self):
+        return "%s.%s" % (self.__class__.__name__, self._name_)
+
 Match = Dict[str, Tuple['Expression']]
 Constraint = Callable[[Match], bool]
 
@@ -82,7 +85,13 @@ class Expression(object):
         if filter is None or predicate(self):
             yield self
 
-class Operation(Expression):
+class OperationMeta(type):
+    def __repr__(self):
+        return 'Operation[%r, arity=%r, associative=%r, commutative=%r, one_identity=%r]' % \
+            (self.name, self.arity, self.associative, self.commutative, self.one_identity)
+
+
+class Operation(Expression, metaclass=OperationMeta):
     """Base class for all operations."""
 
     name = None # type: str
@@ -146,6 +155,12 @@ class Operation(Expression):
         if self.constraint:
             return '%s(%s) /; %s' % (self.name, ', '.join(str(o) for o in self.operands), str(self.constraint)) 
         return '%s(%s)' % (self.name, ', '.join(str(o) for o in self.operands)) 
+
+    def __repr__(self):
+        operand_str = ', '.join(map(repr, self.operands))
+        if self.constraint:            
+            return '%s(%s, constraint=%r)' % (self.__class__.__name__, operand_str, self.constraint)
+        return '%s(%s)' % (self.__class__.__name__, operand_str)
 
     @staticmethod
     def new(name : str, arity : Tuple[int, int], class_name : str = None, **attributes) -> Any:
@@ -251,6 +266,11 @@ class Symbol(Atom):
     def __str__(self):
         return self.name
 
+    def __repr__(self):
+        if self.constraint:            
+            return '%s(%r, constraint=%r)' % (self.__class__.__name__, self.name, self.constraint)
+        return '%s(%r)' % (self.__class__.__name__, self.name)
+
     @property
     def symbols(self):
         return Multiset([self.name])
@@ -326,6 +346,11 @@ class Variable(Atom):
 
         return value
 
+    def __repr__(self):
+        if self.constraint:            
+            return '%s(%r, %r, constraint=%r)' % (self.__class__.__name__, self.name, self.expression, self.constraint)
+        return '%s(%r, %r)' % (self.__class__.__name__, self.name, self.expression)
+
     def __eq__(self, other):
         return isinstance(other, Variable) and self.name == other.name and self.expression == other.expression
 
@@ -392,6 +417,11 @@ class Wildcard(Atom):
                 return '__'
         return '_'
 
+    def __repr__(self):
+        if self.constraint:            
+            return '%s(%r, %r, constraint=%r)' % (self.__class__.__name__, self.min_count, self.max_count, self.constraint)
+        return '%s(%r, %r)' % (self.__class__.__name__, self.min_count, self.max_count)
+
     def __lt__(self, other):
         return isinstance(other, Wildcard)
 
@@ -411,4 +441,5 @@ if __name__ == '__main__':
 
     expr = f(f(b), a)
 
-    print(expr)
+    print(repr(expr))
+    print(repr(f))
