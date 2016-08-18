@@ -68,7 +68,10 @@ def match(expression: Expression, pattern: Expression) -> Iterator[Substitution]
 
 def _match(exprs: List[Expression], pattern: Expression, subst: Substitution) -> Iterator[Substitution]:
     if isinstance(pattern, Variable):
-        if pattern.min_count == 1 and pattern.max_count == 1:
+        wc = pattern.expression
+        while isinstance(wc, Variable):
+            wc = wc.expression
+        if isinstance(wc, Wildcard) and wc.min_count == 1 and wc.fixed_size:
             expr = exprs[0]
         else:
             expr = exprs
@@ -80,12 +83,18 @@ def _match(exprs: List[Expression], pattern: Expression, subst: Substitution) ->
             newSubst = newSubst.copy()
             newSubst[pattern.name] = expr
             yield newSubst
+
     elif isinstance(pattern, Wildcard):
-        if len(exprs) >= pattern.min_count and len(exprs) <= pattern.max_count:
+        if pattern.fixed_size:
+            if len(exprs) == pattern.min_count:
+                yield subst
+        elif len(exprs) >= pattern.min_count:
             yield subst
+
     elif isinstance(pattern, Symbol):
         if len(exprs) == 1 and exprs[0] == pattern:
             yield subst
+
     elif isinstance(pattern, Operation):
         if len(exprs) != 1 or type(exprs[0]) != type(pattern):
             return
@@ -96,7 +105,7 @@ def _associative_operand_max(operand):
         operand = operand.expression
     if isinstance(operand, Wildcard):
         return math.inf
-    return operand.max_count
+    return 1
 
 def _associative_fix_operand_max(parts, maxs, operation):
     newParts = list(parts)
@@ -107,10 +116,16 @@ def _associative_fix_operand_max(parts, maxs, operation):
             newParts[i] = fixed + [operation(*variable)]
     return newParts
 
+def _size(expr):
+    while isinstance(expr, Variable):
+        expr = expr.expression
+    if isinstance(expr, Wildcard):
+        return (expr.min_count, (not expr.fixed_size) and math.inf or expr.min_count)
+    return (1, 1)
 
 def _match_operation(exprs, operation, subst):
-    mins = list(o.min_count for o in operation.operands)
-    maxs = list(o.max_count for o in operation.operands)
+    # TODO
+    mins, maxs = map(list, zip(*map(_size, operation.operands)))
     if operation.associative:
         fake_maxs = list(_associative_operand_max(o) for o in operation.operands)
     else:

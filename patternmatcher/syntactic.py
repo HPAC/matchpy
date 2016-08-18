@@ -45,7 +45,7 @@ class Flatterm(list):
         for term in flatterm:
             if isinstance(term, Wildcard):
                 if last_wildcard is not None:
-                    last_wildcard = Wildcard(last_wildcard.min_count + term.min_count, last_wildcard.max_count + term.max_count)
+                    last_wildcard = Wildcard(last_wildcard.min_count + term.min_count, last_wildcard.fixed_size and term.fixed_size)
                 else:
                     last_wildcard = term
             else:
@@ -60,7 +60,7 @@ class Flatterm(list):
         if is_operation(term):
             return term.name + '('
         elif isinstance(term, Wildcard):
-            return '*[%s,%s]' % (term.min_count, term.max_count)
+            return '*%s%s' % (term.min_count, (not term.fixed_size) and '+' or '')
         else:
             return str(term)
 
@@ -160,20 +160,19 @@ class DiscriminationNet(object):
         root = node = _Node()
         flatterm = Flatterm(pattern)
 
-        #i = 2
         for j, term in enumerate(flatterm):
             last_node = node
             last_term = term
             state = wildcard_states[-1]
             # For wildcards, generate a chain of #min_count Wildcard edges
-            # If the wildcard is unbounded (max_count = math.inf),
+            # If the wildcard is unbounded (fixed_size = False),
             # add a wildcard self loop at the end
             if isinstance(term, Wildcard):            
                 last_term = Wildcard
                 for _ in range(term.min_count):
                     node[Wildcard] = _Node()
                     node = node[Wildcard]
-                if term.max_count == math.inf:
+                if not term.fixed_size:
                     node[Wildcard] = node
                     # set wildcard state to this reference this wildcard
                     state.last_wildcard = node

@@ -8,17 +8,19 @@ from patternmatcher.utils import isidentifier
 
 
 class Arity(tuple, Enum):
-    """Arity of an operator as (`int`, `int`) tuple.
+    """Arity of an operator as (`int`, `bool`) tuple.
 
-    First component is the minimum number of operands, second the maximum number.
-    Hence, the first component of the tuple must not be larger than the second.
+    The first component is the number of operands.
+    If the second component is `True`, the operator has fixed width arity.
+    If it is `False`, the operator has variable width arity. In that case, the first component
+    describes the minimum number of operands required.
     """
-    nullary = (0, 0)
-    unary = (1, 1)
-    binary = (2, 2)
-    ternary = (3, 3)
-    polyadic = (2, math.inf)
-    variadic = (1, math.inf)
+    nullary     = (0, True)
+    unary       = (1, True)
+    binary      = (2, True)
+    ternary     = (3, True)
+    polyadic    = (2, False)
+    variadic    = (1, False)
 
     def __repr__(self):
         return "%s.%s" % (self.__class__.__name__, self._name_)
@@ -33,21 +35,12 @@ class Expression(object):
     as several attributes are computed at instantiation and are not refreshed.
 
     Attributes:
-        min_count
-            For a pattern, this is the minimal count of expression which
-            are needed to match (e.g. `x, y` needs at two expressions for a match).
-        max_count
-            For a pattern, this is the maximal count of expression which
-            can be matched. This will either be a constant for patterns with constant
-            length or `math.inf` if the pattern contains unbounded wildcards (at top level).
         constraint
             An optional constraint expression, which is checked for each match
             to verify it.
     """
 
     def __init__(self, constraint : Optional[Constraint] = None):
-        self.min_count = 1
-        self.max_count = 1
         self.constraint = constraint
     
     @property
@@ -62,11 +55,6 @@ class Expression(object):
     def is_constant(self):
         """True, if the expression does not contain any wildcards."""
         return True
-
-    @property
-    def is_static(self):
-        """True, if the expression has a fixed width, i.e. it matched a fixed number of expressions."""
-        return self.min_count == self.max_count
 
     @property
     def is_linear(self):
@@ -303,8 +291,6 @@ class Variable(Atom):
         super().__init__(constraint)
         self.name = name
         self.expression = expression
-        self.min_count = expression.min_count
-        self.max_count = expression.max_count
 
     @property
     def is_constant(self):
@@ -364,30 +350,28 @@ class Variable(Atom):
 class Wildcard(Atom):
     """A wildcard that matches any expression.
     
-    The wildcard will match any number of expressions between `min_count` and `max_count`.
+    The wildcard will match any number of expressions between `min_count` and `fixed_size`.
     Optionally, the wildcard can also be constrained to only match expressions satisfying a predicate.
     """
 
-    def __init__(self, min_count: int, max_count: int, constraint: Optional[Constraint]=None) -> None:
+    def __init__(self, min_count: int, fixed_size: bool, constraint: Optional[Constraint]=None) -> None:
         """
         Arguments:
             min_count
-                The minimum number of expressions this wildcard will match. Must not be
-                greater than `max_count` or negative.
-            max_count
-                The maximum number of expressions this wildcard will match. Use `math.inf`
-                for an unbounded wildcard. Must not be smaller than `min_count`.
+                The minimum number of expressions this wildcard will match. Must be a non-negative number.
+            fixed_size
+                If `True`, the wildcard matches exactly `min_count` expressions.
+                If `False`, the wildcard is a sequence wildcard and can match `min_count` or more expressions.
             constraint
                 An optional constraint for expressions to be considered a match. If set, this
                 callback is invoked for every match and the return value is utilized to decide
                 whether the match is valid.
         """
         assert min_count >= 0, 'Negative min_count'
-        assert min_count <= max_count, 'min_count > max_count'
 
         super().__init__(constraint)
         self.min_count = min_count
-        self.max_count = max_count
+        self.fixed_size = fixed_size
 
     @property
     def is_constant(self):
@@ -397,20 +381,20 @@ class Wildcard(Atom):
     @staticmethod
     def dot():
         """Creates a :class:`Wildcard` that matches exactly one argument."""
-        return Wildcard(min_count=1, max_count=1)
+        return Wildcard(min_count=1, fixed_size=True)
 
     @staticmethod
     def star():
         """Creates a :class:`Wildcard` that matches any number of arguments."""
-        return Wildcard(min_count=0, max_count=math.inf)
+        return Wildcard(min_count=0, fixed_size=False)
 
     @staticmethod
     def plus():
         """Creates a :class:`Wildcard` that matches at least one and up to any number of arguments."""
-        return Wildcard(min_count=1, max_count=math.inf)
+        return Wildcard(min_count=1, fixed_size=False)
 
     def __str__(self):
-        if self.max_count == math.inf:
+        if not self.fixed_size:
             if self.min_count == 0:
                 return '___'
             elif self.min_count == 1:
@@ -419,8 +403,8 @@ class Wildcard(Atom):
 
     def __repr__(self):
         if self.constraint:            
-            return '%s(%r, %r, constraint=%r)' % (self.__class__.__name__, self.min_count, self.max_count, self.constraint)
-        return '%s(%r, %r)' % (self.__class__.__name__, self.min_count, self.max_count)
+            return '%s(%r, %r, constraint=%r)' % (self.__class__.__name__, self.min_count, self.fixed_size, self.constraint)
+        return '%s(%r, %r)' % (self.__class__.__name__, self.min_count, self.fixed_size)
 
     def __lt__(self, other):
         return isinstance(other, Wildcard)
@@ -428,7 +412,7 @@ class Wildcard(Atom):
     def __eq__(self, other):
         return isinstance(other, Wildcard) and \
                other.min_count == self.min_count and \
-               other.max_count == self.max_count
+               other.fixed_size == self.fixed_size
 
 if __name__ == '__main__':
     f = Operation.new('f', Arity.binary, associative = True, commutative=True, one_identity=True)
