@@ -42,6 +42,7 @@ class Expression(object):
 
     def __init__(self, constraint : Optional[Constraint] = None):
         self.constraint = constraint
+        self.head = None
     
     @property
     def variables(self):
@@ -64,10 +65,15 @@ class Expression(object):
     def _is_linear(self, variables):
         return True
 
-    def preorder_iter(self, predicate=None):
+    def preorder_iter(self, predicate=None, position=()):
         """Iterates over all subexpressions that match the (optional) `predicate`."""
         if filter is None or predicate(self):
-            yield self
+            yield self, position
+
+    def __getitem__(self, key):
+        if len(key) == 0:
+            return self
+        raise IndexError("Invalid position")
 
 class OperationMeta(type):
     def __repr__(self):
@@ -127,6 +133,7 @@ class Operation(Expression, metaclass=OperationMeta):
         Expression.__init__(operation, constraint)
 
         operation.operands = list(operands)
+        operation.head = cls
         operation = cls._simplify(operation)
 
         return operation
@@ -201,6 +208,12 @@ class Operation(Expression, metaclass=OperationMeta):
                len(self.operands) == len(other.operands) and \
                all(x == y for x,y in zip(self.operands, other.operands))
 
+    def __getitem__(self, key):
+        if len(key) == 0:
+            return self
+        head, *remainder = key
+        return self.operands[head][remainder]
+
     @staticmethod
     def _simplify(operation: 'Operation') -> Expression:        
         if operation.associative:
@@ -236,11 +249,12 @@ class Operation(Expression, metaclass=OperationMeta):
     def _is_linear(self, variables):
         return all(o._is_linear(variables) for o in self.operands)
 
-    def preorder_iter(self, predicate=None):
+    def preorder_iter(self, predicate=None, position=()):
         """Iterates over all subexpressions that match the (optional) `predicate`."""
-        yield from super().preorder_iter(predicate)
-        for operand in self.operands:
-            yield from operand.preorder_iter(predicate)
+        if predicate is None or predicate(self):
+            yield self, position
+        for i, operand in enumerate(self.operands):
+            yield from operand.preorder_iter(predicate, position + (i, ))
 
 class Atom(Expression):
     pass
@@ -249,6 +263,7 @@ class Symbol(Atom):
     def __init__(self, name: str, constraint:Optional[Constraint]=None) -> None:
         super().__init__(constraint)
         self.name = name
+        self.head = self
 
     def __str__(self):
         return self.name
@@ -290,6 +305,7 @@ class Variable(Atom):
         super().__init__(constraint)
         self.name = name
         self.expression = expression
+        self.head = expression.head
 
     @property
     def is_constant(self):
@@ -321,6 +337,12 @@ class Variable(Atom):
         """Creates a `Variable` with :class:`Wildcard` that matches at least one and up to any number of arguments."""
         return Variable(name, Wildcard.plus(), constraint)
 
+    def preorder_iter(self, predicate=None, position=()):
+        """Iterates over all subexpressions that match the (optional) `predicate`."""
+        if predicate is None or predicate(self):
+            yield self, position
+        yield from self.expression.preorder_iter(predicate, position + (0, ))
+
     def _is_linear(self, variables):
         if self.name in variables:
             return False
@@ -351,6 +373,14 @@ class Variable(Atom):
         if isinstance(other, Variable):
             return self.name < other.name
         return type(self).__name__ < type(other).__name__
+
+    def __getitem__(self, key):
+        if len(key) == 0:
+            return self
+        if key[0] != 0:
+            raise IndexError('Invalid position.')
+        _, *remainder = key
+        return self.expression[remainder]
 
 class Wildcard(Atom):
     """A wildcard that matches any expression.

@@ -31,7 +31,7 @@ def linearize(expression, variables=None, constraints=None):
             if len(variables[name]) > 1:
                 constraints[name] = EqualVariablesConstraint(*variables[name])
 
-    # TODO: Make non-mutating  
+    # TODO: Make non-mutating
     if isinstance(expression, Variable):
         name = expression.name
         expression.name  = variables[name].pop(0)
@@ -40,7 +40,7 @@ def linearize(expression, variables=None, constraints=None):
             if expression.constraint:
                 if not isinstance(expression.constraint, Constraint):
                     expression.constraint = CustomConstraint(expression.constraint)
-                
+
                 expression.constraint = MultiConstraint(expression.constraint, constraints[name])
             else:
                 expression.constraint = constraints[name]
@@ -55,7 +55,7 @@ def match(expression: Expression, pattern: Expression) -> Iterator[Substitution]
     """Tries to match the given `pattern` to the given `expression`.
 
     Yields each match in form of a substitution that when applied to `pattern` results in the original
-    `expression`. 
+    `expression`.
 
     :param expression: An expression to match.
     :param pattern: The pattern to match.
@@ -65,6 +65,30 @@ def match(expression: Expression, pattern: Expression) -> Iterator[Substitution]
         results in the original expression (except for :class:`Wildcard`s)
     """
     return _match([expression], pattern, {})
+
+
+def match_anywhere(expression: Expression, pattern: Expression) -> Iterator[Tuple[Substitution,Tuple[int,...]]]:
+    """Tries to match the given `pattern` to the any subexpression of the given `expression`.
+
+    Yields each match in form of a substitution and a position tuple.
+    The substitution is a dictionary, where the key is the name of a variable and the value either an expression
+    or a list of expressins (iff the variable is a sequence variable).
+    When applied to `pattern`, the substitution results in the original matched subexpression.
+    The position is a tuple of indices, e.g. the empty tuple refers to the `expression` itself,
+    `(0, )` refers to the first child (operand) of the expression, `(0, 0)` to the first child of
+    the first child etc.
+
+    :param expression: An expression to match.
+    :param pattern: The pattern to match.
+
+    :returns: Yields all possible substitution and position pairs.
+    """
+    predicate=None
+    if pattern.head is not None:
+        predicate = lambda x: x.head == pattern.head
+    for child, pos in expression.preorder_iter(predicate):
+        for subst in _match([child], pattern, {}):
+            yield subst, pos
 
 def _match(exprs: List[Expression], pattern: Expression, subst: Substitution) -> Iterator[Substitution]:
     if isinstance(pattern, Variable):
@@ -103,9 +127,9 @@ def _match(exprs: List[Expression], pattern: Expression, subst: Substitution) ->
     elif isinstance(pattern, Operation):
         if len(exprs) != 1 or type(exprs[0]) != type(pattern):
             return
-        for result in _match_operation(exprs[0].operands, pattern, subst):            
+        for result in _match_operation(exprs[0].operands, pattern, subst):
             if pattern.constraint is None or pattern.constraint(result):
-                yield result 
+                yield result
 
 def _associative_operand_max(operand):
     while isinstance(operand, Variable):
@@ -173,7 +197,7 @@ def _match_operation(exprs, operation, subst):
 
 def substitute(expression: Expression, substitution: Substitution) -> Tuple[Union[Expression, List[Expression]], bool]:
     """Replaces variables in the given `expression` by the given `substitution`.
-    
+
     In addition to the resulting expression(s), a bool is returned indicating whether anything was substituted.
     If nothing was substituted, the original expression is returned.
     Not that this function returns a list of expressions iff the expression is a variable and its substitution
@@ -200,7 +224,7 @@ def substitute(expression: Expression, substitution: Substitution) -> Tuple[Unio
         for operand in expression.operands:
             result, replaced = substitute(operand, substitution)
             if replaced:
-                any_replaced = True 
+                any_replaced = True
             if isinstance(result, list):
                 new_operands.extend(result)
             else:
@@ -212,7 +236,8 @@ def substitute(expression: Expression, substitution: Substitution) -> Tuple[Unio
 
 def _main():
     from patternmatcher.utils import match_repr_str
-    f = Operation.new('f', arity=Arity.binary, associative=True, commutative=True)
+    #f = Operation.new('f', arity=Arity.binary, associative=True, commutative=True)
+    f = Operation.new('f', arity=Arity.binary)
     g = Operation.new('g', arity=Arity.unary)
     a = Symbol('a')
     b = Symbol('b')
@@ -222,11 +247,13 @@ def _main():
     y = Variable.star('y')
     z = Variable.plus('z')
 
-    expr = f(a, g(b), g(b), g(c), c)
-    pattern = f(x, g(Wildcard.dot()), x2)
+    expr = f(a, g(b), g(g(c), g(a), g(g(b))), g(c), c)
+    #pattern = f(x, g(Wildcard.dot()), x2)
+    pattern = g(x)
 
-    for m in match(expr, pattern):
-        print('match:')
+    for m, pos in match_anywhere(expr, pattern):
+        print('match at ', pos, ':')
+        print(expr[pos])
         print(match_repr_str(m))
 
 def _main2():
