@@ -75,6 +75,9 @@ class Expression(object):
             return self
         raise IndexError("Invalid position")
 
+    def __hash__(self):
+        raise NotImplementedError()
+
 class OperationMeta(type):
     def __repr__(self):
         return 'Operation[%r, arity=%r, associative=%r, commutative=%r, one_identity=%r]' % \
@@ -256,6 +259,22 @@ class Operation(Expression, metaclass=OperationMeta):
         for i, operand in enumerate(self.operands):
             yield from operand.preorder_iter(predicate, position + (i, ))
 
+    def __hash__(self):
+        """
+        # adapted from cpython tuple hash function tuplehash()
+        # see https://github.com/python/cpython/blob/master/Objects/typeobject.c
+        # doesnt work because of overflow
+        mult = 0xf4243
+        h = (0x345678 ^ hash(type(self))) * mult
+        l = len(self.operands)
+        mult += 82520 + l + l
+        for i, operand in enumerate(self.operands):
+            h = (h ^ hash(operand)) * mult
+            mult += 82520 + 2 * (l - i - 1)
+        h += 97531
+        """
+        return hash(tuple([type(self)] + self.operands))
+
 class Atom(Expression):
     pass
 
@@ -281,6 +300,9 @@ class Symbol(Atom):
         if isinstance(other, Symbol):
             return self.name < other.name
         return True
+
+    def __hash__(self):
+        return hash((type(self), self.name))
 
 class Variable(Atom):
     """A variable that is captured during a match.
@@ -382,6 +404,10 @@ class Variable(Atom):
         _, *remainder = key
         return self.expression[remainder]
 
+    def __hash__(self):
+        return hash((type(self), self.name, self.expression))
+
+
 class Wildcard(Atom):
     """A wildcard that matches any expression.
     
@@ -448,6 +474,9 @@ class Wildcard(Atom):
         return isinstance(other, Wildcard) and \
                other.min_count == self.min_count and \
                other.fixed_size == self.fixed_size
+
+    def __hash__(self):
+        return hash((type(self), self.min_count, self.fixed_size))
 
 if __name__ == '__main__':
     f = Operation.new('f', Arity.binary, associative = True, commutative=True, one_identity=True)
