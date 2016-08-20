@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
 import math
-from typing import Dict, Tuple, Union, List, Iterator
+from typing import Dict, Iterator, List, Tuple, Union, cast
 
-from patternmatcher.expressions import Variable, Operation, Arity, Wildcard, Symbol, Expression
-from patternmatcher.constraints import Constraint, CustomConstraint, EqualVariablesConstraint, MultiConstraint
-from patternmatcher.utils import partitions_with_limits, commutative_partition_iter
+from patternmatcher.constraints import (Constraint, CustomConstraint,
+                                        EqualVariablesConstraint,
+                                        MultiConstraint)
+from patternmatcher.expressions import (Arity, Expression, Operation, Symbol,
+                                        Variable, Wildcard)
+from patternmatcher.utils import (commutative_partition_iter,
+                                  partitions_with_limits)
 
 Substitution = Dict[str, Union[Expression, List[Expression]]]
 
@@ -96,7 +100,7 @@ def _match(exprs: List[Expression], pattern: Expression, subst: Substitution) ->
         while isinstance(wc, Variable):
             wc = wc.expression
         if isinstance(wc, Wildcard) and wc.min_count == 1 and wc.fixed_size:
-            expr = exprs[0]
+            expr = exprs[0] # type: Union[Expression,List[Expression]]
         else:
             expr = exprs
         if pattern.name in subst:
@@ -127,7 +131,8 @@ def _match(exprs: List[Expression], pattern: Expression, subst: Substitution) ->
     elif isinstance(pattern, Operation):
         if len(exprs) != 1 or type(exprs[0]) != type(pattern):
             return
-        for result in _match_operation(exprs[0].operands, pattern, subst):
+        op_expr = cast(Operation, exprs[0])
+        for result in _match_operation(op_expr.operands, pattern, subst):
             if pattern.constraint is None or pattern.constraint(result):
                 yield result
 
@@ -217,6 +222,10 @@ def substitute(expression: Expression, substitution: Substitution) -> Tuple[Unio
             return substitution[expression.name], True
         result, replaced = substitute(expression.expression, substitution)
         if replaced:
+            if isinstance(result, list):
+                if len(result) != 1:
+                    raise ValueError('Invalid substitution resulted in a variable with multiple expressions.')
+                result = result[0]
             return Variable(expression.name, result), True
     elif isinstance(expression, Operation):
         any_replaced = False

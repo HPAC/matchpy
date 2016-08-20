@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
-from typing import TypeVar, Tuple, List, Sequence, Iterator, Optional
-import itertools
 import ast
-import math
 import inspect
+import itertools
+import math
 import re
-from collections import Counter as Multiset
+from typing import Iterator, List, Sequence, Tuple, TypeVar, cast, Optional
 
 T = TypeVar('T')
 
@@ -100,7 +99,7 @@ def fixed_sum_vector_iter(min_vect : Sequence[int], max_vect : Sequence[int], to
     realMaxs = list(max_vect)
 
     for i, (minimum, maximum) in enumerate(zip(min_vect, max_vect)):
-        left_over_sum = sum(max_vect[:i] + max_vect[i+1:])
+        left_over_sum = sum(max_vect[:i]) + sum(max_vect[i+1:])
         if left_over_sum != math.inf:
             realMins[i] = max(total - left_over_sum, minimum)
         realMaxs[i] = min(remaining + minimum, maximum)
@@ -181,7 +180,8 @@ def commutative_partition_iter(values: Sequence[T], min_vect: Sequence[int], max
                 i += 1
             sums = tuple(map(sum, zip(*pvalues))) # type: Tuple[int, ...]
             if all(minc <= s and s <= maxc for minc, s, maxc in zip(min_vect, sums, max_vect)):
-                partiton = tuple([] for _ in range(len(min_vect))) # type: Tuple[List[T], ...]
+                # cast is needed for mypy, as it can't infer the type of the empty list otherwise
+                partiton = tuple(cast(List[T], []) for _ in range(len(min_vect))) # type: Tuple[List[T], ...]
                 for cs, (v, _) in zip(pvalues, counts):
                     for j, c in enumerate(cs):
                         partiton[j].extend([v] * c)

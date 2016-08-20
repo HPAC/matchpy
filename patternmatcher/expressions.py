@@ -2,7 +2,8 @@
 import math
 from collections import Counter as Multiset
 from enum import Enum
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import (Any, Callable, Dict, Iterator, List, Optional, Sequence,
+                    Set, Tuple, Union)
 
 from patternmatcher.utils import isidentifier
 
@@ -25,8 +26,9 @@ class Arity(tuple, Enum):
     def __repr__(self):
         return "%s.%s" % (self.__class__.__name__, self._name_)
 
-Match = Dict[str, Tuple['Expression']]
+Match = Dict[str, Union['Expression', List['Expression']]]
 Constraint = Callable[[Match], bool]
+ExpressionPredicate = Callable[['Expression'],bool]
 
 class Expression(object):
     """Base class for all expressions.
@@ -40,32 +42,38 @@ class Expression(object):
             to verify it.
     """
 
-    def __init__(self, constraint : Optional[Constraint] = None):
+    def __init__(self, constraint: Optional[Constraint] = None) -> None:
         self.constraint = constraint
-        self.head = None
+        self.head = None # type: Union[type,Atom]
     
     @property
-    def variables(self):
+    def variables(self) -> Multiset:
+        """"""
         return Multiset()
 
     @property
-    def symbols(self):
+    def symbols(self) -> Multiset:
         return Multiset()
 
     @property
-    def is_constant(self):
+    def is_constant(self) -> bool:
         """True, if the expression does not contain any wildcards."""
         return True
 
     @property
-    def is_linear(self):
+    def is_syntactic(self) -> bool:
+        """True, if the expression does not contain any associative or commutative operations or sequence wildcards."""
+        return True
+
+    @property
+    def is_linear(self) -> bool:
         """True, if the expression is linear, i.e. every variable may occur at most once."""
         return self._is_linear(set())
 
-    def _is_linear(self, variables):
+    def _is_linear(self, variables: Set[str]) -> bool:
         return True
 
-    def preorder_iter(self, predicate=None, position=()):
+    def preorder_iter(self, predicate:Optional[ExpressionPredicate]=None, position:Tuple[int,...]=()) -> Iterator[Tuple['Expression',Tuple[int,...]]]:
         """Iterates over all subexpressions that match the (optional) `predicate`."""
         if filter is None or predicate(self):
             yield self, position
@@ -90,7 +98,7 @@ class Operation(Expression, metaclass=OperationMeta):
     name = None # type: str
     """Name or symbol for the operator."""
 
-    arity = Arity.variadic # type: Tuple[int, int]
+    arity = Arity.variadic # type: Arity
     """The arity of the operator as (`int`, `int`) tuple.
 
     The first component represents
@@ -141,9 +149,10 @@ class Operation(Expression, metaclass=OperationMeta):
 
         return operation
 
-    def __init__(self, *operands: Expression, constraint:Optional[Constraint]=None): # pylint: disable=W0231
+    def __init__(self, *operands: Expression, constraint: Optional[Constraint]=None) -> None: # pylint: disable=W0231
         # Expression.__init__ is called in __new__()
-        pass
+        # for mypy so that it knows there is a property `operands`
+        self.operands = self.operands # type: List[Expression]
 
     def __str__(self):
         if self.constraint:
@@ -157,7 +166,7 @@ class Operation(Expression, metaclass=OperationMeta):
         return '%s(%s)' % (self.__class__.__name__, operand_str)
 
     @staticmethod
-    def new(name : str, arity : Tuple[int, int], class_name : str = None, **attributes) -> Any:
+    def new(name : str, arity : Arity, class_name : str = None, **attributes) -> Any:
         """Utility method to create a new operation type.
 
         Example:
@@ -220,10 +229,10 @@ class Operation(Expression, metaclass=OperationMeta):
     @staticmethod
     def _simplify(operation: 'Operation') -> Expression:        
         if operation.associative:
-            newOperands = []
+            newOperands = [] # type: List[Expression]
             for operand in operation.operands:
-                if type(operand) == type(operation):
-                    newOperands.extend(operand.operands)
+                if isinstance(operand, type(operation)):
+                    newOperands.extend(operand.operands) # type: ignore
                 else:
                     newOperands.append(operand)
             operation.operands = newOperands
@@ -238,8 +247,13 @@ class Operation(Expression, metaclass=OperationMeta):
 
     @property
     def is_constant(self):
-        """True, if the expression does not contain any wildcards."""
         return all(x.is_constant for x in self.operands)
+
+    @property
+    def is_syntactic(self):
+        if self.associative or self.commutative:
+            return False
+        return all(o.is_syntactic for o in self.operands)
 
     @property
     def variables(self):
@@ -252,27 +266,13 @@ class Operation(Expression, metaclass=OperationMeta):
     def _is_linear(self, variables):
         return all(o._is_linear(variables) for o in self.operands)
 
-    def preorder_iter(self, predicate=None, position=()):
-        """Iterates over all subexpressions that match the (optional) `predicate`."""
+    def preorder_iter(self, predicate:Optional[ExpressionPredicate]=None, position:Tuple[int,...]=()) -> Iterator[Tuple['Expression',Tuple[int,...]]]:
         if predicate is None or predicate(self):
             yield self, position
         for i, operand in enumerate(self.operands):
             yield from operand.preorder_iter(predicate, position + (i, ))
 
     def __hash__(self):
-        """
-        # adapted from cpython tuple hash function tuplehash()
-        # see https://github.com/python/cpython/blob/master/Objects/typeobject.c
-        # doesnt work because of overflow
-        mult = 0xf4243
-        h = (0x345678 ^ hash(type(self))) * mult
-        l = len(self.operands)
-        mult += 82520 + l + l
-        for i, operand in enumerate(self.operands):
-            h = (h ^ hash(operand)) * mult
-            mult += 82520 + 2 * (l - i - 1)
-        h += 97531
-        """
         return hash(tuple([type(self)] + self.operands))
 
 class Atom(Expression):
@@ -331,8 +331,11 @@ class Variable(Atom):
 
     @property
     def is_constant(self):
-        """True, if the expression does not contain any wildcards."""
         return self.expression.is_constant
+
+    @property
+    def is_syntactic(self):
+        return self.expression.is_syntactic
 
     @property
     def variables(self):
@@ -359,8 +362,7 @@ class Variable(Atom):
         """Creates a `Variable` with :class:`Wildcard` that matches at least one and up to any number of arguments."""
         return Variable(name, Wildcard.plus(), constraint)
 
-    def preorder_iter(self, predicate=None, position=()):
-        """Iterates over all subexpressions that match the (optional) `predicate`."""
+    def preorder_iter(self, predicate:Optional[ExpressionPredicate]=None, position:Tuple[int,...]=()) -> Iterator[Tuple['Expression',Tuple[int,...]]]:
         if predicate is None or predicate(self):
             yield self, position
         yield from self.expression.preorder_iter(predicate, position + (0, ))
@@ -436,8 +438,11 @@ class Wildcard(Atom):
 
     @property
     def is_constant(self):
-        """True, if the expression does not contain any wildcards."""
         return False
+
+    @property
+    def is_syntactic(self):
+        return self.fixed_size
 
     @staticmethod
     def dot():

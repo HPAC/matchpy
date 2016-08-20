@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-from typing import Dict, Callable, Union, List
 import inspect
+from typing import Callable, Dict, List, Union
 
 from patternmatcher.expressions import Expression
 from patternmatcher.utils import get_lambda_source
@@ -43,7 +43,7 @@ class CustomConstraint(Constraint):
         signature = inspect.signature(constraint)
 
         self.allow_any = False
-        self.variables = set()
+        self.variables = set() # type: Set[str]
 
         for param in signature.parameters.values():
             if param.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD or param.kind == inspect.Parameter.KEYWORD_ONLY:
@@ -65,8 +65,12 @@ class CustomConstraint(Constraint):
 
 
 if __name__ == '__main__':
+    from patternmatcher.expressions import Symbol
+    a = Symbol('a')
+    b = Symbol('b')
+    c = Symbol('c')
     cc = CustomConstraint(lambda x, y: x == y)
     vc = EqualVariablesConstraint('x', 'y')
     print(cc.variables)
-    print(cc({'x': 1, 'y': 1, 'z': 5, 'k': 8}))
-    print(vc({'x': 1, 'y': 2, 'z': 5, 'k': 8}))
+    print(cc({'x': a, 'y': a, 'z': b, 'k': c}))
+    print(vc({'x': a, 'y': a, 'z': b, 'k': c}))
