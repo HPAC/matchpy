@@ -94,33 +94,34 @@ class MatchTest(unittest.TestCase):
 
     @unpack
     @data(
-        (a,                 x_,                 {'x': a}),
-        (b,                 x_,                 {'x': b}),
-        (f(a),              f(x_),              {'x': a}),
-        (f(b),              f(x_),              {'x': b}),
-        (f(a),              x_,                 {'x': f(a)}),
-        (f2(a),             f(x_),              None),
-        (f(a, b),           f(x_),              None),
-        (f(a, b),           f(x_, b),           {'x': a}),
-        (f(a, b),           f(x_, a),           None),
-        (f(a, b),           f(a, x_),           {'x': b}),
-        (f(a, b),           f(x_, x_),          None),
-        (f(a, a),           f(x_, x_),          {'x': a}),
-        (f(a, b),           f(x_, y_),          {'x': a,       'y': b}),
-        (f(a),              f(x_, y_),          None),
-        (f(a, b, c),        f(x_, y_),          None),
-        (f(a, f2(b)),       f(x_, y_),          {'x': a,       'y': f2(b)}),
-        (f(a, f2(b)),       f(x_, f2(y_)),      {'x': a,       'y': b}),
-        (f(a, f2(b)),       f(x_, f2(x_)),      None),
-        (f(a, f2(a)),       f(x_, f2(x_)),      {'x': a}),
-        (f(f2(a), f2(b)),   f(x_, x_),          None),
-        (f(f2(a), f2(b)),   f(x_, y_),          {'x': f2(a),   'y': f2(b)}),
-        (f(f2(a), a),       f(x_, x_),          None),
-        (f(f2(a), a),       f(f2(x_), x_),      {'x': a}),
-        (f(f(a, b)),        f(x_, y_),          None),
-        (f(f(a, b)),        f(x_),              {'x': f(a, b)}),
-        (f2(a, b),          f(x_, y_),          None),
-        (f(f(a, b)),        f(f(x_, y_)),       {'x': a,       'y': b})
+        (a,                 x_,                                  {'x': a}),
+        (b,                 x_,                                  {'x': b}),
+        (f(a),              f(x_),                               {'x': a}),
+        (f(b),              f(x_),                               {'x': b}),
+        (f(a),              x_,                                  {'x': f(a)}),
+        (f2(a),             f(x_),                               None),
+        (f(a, b),           f(x_),                               None),
+        (f(a, b),           f(x_, b),                            {'x': a}),
+        (f(a, b),           f(x_, a),                            None),
+        (f(a, b),           f(a, x_),                            {'x': b}),
+        (f(a, b),           f(x_, x_),                           None),
+        (f(a, a),           f(x_, x_),                           {'x': a}),
+        (f(a, b),           f(x_, y_),                           {'x': a,       'y': b}),
+        (f(a),              f(x_, y_),                           None),
+        (f(a, b, c),        f(x_, y_),                           None),
+        (f(a, f2(b)),       f(x_, y_),                           {'x': a,       'y': f2(b)}),
+        (f(a, f2(b)),       f(x_, f2(y_)),                       {'x': a,       'y': b}),
+        (f(a, f2(b)),       f(x_, f2(x_)),                       None),
+        (f(a, f2(a)),       f(x_, f2(x_)),                       {'x': a}),
+        (f(f2(a), f2(b)),   f(x_, x_),                           None),
+        (f(f2(a), f2(b)),   f(x_, y_),                           {'x': f2(a),   'y': f2(b)}),
+        (f(f2(a), a),       f(x_, x_),                           None),
+        (f(f2(a), a),       f(f2(x_), x_),                       {'x': a}),
+        (f(f(a, b)),        f(x_, y_),                           None),
+        (f(f(a, b)),        f(x_),                               {'x': f(a, b)}),
+        (f2(a, b),          f(x_, y_),                           None),
+        (f(f(a, b)),        f(f(x_, y_)),                        {'x': a,       'y': b}),
+        (a,                 Variable('x', Variable('y', a)),     {'x': a,       'y': a})
     )
     def test_wildcard_dot_match(self, expr, pattern, expected_match):
         result = list(match(expr, pattern))
@@ -295,16 +296,57 @@ class MatchTest(unittest.TestCase):
         (f(a, b), lambda c1, c2: f(Wildcard(1, True, c1), Wildcard(1, True, c2)),   [False, False], [1, 0], 0),
         (f(a, b), lambda c1, c2: f(Wildcard(1, True, c1), Wildcard(1, True, c2)),   [True, False],  [1, 1], 0),
         (f(a, b), lambda c1, c2: f(Wildcard(1, True, c1), Wildcard(1, True, c2)),   [True, True],   [1, 1], 1),
-        (f(a, b), lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)), [True, True],   [3, 3], 3)
+        (f(a, b), lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)), [False, False], [3, 0], 0),
+        (f(a, b), lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)), [False, True],  [3, 0], 0),
+        (f(a, b), lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)), [True, False],  [3, 3], 0),
+        (f(a, b), lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)), [True, True],   [3, 3], 3),
+        (a,       lambda c: Variable('x', a, c),                                    [True],         [1],    1),
+        (a,       lambda c: Variable('x', a, c),                                    [False],        [1],    0),
+        (f(a, a), lambda c1, c2: f(Variable('x', a, c1), Variable('x', a, c2)),     [False, False], [1, 0], 0),
+        (f(a, a), lambda c1, c2: f(Variable('x', a, c1), Variable('x', a, c2)),     [True, False],  [1, 1], 0),
+        (f(a, a), lambda c1, c2: f(Variable('x', a, c1), Variable('x', a, c2)),     [False, True],  [1, 0], 0),
+        (f(a, a), lambda c1, c2: f(Variable('x', a, c1), Variable('x', a, c2)),     [True, True],   [1, 1], 1),
+        (a,       lambda c: Symbol('a', c),                                         [False],        [1],    0),
+        (a,       lambda c: Symbol('a', c),                                         [True],         [1],    1),
+        (f(a),    lambda c: f(a, constraint=c),                                     [False],        [1],    0),
+        (f(a),    lambda c: f(a, constraint=c),                                     [True],         [1],    1),
     )
-    def test_wildcard_mixed_match(self, expr, pattern_factory, constraint_values, constraint_call_counts, match_count):
+    def test_constraint_match(self, expr, pattern_factory, constraint_values, constraint_call_counts, match_count):
         constraints = [Mock(return_value=v) for v in constraint_values]
         pattern = pattern_factory(*constraints)
         result = list(match(expr, pattern))
 
-        self.assertEqual(len(result), match_count)
+        self.assertEqual(len(result), match_count, 'Wrong number of matched for %r and %r' % (expr, pattern))
         for constraint, call_count in zip(constraints, constraint_call_counts):
             self.assertEqual(constraint.call_count, call_count)
+
+    def test_constraint_call_values(self):
+        constraint1 = Mock(return_value=True)
+        constraint2 = Mock(return_value=True)
+        constraint3 = Mock(return_value=True)
+        constraint4 = Mock(return_value=True)
+        expr = f(a, b)
+        pattern = f(Wildcard(0, False, constraint1), Variable('x', Wildcard.dot(), constraint2), Variable('y', Wildcard.dot(), constraint3), constraint=constraint4)
+
+        result = list(match(expr, pattern))
+
+        self.assertEqual(result, [{'x': a, 'y': b}])
+        constraint1.assert_called_once_with({})
+        constraint2.assert_called_once_with({'x': a})
+        constraint3.assert_called_once_with({'x': a, 'y': b})
+        constraint4.assert_called_once_with({'x': a, 'y': b})
+
+    def test_wildcard_internal_match(self):
+        from patternmatcher.functions import _match
+
+        matches = list(_match([a, b], x_, {}))
+        self.assertEqual(matches, [])
+
+        matches = list(_match([], x_, {}))
+        self.assertEqual(matches, [])
+
+        matches = list(_match([], x__, {}))
+        self.assertEqual(matches, [])
 
 from hypothesis import given, assume
 import hypothesis.strategies as st
@@ -316,6 +358,7 @@ ExpressionBaseStrategy = st.sampled_from([a, b, c, x_, y_, x__, y__, x___, y___]
 ExpressionRecurseStrategy = lambda args: func_wrap_strategy(args, f) | func_wrap_strategy(args, f2)
 ExpressionStrategy = st.recursive(ExpressionBaseStrategy, ExpressionRecurseStrategy, max_leaves=10)
 
+@unittest.skip('Takes too long on average')
 class RandomizedMatchTest(unittest.TestCase):
     @given(ExpressionStrategy, ExpressionStrategy)
     def test_correctness(self, expr, pattern):

@@ -301,6 +301,9 @@ class Symbol(Atom):
             return self.name < other.name
         return True
 
+    def __eq__(self, other):
+        return type(self) == type(other) and self.name == other.name
+
     def __hash__(self):
         return hash((type(self), self.name))
 

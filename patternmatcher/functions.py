@@ -96,10 +96,10 @@ def match_anywhere(expression: Expression, pattern: Expression) -> Iterator[Tupl
 
 def _match(exprs: List[Expression], pattern: Expression, subst: Substitution) -> Iterator[Substitution]:
     if isinstance(pattern, Variable):
-        wc = pattern.expression
-        while isinstance(wc, Variable):
-            wc = wc.expression
-        if isinstance(wc, Wildcard) and wc.min_count == 1 and wc.fixed_size:
+        inner = pattern.expression
+        while isinstance(inner, Variable):
+            inner = inner.expression
+        if len(exprs) == 1 and (not isinstance(inner, Wildcard) or inner.fixed_size):
             expr = exprs[0] # type: Union[Expression,List[Expression]]
         else:
             expr = exprs
@@ -129,7 +129,7 @@ def _match(exprs: List[Expression], pattern: Expression, subst: Substitution) ->
                 yield subst
 
     else:
-        assert isinstance(pattern, Operation)
+        assert isinstance(pattern, Operation), 'Unexpected expression of type %r' % type(pattern)
         if len(exprs) != 1 or type(exprs[0]) != type(pattern):
             return
         op_expr = cast(Operation, exprs[0])
@@ -244,7 +244,7 @@ def substitute(expression: Expression, substitution: Substitution) -> Tuple[Unio
 
     return expression, False
 
-def _main():
+def _main(): # pragma: no cover
     from patternmatcher.utils import match_repr_str
     #f = Operation.new('f', arity=Arity.binary, associative=True, commutative=True)
     f = Operation.new('f', arity=Arity.binary)
@@ -266,7 +266,7 @@ def _main():
         print(expr[pos])
         print(match_repr_str(m))
 
-def _main2():
+def _main2(): # pragma: no cover
     f = Operation.new('f', Arity.polyadic)
     g = Operation.new('g', Arity.variadic)
     expr = f(Variable.dot('x'), f(Variable.dot('y'), Variable.dot('x')), g(Variable.dot('y')))
@@ -274,4 +274,4 @@ def _main2():
     print(expr)
 
 if __name__ == '__main__':
-    _main()
+    _main() # pragma: no cover
