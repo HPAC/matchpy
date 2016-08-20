@@ -86,11 +86,8 @@ class GenerateNetTest(unittest.TestCase):
                         yield operation(*args)
 
     def test_correctness(self):
-        i = 0
-        for pattern in self.generate_patterns(3, 2):
-            i += 1
-            #print(pattern)
-        print(i)
+        # TODO
+        pass
 
 if __name__ == '__main__':
     unittest.main()

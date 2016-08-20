@@ -244,34 +244,34 @@ def substitute(expression: Expression, substitution: Substitution) -> Tuple[Unio
 
     return expression, False
 
-def _main(): # pragma: no cover
-    from patternmatcher.utils import match_repr_str
-    #f = Operation.new('f', arity=Arity.binary, associative=True, commutative=True)
-    f = Operation.new('f', arity=Arity.binary)
-    g = Operation.new('g', arity=Arity.unary)
-    a = Symbol('a')
-    b = Symbol('b')
-    c = Symbol('c')
-    x = Variable.dot('x')
-    x2 = Variable.dot('x2')
-    y = Variable.star('y')
-    z = Variable.plus('z')
+if __name__ == '__main__': # pragma: no cover
+    def _main():
+        from patternmatcher.utils import match_repr_str
+        #f = Operation.new('f', arity=Arity.binary, associative=True, commutative=True)
+        f = Operation.new('f', arity=Arity.binary)
+        g = Operation.new('g', arity=Arity.unary)
+        a = Symbol('a')
+        b = Symbol('b')
+        c = Symbol('c')
+        x = Variable.dot('x')
+        x2 = Variable.dot('x2')
+        y = Variable.star('y')
+        z = Variable.plus('z')
 
-    expr = f(a, g(b), g(g(c), g(a), g(g(b))), g(c), c)
-    #pattern = f(x, g(Wildcard.dot()), x2)
-    pattern = g(x)
+        expr = f(a, g(b), g(g(c), g(a), g(g(b))), g(c), c)
+        #pattern = f(x, g(Wildcard.dot()), x2)
+        pattern = g(x)
 
-    for m, pos in match_anywhere(expr, pattern):
-        print('match at ', pos, ':')
-        print(expr[pos])
-        print(match_repr_str(m))
+        for m, pos in match_anywhere(expr, pattern):
+            print('match at ', pos, ':')
+            print(expr[pos])
+            print(match_repr_str(m))
 
-def _main2(): # pragma: no cover
-    f = Operation.new('f', Arity.polyadic)
-    g = Operation.new('g', Arity.variadic)
-    expr = f(Variable.dot('x'), f(Variable.dot('y'), Variable.dot('x')), g(Variable.dot('y')))
-    linearize(expr)
-    print(expr)
+    def _main2():
+        f = Operation.new('f', Arity.polyadic)
+        g = Operation.new('g', Arity.variadic)
+        expr = f(Variable.dot('x'), f(Variable.dot('y'), Variable.dot('x')), g(Variable.dot('y')))
+        linearize(expr)
+        print(expr)
 
-if __name__ == '__main__':
-    _main() # pragma: no cover
+    _main()

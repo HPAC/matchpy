@@ -146,18 +146,19 @@ def fixed_sum_vector_iter(min_vect : Sequence[int], max_vect : Sequence[int], to
                 break
 
 def _count(values: Sequence[T]) -> Iterator[Tuple[T, int]]:
-    last_value = None # type: T
-    last_count = 0
-    for value in sorted(values):
+    if len(values) == 0:
+        return
+    sorted_values = sorted(values)
+    last_value = sorted_values[0]
+    last_count = 1
+    for value in sorted_values[1:]:
         if value != last_value:
-            if last_count > 0:
-                yield last_value, last_count
+            yield last_value, last_count
             last_value = value
             last_count = 1
         else:
             last_count += 1
-    if last_count > 0:
-        yield last_value, last_count
+    yield last_value, last_count
 
 def commutative_partition_iter(values: Sequence[T], min_vect: Sequence[int], max_vect: Sequence[int]) -> Iterator[Tuple[List[T], ...]]:
     counts = list(_count(values))
@@ -252,7 +253,7 @@ def extended_euclid(a: int, b: int) -> Tuple[int, int, int]:
 
     return (x, y, d)
 
-def base_solution_linear(c: int, a: int, b: int) -> Iterator[Tuple[int, int]]:
+def base_solution_linear(a: int, b: int, c: int) -> Iterator[Tuple[int, int]]:
     r"""Yields solution for a basic linear Diophantine equation of the form :math:`ax + by = c`.
     
     First, the equation is normalized by dividing :math:`a, b, c` by their gcd.
@@ -263,6 +264,9 @@ def base_solution_linear(c: int, a: int, b: int) -> Iterator[Tuple[int, int]]:
     either :math:`t \geq 0` or :math:`t \leq 0` must hold. Also, all the non-negative solutions are consecutive with
     respect to :math:`t`. Therefore, all non-negative solutions can be generated efficiently from the base solution.
     """
+    assert a > 0, 'Invalid coefficient'
+    assert b > 0, 'Invalid coefficient'
+
     d = math.gcd(a, math.gcd(b, c))
     a = a // d
     b = b // d
@@ -306,13 +310,15 @@ def solve_linear_diop(total: int, *coeffs: int) -> Iterator[Tuple[int, ...]]:
     4. Combine these solutions to form a solution for the whole equation
     """
     if len(coeffs) == 0:
+        if total == 0:
+            yield tuple()
         return
     if len(coeffs) == 1:
         if total % coeffs[0] == 0:
             yield (total // coeffs[0], )
         return
     if len(coeffs) == 2:
-        yield from base_solution_linear(total, coeffs[0], coeffs[1])
+        yield from base_solution_linear(coeffs[0], coeffs[1], total)
         return
 
     # calculate gcd(coeffs[1:])
@@ -321,9 +327,10 @@ def solve_linear_diop(total: int, *coeffs: int) -> Iterator[Tuple[int, ...]]:
         remainder_gcd = math.gcd(remainder_gcd, coeff)
 
     # solve coeffs[0] * x + remainder_gcd * y = total
-    for coeff0_solution, remainder_gcd_solution in base_solution_linear(total, coeffs[0], remainder_gcd):
+    for coeff0_solution, remainder_gcd_solution in base_solution_linear(coeffs[0], remainder_gcd, total):
+        newCoeffs = [c // remainder_gcd for c in coeffs[1:]]
         # use the solutions for y to solve the remaining variables recursively
-        for remainder_solution in solve_linear_diop(remainder_gcd_solution, *coeffs[1:]):
+        for remainder_solution in solve_linear_diop(remainder_gcd_solution, *newCoeffs):
             yield (coeff0_solution, ) + remainder_solution
 
 def _match_value_repr_str(value):
@@ -334,7 +341,7 @@ def _match_value_repr_str(value):
 def match_repr_str(match):
     return ', '.join('%s: %s' % (k, _match_value_repr_str(v)) for k, v in match.items())
 
-if __name__ == '__main__':
+if __name__ == '__main__': # pragma: no cover
     print(list(solve_linear_diop(5, 2, 3, 1)))
     #for a in range(1, 6):
     #    for b in range(a, 6):
