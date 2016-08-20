@@ -105,6 +105,9 @@ class _NodeQueueItem(object):
             keys.add(Wildcard)
         return keys
 
+    def __repr__(self):
+        return 'NQI(%r, %r, %r, %r, %r, %r)' % (self.id1, self.id2, self.depth, self.fixed, self.node1, self.node2)
+
 class _Node(dict):
     _id = 1
 
@@ -251,12 +254,12 @@ class DiscriminationNet(object):
             return None, False
 
         root = _Node()
-        nodes = {(node1.id, node2.id): root}
+        nodes = {(node1.id, node2.id, 0): root}
         queue = [_NodeQueueItem(node1, node2)]
         
         while len(queue) > 0:
             state = queue.pop(0)
-            node = nodes[(state.id1, state.id2)]
+            node = nodes[(state.id1, state.id2, state.depth)]
 
             for k in list(state.keys):
                 t1, with_wildcard1 = get_child(state.node1, k, state.fixed == 1)
@@ -273,10 +276,12 @@ class DiscriminationNet(object):
                         child_state.fixed = 1
                         child_state.depth = 1
                         child_state.node1 = state.node1
+                        child_state.id1 = state.id1
                     elif with_wildcard2:
                         child_state.fixed = 2
                         child_state.depth = 1
                         child_state.node2 = state.node2
+                        child_state.id2 = state.id2
                 elif k == OPERATION_END and state.fixed:
                     child_state.depth -= 1
 
@@ -298,11 +303,11 @@ class DiscriminationNet(object):
                         child_state.fixed = 0
                 
                 if child_state.id1 != 0 or child_state.id2 != 0:
-                    if (child_state.id1, child_state.id2) not in nodes:
-                        nodes[(child_state.id1, child_state.id2)] = _Node()
+                    if (child_state.id1, child_state.id2, child_state.depth) not in nodes:
+                        nodes[(child_state.id1, child_state.id2, child_state.depth)] = _Node()
                         queue.append(child_state)
                     
-                    node[k] = nodes[(child_state.id1, child_state.id2)]
+                    node[k] = nodes[(child_state.id1, child_state.id2, child_state.depth)]
                 else:
                     if type(child_state.node1) == list and type(child_state.node2) == list:
                         node[k] = child_state.node1 + child_state.node2               
@@ -392,6 +397,7 @@ def _logic_test():
     lnot = Operation.new('not', Arity.unary, 'LNot')
     limplies = Operation.new('implies', Arity.binary, 'LImplies')
     liff = Operation.new('iff', Arity.binary, 'LIff')
+    x = Variable.dot('x')
 
     lbot = Symbol('bot')
     ltop = Symbol('top')
@@ -426,7 +432,36 @@ def _logic_test():
 
     graph.render()
 
-if __name__ == '__main__':
+def _random_test(count):
+    
+    f = Operation.new('f', arity=Arity.binary)
+    g = Operation.new('g', arity=Arity.unary)
+    a = Symbol('a')
+    b = Symbol('b')
+    c = Symbol('c')
+    x = Variable.dot('x')
+
+    import hypothesis.strategies as st
+    
+    def func_wrap_strategy(args, func):
+        min_size = func.arity[0]
+        max_size = func.arity[1] and func.arity[0] or 4
+        return st.lists(args, min_size=min_size, max_size=max_size).map(lambda a: func(*a))
+    
+    ExpressionBaseStrategy = st.sampled_from([a, b, c, x])
+    ExpressionRecurseStrategy = lambda args: func_wrap_strategy(args, f) | func_wrap_strategy(args, g)
+    ExpressionStrategy = st.recursive(ExpressionBaseStrategy, ExpressionRecurseStrategy, max_leaves=10)
+
+    net = DiscriminationNet()
+    exprs = set(ExpressionStrategy.example() for _ in range(count))
+    for expr in exprs:
+        net.add(expr)
+
+    graph = net.as_graph()
+
+    graph.render()
+
+def _main():    
     f = Operation.new('f', arity=Arity.binary)
     g = Operation.new('g', arity=Arity.unary)
     a = Symbol('a')
@@ -437,9 +472,20 @@ if __name__ == '__main__':
     z = Variable.plus('z')
 
     net = DiscriminationNet()
+    
+    # problem case:
+    #net.add(x1)
+    #net.add(f(x2, g(a), f(x1, a)))
+    #net.add(f(b, x3, b))
+
+    #net.add(f(g(b, x), f(a, c, a, x), c, x))
+    #net.add(f(g(b, a), x, c, g(b, c, a)))
 
     net.add(f(z, a, x, b))
 
     graph = net.as_graph()
 
     graph.render()
+
+if __name__ == '__main__':
+    _random_test(20)
