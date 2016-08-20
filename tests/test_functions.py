@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 import unittest
+from unittest.mock import Mock
 from ddt import ddt, data, unpack
 
 from patternmatcher.expressions import Operation, Symbol, Variable, Arity, Wildcard
 from patternmatcher.functions import match, substitute
 from patternmatcher.utils import match_repr_str
+from patternmatcher.constraints import CustomConstraint
 
 
 f = Operation.new('f', Arity.variadic)
@@ -21,12 +23,19 @@ c = Symbol('c')
 _ = Wildcard.dot()
 x_ = Variable.dot('x')
 y_ = Variable.dot('y')
+z_ = Variable.dot('z')
 __ = Wildcard.plus()
 x__ = Variable.plus('x')
 y__ = Variable.plus('y')
+z__ = Variable.plus('z')
 ___ = Wildcard.star()
 x___ = Variable.star('x')
 y___ = Variable.star('y')
+z___ = Variable.star('z')
+
+mock_constraint_false = Mock(return_value=False)
+mock_constraint_true = Mock(return_value=True)
+
 
 @ddt
 class MatchTest(unittest.TestCase):
@@ -34,8 +43,11 @@ class MatchTest(unittest.TestCase):
     @data(
         (a,                 a,              True),
         (b,                 a,              False),
+        (f(),               f(),            True),
+        (f(a),              f(),            False),
         (f(a),              f(a),           True),
         (f(b),              f(a),           False),
+        (f(),               f(a),           False),
         (f2(a),             f(a),           False),
         (f(a, b),           f(a),           False),
         (f(a, b),           f(a, b),        True),
@@ -249,6 +261,50 @@ class MatchTest(unittest.TestCase):
             self.assertIn(expected_match, result, 'Expression %s and %s did not yield the match %s but were supposed to' % (expr, pattern, match_repr_str(expected_match)))
         for result_match in result:
             self.assertIn(result_match, expected_matches, 'Expression %s and %s yielded the unexpected match %s' % (expr, pattern, match_repr_str(result_match)))
+    
+    @unpack
+    @data(
+        (f(a, b),                   f(x__, y___),       [{'x': [a, b],      'y': []}, \
+                                                         {'x': [a],         'y': [b]}]),
+        (f(a, b),                   f(x___, y__),       [{'x': [a],         'y': [b]}, \
+                                                         {'x': [],          'y': [a, b]}]),
+        (f(a, b, c),                f(x_, y__),         [{'x': a,           'y': [b, c]}]),
+        (f(a, b, c),                f(x__, y_),         [{'x': [a, b],      'y': c}]),
+        (f(a, b, c),                f(x_, y___),        [{'x': a,           'y': [b, c]}]),
+        (f(a, b, c),                f(x___, y_),        [{'x': [a, b],      'y': c}]),
+        (f(a, b, c),                f(x___, y_, z___),  [{'x': [a, b],      'y': c,        'z': []}, \
+                                                         {'x': [a],         'y': b,        'z': [c]}, \
+                                                         {'x': [],          'y': a,        'z': [b, c]}]),
+        (f(a, b, c),                f(x__, y_, z___),   [{'x': [a, b],      'y': c,        'z': []}, \
+                                                         {'x': [a],         'y': b,        'z': [c]}]),
+        (f(a, b, c),                f(x___, y_, z__),   [{'x': [a],         'y': b,        'z': [c]}, \
+                                                         {'x': [],          'y': a,        'z': [b, c]}]),
+    )
+    def test_wildcard_mixed_match(self, expr, pattern, expected_matches):
+        result = list(match(expr, pattern))
+        for expected_match in expected_matches:
+            self.assertIn(expected_match, result, 'Expression %s and %s did not yield the match %s but were supposed to' % (expr, pattern, match_repr_str(expected_match)))
+        for result_match in result:
+            self.assertIn(result_match, expected_matches, 'Expression %s and %s yielded the unexpected match %s' % (expr, pattern, match_repr_str(result_match)))
+
+    @unpack
+    @data(
+        (a,       lambda c: Wildcard(1, True, c),                                   [False],        [1],    0),
+        (a,       lambda c: Wildcard(1, True, c),                                   [True],         [1],    1),
+        (f(a, b), lambda c1, c2: f(Wildcard(1, True, c1), Wildcard(1, True, c2)),   [False, True],  [1, 0], 0),
+        (f(a, b), lambda c1, c2: f(Wildcard(1, True, c1), Wildcard(1, True, c2)),   [False, False], [1, 0], 0),
+        (f(a, b), lambda c1, c2: f(Wildcard(1, True, c1), Wildcard(1, True, c2)),   [True, False],  [1, 1], 0),
+        (f(a, b), lambda c1, c2: f(Wildcard(1, True, c1), Wildcard(1, True, c2)),   [True, True],   [1, 1], 1),
+        (f(a, b), lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)), [True, True],   [3, 3], 3)
+    )
+    def test_wildcard_mixed_match(self, expr, pattern_factory, constraint_values, constraint_call_counts, match_count):
+        constraints = [Mock(return_value=v) for v in constraint_values]
+        pattern = pattern_factory(*constraints)
+        result = list(match(expr, pattern))
+
+        self.assertEqual(len(result), match_count)
+        for constraint, call_count in zip(constraints, constraint_call_counts):
+            self.assertEqual(constraint.call_count, call_count)
 
 from hypothesis import given, assume
 import hypothesis.strategies as st
@@ -304,15 +360,17 @@ class SubstituteTest(unittest.TestCase):
         (x_,                                {'x': [a, b]},           [a, b],             True),
         (y_,                                {'x': b},                y_,                 False),
         (Variable('x', Variable('y', a)),   {'y': b},                Variable('x', b),   True),
+        (Variable('x', Variable('y', a)),   {'y': [b]},              Variable('x', b),   True),
         (f(x_),                             {'x': b},                f(b),               True),
         (f(x_),                             {'y': b},                f(x_),              False),
         (f(x_),                             {},                      f(x_),              False),
         (f(a, x_),                          {'x': b},                f(a, b),            True),
         (f(x_),                             {'x': [a, b]},           f(a, b),            True),
+        (f(x_),                             {'x': []},               f(),                True),
         (f(x_, c),                          {'x': [a, b]},           f(a, b, c),         True),
         (f(x_, y_),                         {'x': a, 'y': b},        f(a, b),            True),
         (f(x_, y_),                         {'x': [a, c], 'y': b},   f(a, c, b),         True),
-        (f(x_, y_),                         {'x': a, 'y': [b, c]},   f(a, b, c),         True),
+        (f(x_, y_),                         {'x': a, 'y': [b, c]},   f(a, b, c),         True)
     )
     def test_substitution_match(self, expr, subst, expected_result, replaced):
         result, did_replace = substitute(expr, subst)
@@ -320,6 +378,14 @@ class SubstituteTest(unittest.TestCase):
         self.assertEqual(did_replace, replaced, 'Substitution did not yield expected result')
         if not did_replace:
             self.assertIs(result, expr, 'When nothing is substituted, the original expression has to be returned')
+
+    def test_error_with_nested_variables(self):
+        with self.assertRaises(ValueError):
+            substitute(Variable('x', Variable('y', a)), {'y' : [a, b]})
+
+        with self.assertRaises(ValueError):
+            substitute(Variable('x', Variable('y', a)), {'y' : []})
+
 
 if __name__ == '__main__':
     unittest.main()

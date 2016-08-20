@@ -128,7 +128,8 @@ def _match(exprs: List[Expression], pattern: Expression, subst: Substitution) ->
             if pattern.constraint is None or pattern.constraint(subst):
                 yield subst
 
-    elif isinstance(pattern, Operation):
+    else:
+        assert isinstance(pattern, Operation)
         if len(exprs) != 1 or type(exprs[0]) != type(pattern):
             return
         op_expr = cast(Operation, exprs[0])
@@ -160,6 +161,10 @@ def _size(expr):
     return (1, 1)
 
 def _match_operation(exprs, operation, subst):
+    if len(operation.operands) == 0:
+        if len(exprs) == 0:
+            yield subst
+        return
     # TODO
     mins, maxs = map(list, zip(*map(_size, operation.operands)))
     if operation.associative:
@@ -167,10 +172,6 @@ def _match_operation(exprs, operation, subst):
     else:
         fake_maxs = maxs
     if len(exprs) < sum(mins) or len(exprs) > sum(fake_maxs):
-        return
-    if len(operation.operands) == 0:
-        if len(exprs) == 0:
-            yield subst
         return
     limits = list(zip(mins, fake_maxs))
     if operation.commutative:
