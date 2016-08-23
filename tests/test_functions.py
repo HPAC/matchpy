@@ -4,7 +4,7 @@ from unittest.mock import Mock
 from ddt import ddt, data, unpack
 
 from patternmatcher.expressions import Operation, Symbol, Variable, Arity, Wildcard
-from patternmatcher.functions import match, substitute
+from patternmatcher.functions import match, substitute, replace
 from patternmatcher.utils import match_repr_str
 from patternmatcher.constraints import CustomConstraint
 
@@ -417,7 +417,7 @@ class SubstituteTest(unittest.TestCase):
     )
     def test_substitution_match(self, expr, subst, expected_result, replaced):
         result, did_replace = substitute(expr, subst)
-        self.assertEqual(result, expected_result, 'Substitution did not yield expected result (%s x___ %s)' % (result, expected_result))
+        self.assertEqual(result, expected_result, 'Substitution did not yield expected result')
         self.assertEqual(did_replace, replaced, 'Substitution did not yield expected result')
         if not did_replace:
             self.assertIs(result, expr, 'When nothing is substituted, the original expression has to be returned')
@@ -428,6 +428,48 @@ class SubstituteTest(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             substitute(Variable('x', Variable('y', a)), {'y' : []})
+
+
+@ddt
+class ReplaceTest(unittest.TestCase):
+    @unpack
+    @data(
+        (a,                     (),         b,          b),
+        (f(a),                  (),         b,          b),
+        (a,                     (),         f(b),       f(b)),
+        (f(a),                  (),         f(b),       f(b)),
+        (f(a),                  (0, ),      b,          f(b)),
+        (f(a, b),               (0, ),      c,          f(c, b)),
+        (f(a, b),               (1, ),      c,          f(a, c)),
+        (f(a),                  (0, ),      [b, c],     f(b, c)),
+        (f(a, b),               (0, ),      [b, c],     f(b, c, b)),
+        (f(a, b),               (1, ),      [b, c],     f(a, b, c)),
+        (f(f(a)),               (0, ),      b,          f(b)),
+        (f(f(a)),               (0, 0),     b,          f(f(b))),
+        (f(f(a, b)),            (0, 0),     c,          f(f(c, b))),
+        (f(f(a, b)),            (0, 1),     c,          f(f(a, c))),
+        (f(f(a, b), f(a, b)),   (0, 0),     c,          f(f(c, b), f(a, b))),
+        (f(f(a, b), f(a, b)),   (0, 1),     c,          f(f(a, c), f(a, b))),
+        (f(f(a, b), f(a, b)),   (1, 0),     c,          f(f(a, b), f(c, b))),
+        (f(f(a, b), f(a, b)),   (1, 1),     c,          f(f(a, b), f(a, c))),
+        (f(f(a, b), f(a, b)),   (0, ),      c,          f(c, f(a, b))),
+        (f(f(a, b), f(a, b)),   (1, ),      c,          f(f(a, b), c)),
+    )
+    def test_substitution_match(self, expr, pos, replacement, expected_result):
+        result = replace(expr, pos, replacement)
+        self.assertEqual(result, expected_result, 'Replacement did not yield expected result (%r %r -> %r)' % (expr, pos, replacement))
+        self.assertNotEqual(result, expr, 'Replacement modified the original expression')
+
+    def test_too_big_position_error(self):
+        with self.assertRaises(IndexError):
+            replace(a, (0, ), b)
+        with self.assertRaises(IndexError):
+            replace(f(a), (0, 0), b)
+        with self.assertRaises(IndexError):
+            replace(f(a), (1, ), b)
+        with self.assertRaises(IndexError):
+            replace(f(a, b), (2, ), b)
+
 
 
 if __name__ == '__main__':

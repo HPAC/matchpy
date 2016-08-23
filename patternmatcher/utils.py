@@ -333,12 +333,12 @@ def solve_linear_diop(total: int, *coeffs: int) -> Iterator[Tuple[int, ...]]:
         for remainder_solution in solve_linear_diop(remainder_gcd_solution, *newCoeffs):
             yield (coeff0_solution, ) + remainder_solution
 
-def _match_value_repr_str(value):
+def _match_value_repr_str(value): # pragma: no cover 
     if type(value) == list:
         return '(%s)' % (', '.join(str(x) for x in value))
     return str(value)
 
-def match_repr_str(match):
+def match_repr_str(match): # pragma: no cover 
     return ', '.join('%s: %s' % (k, _match_value_repr_str(v)) for k, v in match.items())
 
 if __name__ == '__main__': # pragma: no cover

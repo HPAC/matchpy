@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import math
-from typing import Dict, Iterator, List, Tuple, Union, cast
+from typing import Dict, Iterator, List, Tuple, Union, cast, Sequence
 
 from patternmatcher.constraints import (Constraint, CustomConstraint,
                                         EqualVariablesConstraint,
@@ -56,7 +56,7 @@ def linearize(expression, variables=None, constraints=None):
 
 
 def match(expression: Expression, pattern: Expression) -> Iterator[Substitution]:
-    """Tries to match the given `pattern` to the given `expression`.
+    r"""Tries to match the given `pattern` to the given `expression`.
 
     Yields each match in form of a substitution that when applied to `pattern` results in the original
     `expression`.
@@ -66,7 +66,7 @@ def match(expression: Expression, pattern: Expression) -> Iterator[Substitution]
 
     :returns: Yields all possible substitutions as dictionaries where each key is the name of the variable
         and the corresponding value is the variables substitution. Applying the substitution to the pattern
-        results in the original expression (except for :class:`Wildcard`s)
+        results in the original expression (except for :class:`Wildcard`\s)
     """
     return _match([expression], pattern, {})
 
@@ -243,6 +243,38 @@ def substitute(expression: Expression, substitution: Substitution) -> Tuple[Unio
             return type(expression)(*new_operands), True
 
     return expression, False
+
+
+def replace(expression: Expression, position: Sequence[int], replacement: Union[Expression, List[Expression]]) -> Union[Expression, List[Expression]]:
+    r"""Replaces the subexpression of `expression` at the given `position` with the given `replacement`.
+
+    The original `expression` itself is not modified, but a modified copy is returned. If the replacement
+    is a list of expressions, it will be expanded into the list of operands of the respective operation:
+
+    >>> replace(f(a), (0, ), [b, c])
+    f(b, c)
+
+    :param expression: An :class:`Expression` where a (sub)expression is to be replaced. 
+    :param position: A tuple of indices, e.g. the empty tuple refers to the `expression` itself,
+        `(0, )` refers to the first child (operand) of the `expression`, `(0, 0)` to the first
+        child of the first child etc.
+    :param replacement: Either an :class:`Expression` or a list of :class:`Expression`\s to be
+        inserted into the `expression` instead of the original expression at that `position`.
+    """
+    if position == ():
+        return replacement
+    if not isinstance(expression, Operation):
+        raise IndexError('Invalid position %r for expression %s' % (position, expression))
+    if position[0] >= len(expression.operands):
+        raise IndexError('Position %r out of range for expression %s' % (position, expression))
+    op_class = type(expression)
+    pos = position[0]
+    subexpr = replace(expression.operands[pos], position[1:], replacement)
+    if isinstance(subexpr, list):
+        return op_class(*(expression.operands[:pos] + subexpr + expression.operands[pos+1:]))
+    operands = expression.operands.copy()
+    operands[pos] = subexpr
+    return op_class(*operands)
 
 if __name__ == '__main__': # pragma: no cover
     def _main():
