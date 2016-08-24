@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
-import math
 from collections import Counter as Multiset
 from enum import Enum
-from typing import (Any, Callable, Dict, Iterator, List, Optional, Sequence,
-                    Set, Tuple, Union)
+from typing import (Any, Callable, Dict, Iterator, List, Optional, Set, Tuple,
+                    Union)
 
 from patternmatcher.utils import isidentifier
 
@@ -28,7 +27,7 @@ class Arity(tuple, Enum):
 
 Match = Dict[str, Union['Expression', List['Expression']]]
 Constraint = Callable[[Match], bool]
-ExpressionPredicate = Callable[['Expression'],bool]
+ExpressionPredicate = Callable[['Expression'], bool]
 
 class Expression(object):
     """Base class for all expressions.
@@ -45,7 +44,7 @@ class Expression(object):
     def __init__(self, constraint: Optional[Constraint] = None) -> None:
         self.constraint = constraint
         self.head = None # type: Union[type,Atom]
-    
+
     @property
     def variables(self) -> Multiset:
         """"""
@@ -87,9 +86,9 @@ class Expression(object):
         raise NotImplementedError()
 
 class OperationMeta(type):
-    def __repr__(self):
+    def __repr__(cls):
         return 'Operation[%r, arity=%r, associative=%r, commutative=%r, one_identity=%r]' % \
-            (self.name, self.arity, self.associative, self.commutative, self.one_identity)
+            (cls.name, cls.arity, cls.associative, cls.commutative, cls.one_identity)
 
 
 class Operation(Expression, metaclass=OperationMeta):
@@ -107,22 +106,22 @@ class Operation(Expression, metaclass=OperationMeta):
 
     associative = False
     """True if the operation is associative, i.e. `f(a, f(b, c)) = f(f(a, b), c)`.
-    
+
     This property is used to flatten nested associative operations of the same type.
     Therefore, the `arity` of an associative operation has to have an unconstraint maximum
-    number of operand. 
+    number of operand.
     """
 
     commutative = False
     """True if the operation is commutative, i.e. `f(a, b) = f(b, a)`.
-    
+
     Note that commutative operations will always be converted into canonical
     form with sorted operands.
     """
 
     one_identity = False
     """True if the operation with a single argument is equivalent to the identity function.
-    
+
     This property is used to simplify expressions, e.g. for `f` with `f.one_identity = True`
     the expression `f(a)` if simplified to `a`.
     """
@@ -156,12 +155,12 @@ class Operation(Expression, metaclass=OperationMeta):
 
     def __str__(self):
         if self.constraint:
-            return '%s(%s) /; %s' % (self.name, ', '.join(str(o) for o in self.operands), str(self.constraint)) 
-        return '%s(%s)' % (self.name, ', '.join(str(o) for o in self.operands)) 
+            return '%s(%s) /; %s' % (self.name, ', '.join(str(o) for o in self.operands), str(self.constraint))
+        return '%s(%s)' % (self.name, ', '.join(str(o) for o in self.operands))
 
     def __repr__(self):
         operand_str = ', '.join(map(repr, self.operands))
-        if self.constraint:            
+        if self.constraint:
             return '%s(%s, constraint=%r)' % (self.__class__.__name__, operand_str, self.constraint)
         return '%s(%s)' % (self.__class__.__name__, operand_str)
 
@@ -202,12 +201,12 @@ class Operation(Expression, metaclass=OperationMeta):
         if isinstance(other, Symbol):
             return False
 
-        if type(self) != type(other):
+        if not isinstance(other, self.__class__):
             return type(self).__name__ < type(other).__name__
 
         if len(self.operands) != len(other.operands):
             return len(self.operands) < len(other.operands)
-        
+
         for left, right in zip(self.operands, other.operands):
             if left < right:
                 return True
@@ -215,7 +214,7 @@ class Operation(Expression, metaclass=OperationMeta):
         return False
 
     def __eq__(self, other):
-        return type(self) == type(other) and \
+        return isinstance(other, self.__class__) and \
                self.constraint == other.constraint and \
                len(self.operands) == len(other.operands) and \
                all(x == y for x,y in zip(self.operands, other.operands))
@@ -227,22 +226,22 @@ class Operation(Expression, metaclass=OperationMeta):
         return self.operands[head][remainder]
 
     @staticmethod
-    def _simplify(operation: 'Operation') -> Expression:        
+    def _simplify(operation: 'Operation') -> Expression:
         if operation.associative:
-            newOperands = [] # type: List[Expression]
+            new_operands = [] # type: List[Expression]
             for operand in operation.operands:
-                if isinstance(operand, type(operation)):
-                    newOperands.extend(operand.operands) # type: ignore
+                if isinstance(operand, operation.__class__):
+                    new_operands.extend(operand.operands) # type: ignore
                 else:
-                    newOperands.append(operand)
-            operation.operands = newOperands
-        
+                    new_operands.append(operand)
+            operation.operands = new_operands
+
         if operation.one_identity and len(operation.operands) == 1:
             return operation.operands[0]
 
         if operation.commutative:
             operation.operands.sort()
-        
+
         return operation
 
     @property
@@ -275,7 +274,7 @@ class Operation(Expression, metaclass=OperationMeta):
     def __hash__(self):
         return hash(tuple([type(self)] + self.operands))
 
-class Atom(Expression):
+class Atom(Expression): #pylint: disable=abstract-method
     pass
 
 class Symbol(Atom):
@@ -288,7 +287,7 @@ class Symbol(Atom):
         return self.name
 
     def __repr__(self):
-        if self.constraint:            
+        if self.constraint:
             return '%s(%r, constraint=%r)' % (self.__class__.__name__, self.name, self.constraint)
         return '%s(%r)' % (self.__class__.__name__, self.name)
 
@@ -302,7 +301,7 @@ class Symbol(Atom):
         return True
 
     def __eq__(self, other):
-        return type(self) == type(other) and self.name == other.name
+        return isinstance(other, self.__class__) and self.name == other.name
 
     def __hash__(self):
         return hash((type(self), self.name))
@@ -387,7 +386,7 @@ class Variable(Atom):
         return value
 
     def __repr__(self):
-        if self.constraint:            
+        if self.constraint:
             return '%s(%r, %r, constraint=%r)' % (self.__class__.__name__, self.name, self.expression, self.constraint)
         return '%s(%r, %r)' % (self.__class__.__name__, self.name, self.expression)
 
@@ -406,8 +405,7 @@ class Variable(Atom):
             return self
         if key[0] != 0:
             raise IndexError('Invalid position.')
-        _, *remainder = key
-        return self.expression[remainder]
+        return self.expression[key[1:]]
 
     def __hash__(self):
         return hash((type(self), self.name, self.expression))
@@ -415,7 +413,7 @@ class Variable(Atom):
 
 class Wildcard(Atom):
     """A wildcard that matches any expression.
-    
+
     The wildcard will match any number of expressions between `min_count` and `fixed_size`.
     Optionally, the wildcard can also be constrained to only match expressions satisfying a predicate.
     """
@@ -471,7 +469,7 @@ class Wildcard(Atom):
         return '_'
 
     def __repr__(self):
-        if self.constraint:            
+        if self.constraint:
             return '%s(%r, %r, constraint=%r)' % (self.__class__.__name__, self.min_count, self.fixed_size, self.constraint)
         return '%s(%r, %r)' % (self.__class__.__name__, self.min_count, self.fixed_size)
 
@@ -487,7 +485,7 @@ class Wildcard(Atom):
         return hash((type(self), self.min_count, self.fixed_size))
 
 if __name__ == '__main__':
-    f = Operation.new('f', Arity.binary, associative = True, commutative=True, one_identity=True)
+    f = Operation.new('f', Arity.binary, associative=True, commutative=True, one_identity=True)
     g = Operation.new('g', Arity.binary)
     x = Variable.dot('x')
     y = Variable.star('y')

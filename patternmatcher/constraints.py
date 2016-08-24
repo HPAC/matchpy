@@ -7,6 +7,8 @@ from patternmatcher.utils import get_lambda_source
 
 Match = Dict[str, Union[Expression, List[Expression]]]
 
+#pylint: disable=too-few-public-methods
+
 class Constraint(object):
     def __call__(self, match: Match) -> bool:
         raise NotImplementedError()

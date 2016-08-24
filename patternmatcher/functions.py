@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import math
+import itertools
 from typing import Dict, Iterator, List, Tuple, Union, cast, Sequence
+from collections import namedtuple
 
 from patternmatcher.constraints import (Constraint, CustomConstraint,
                                         EqualVariablesConstraint,
@@ -23,13 +25,13 @@ def linearize(expression, variables=None, constraints=None):
 
             i = 2
             for _ in range(count - 1):
-                newName = name + '_' + str(i)
-                while newName in names:
+                new_name = name + '_' + str(i)
+                while new_name in names:
                     i += 1
-                    newName = name + '_' + str(i)
+                    new_name = name + '_' + str(i)
 
-                variables[name].append(newName)
-                names.add(newName)
+                variables[name].append(new_name)
+                names.add(new_name)
                 i += 1
 
             if len(variables[name]) > 1:
@@ -38,7 +40,7 @@ def linearize(expression, variables=None, constraints=None):
     # TODO: Make non-mutating
     if isinstance(expression, Variable):
         name = expression.name
-        expression.name  = variables[name].pop(0)
+        expression.name = variables[name].pop(0)
 
         if len(variables[name]) == 0 and name in constraints:
             if expression.constraint:
@@ -71,7 +73,7 @@ def match(expression: Expression, pattern: Expression) -> Iterator[Substitution]
     return _match([expression], pattern, {})
 
 
-def match_anywhere(expression: Expression, pattern: Expression) -> Iterator[Tuple[Substitution,Tuple[int,...]]]:
+def match_anywhere(expression: Expression, pattern: Expression) -> Iterator[Tuple[Substitution, Tuple[int, ...]]]:
     """Tries to match the given `pattern` to the any subexpression of the given `expression`.
 
     Yields each match in form of a substitution and a position tuple.
@@ -87,7 +89,7 @@ def match_anywhere(expression: Expression, pattern: Expression) -> Iterator[Tupl
 
     :returns: Yields all possible substitution and position pairs.
     """
-    predicate=None
+    predicate = None
     if pattern.head is not None:
         predicate = lambda x: x.head == pattern.head
     for child, pos in expression.preorder_iter(predicate):
@@ -108,11 +110,11 @@ def _match(exprs: List[Expression], pattern: Expression, subst: Substitution) ->
                 if pattern.constraint is None or pattern.constraint(subst):
                     yield subst
             return
-        for newSubst in _match(exprs, pattern.expression, subst):
-            newSubst = newSubst.copy()
-            newSubst[pattern.name] = expr
-            if pattern.constraint is None or pattern.constraint(newSubst):
-                yield newSubst
+        for new_subst in _match(exprs, pattern.expression, subst):
+            new_subst = new_subst.copy()
+            new_subst[pattern.name] = expr
+            if pattern.constraint is None or pattern.constraint(new_subst):
+                yield new_subst
 
     elif isinstance(pattern, Wildcard):
         if pattern.fixed_size:
@@ -130,7 +132,7 @@ def _match(exprs: List[Expression], pattern: Expression, subst: Substitution) ->
 
     else:
         assert isinstance(pattern, Operation), 'Unexpected expression of type %r' % type(pattern)
-        if len(exprs) != 1 or type(exprs[0]) != type(pattern):
+        if len(exprs) != 1 or not isinstance(exprs[0], pattern.__class__):
             return
         op_expr = cast(Operation, exprs[0])
         for result in _match_operation(op_expr.operands, pattern, subst):
@@ -145,13 +147,13 @@ def _associative_operand_max(operand):
     return 1
 
 def _associative_fix_operand_max(parts, maxs, operation):
-    newParts = list(parts)
+    new_parts = list(parts)
     for i, (part, max_count) in enumerate(zip(parts, maxs)):
         if len(part) > max_count:
             fixed = part[:max_count-1]
             variable = part[max_count-1:]
-            newParts[i] = fixed + [operation(*variable)]
-    return newParts
+            new_parts[i] = fixed + [operation(*variable)]
+    return new_parts
 
 def _size(expr):
     while isinstance(expr, Variable):
@@ -254,7 +256,7 @@ def replace(expression: Expression, position: Sequence[int], replacement: Union[
     >>> replace(f(a), (0, ), [b, c])
     f(b, c)
 
-    :param expression: An :class:`Expression` where a (sub)expression is to be replaced. 
+    :param expression: An :class:`Expression` where a (sub)expression is to be replaced.
     :param position: A tuple of indices, e.g. the empty tuple refers to the `expression` itself,
         `(0, )` refers to the first child (operand) of the `expression`, `(0, 0)` to the first
         child of the first child etc.
@@ -275,6 +277,43 @@ def replace(expression: Expression, position: Sequence[int], replacement: Union[
     operands = expression.operands.copy()
     operands[pos] = subexpr
     return op_class(*operands)
+
+ReplacementRule = namedtuple('ReplacementRule', ('pattern', 'replacement'))
+
+def replace_all(expression: Expression, rules: Sequence[ReplacementRule]) -> Union[Expression, List[Expression]]:
+    grouped = itertools.groupby(rules, lambda r: r.pattern.head)
+    heads, groups = map(list, zip(*[(h, list(g)) for h, g in grouped]))
+    groups = [list(g) for g in groups]
+    # any_rules = []
+    # for i, h in enumerate(heads):
+    #     if h is None:
+    #         any_rules = groups[i]
+    #         del heads[i]
+    #         del groups[i]
+    #         break
+    replaced = True
+    while replaced:
+        replaced = False
+        for head, group in zip(heads, groups):
+            predicate = None
+            if head is not None:
+                predicate = lambda e: e.head == head
+            for subexpr, pos in expression.preorder_iter(predicate):
+                for pattern, replacement in group:
+                    try:
+                        subst = next(match(subexpr, pattern))
+                        result = replacement(**subst)
+                        expression = replace(expression, pos, result)
+                        replaced = True
+                        break
+                    except StopIteration:
+                        pass
+                if replaced:
+                    break
+            if replaced:
+                break
+
+    return expression
 
 if __name__ == '__main__': # pragma: no cover
     def _main():
@@ -306,4 +345,103 @@ if __name__ == '__main__': # pragma: no cover
         linearize(expr)
         print(expr)
 
-    _main()
+    def _main3():
+        #pylint: disable=invalid-name,bad-continuation
+        LAnd = Operation.new('and', Arity.variadic, 'LAnd', associative=True, one_identity=True, commutative=True)
+        LOr = Operation.new('or', Arity.variadic, 'LOr', associative=True, one_identity=True, commutative=True)
+        LXor = Operation.new('xor', Arity.variadic, 'LXor', associative=True, one_identity=True, commutative=True)
+        LNot = Operation.new('not', Arity.unary, 'LNot')
+        LImplies = Operation.new('implies', Arity.binary, 'LImplies')
+        Iff = Operation.new('iff', Arity.binary, 'Iff')
+
+        x_ = Variable.dot('x')
+        x__ = Variable.plus('x')
+        y_ = Variable.dot('y')
+        y___ = Variable.star('y')
+        z_ = Variable.dot('z')
+        ___ = Wildcard.star()
+
+        a1 = Symbol('a1')
+        a2 = Symbol('a2')
+        a3 = Symbol('a3')
+        a4 = Symbol('a4')
+        a5 = Symbol('a5')
+        a6 = Symbol('a6')
+        a7 = Symbol('a7')
+        a8 = Symbol('a8')
+        a9 = Symbol('a9')
+        a10 = Symbol('a10')
+        a11 = Symbol('a11')
+
+        LBot = Symbol(u'⊥')
+        LTop = Symbol(u'⊤')
+
+        expr = LImplies(LAnd(Iff(Iff(LOr(a1, a2), LOr(LNot(a3), Iff(LXor(a4, a5), LNot(LNot(LNot(a6)))))),
+        LNot(LAnd(LAnd(a7, a8), LNot(LXor(LXor(LOr(a9, LAnd(a10, a11)), a2), LAnd(LAnd(a11, LXor(a2, Iff(
+        a5, a5))), LXor(LXor(a7, a7), Iff(a9, a4)))))))), LImplies(Iff(Iff(LOr(a1, a2), LOr(LNot(a3),
+        Iff(LXor(a4, a5), LNot(LNot(LNot(a6)))))), LNot(LAnd(LAnd(a7, a8), LNot(LXor(LXor(LOr(a9, LAnd(
+        a10, a11)), a2), LAnd(LAnd(a11, LXor(a2, Iff(a5, a5))), LXor(LXor(a7, a7), Iff(a9, a4)))))))),
+        LNot(LAnd(LImplies(LAnd(a1, a2), LNot(LXor(LOr(LOr(LXor(LImplies(LAnd(a3, a4), LImplies(a5, a6)),
+        LOr(a7, a8)), LXor(Iff(a9, a10), a11)), LXor(LXor(a2, a2), a7)), Iff(LOr(a4, a9), LXor(LNot(a6),
+        a6))))), LNot(Iff(LNot(a11), LNot(a9))))))), LNot(LAnd(LImplies(LAnd(a1, a2), LNot(LXor(LOr(LOr(
+        LXor(LImplies(LAnd(a3, a4), LImplies(a5, a6)), LOr(a7, a8)), LXor(Iff(a9, a10), a11)), LXor(
+        LXor(a2, a2), a7)), Iff(LOr(a4, a9), LXor(LNot(a6), a6))))), LNot(Iff(LNot(a11), LNot(a9))))))
+
+        rules = [
+            # xor(x,⊥) → x
+            ReplacementRule(
+                LXor(x__, LBot),
+                lambda x: LXor(*x)
+            ),
+            # xor(x, x) → ⊥
+            ReplacementRule(
+                LXor(x_, x_, ___),
+                lambda x: LBot
+            ),
+            # and(x,⊤) → x
+            ReplacementRule(
+                LAnd(x__, LTop),
+                lambda x: LAnd(*x)
+            ),
+            # and(x,⊥) → ⊥
+            ReplacementRule(
+                LAnd(___, LBot),
+                lambda: LBot
+            ),
+            # and(x, x) → x
+            ReplacementRule(
+                LAnd(x_, x_, y___),
+                lambda x, y: LAnd(x, *y)
+            ),
+            # and(x, xor(y, z)) → xor(and(x, y), and(x, z))
+            ReplacementRule(
+                LAnd(x_, LXor(y_, z_)),
+                lambda x, y, z: LXor(LAnd(x, y), LAnd(x, z))
+            ),
+            # implies(x, y) → not(xor(x, and(x, y)))
+            ReplacementRule(
+                LImplies(x_, y_),
+                lambda x, y: LNot(LXor(x, LAnd(x, y)))
+            ),
+            # not(x) → xor(x,⊤)
+            ReplacementRule(
+                LNot(x_),
+                lambda x: LXor(x, LTop)
+            ),
+            # or(x, y) → xor(and(x, y), xor(x, y))
+            ReplacementRule(
+                LOr(x_, y_),
+                lambda x, y: LXor(LAnd(x, y), LXor(x, y))
+            ),
+            # iff(x, y) → not(xor(x, y))
+            ReplacementRule(
+                Iff(x_, y_),
+                lambda x, y: LNot(LXor(x, y))
+            ),
+        ]
+
+        result = replace_all(expr, rules)
+
+        print(result)
+
+    _main3()

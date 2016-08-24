@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-import math
-
 from graphviz import Digraph
 
 from patternmatcher.expressions import (Arity, Atom, Operation, Symbol,
@@ -23,7 +21,7 @@ class Flatterm(list):
     @staticmethod
     def _flatterm_iter(expression):
         """Generator that yields the atoms of the expressions in prefix notation with operation end markers.
-        
+
         See :class:`Flatterm` for details of the flatterm form.
         """
         if isinstance(expression, Variable):
@@ -39,7 +37,7 @@ class Flatterm(list):
             raise TypeError()
 
     @staticmethod
-    def _combined_wildcards_iter( flatterm):
+    def _combined_wildcards_iter(flatterm):
         """Combines consecutive wildcards in a flatterm into a single one"""
         last_wildcard = None
         for term in flatterm:
@@ -144,21 +142,21 @@ class DiscriminationNet(object):
         self._net = DiscriminationNet._product_net(self._net, net)
 
     @staticmethod
-    def _build_fail_nodes(node, wildcard_states):        
+    def _build_fail_nodes(node, wildcard_states):
         for last_state in reversed(wildcard_states[:-1]):
             node[OPERATION_END] = last_state.last_wildcard or last_state.fail_node or _Node()
             if last_state.fail_node is not None or last_state.last_wildcard is not None:
                 break
             last_state.fail_node = node = node[OPERATION_END]
             node[Wildcard] = node
-    
+
     @staticmethod
     def _generate_net(pattern):
         """Generates a DFA matching the given pattern."""
         last_node = None
         last_term = None
         # Capture the last unbounded wildcard for every level of operation nesting on a stack
-        # Used to add backtracking edges in case the "match" fails later 
+        # Used to add backtracking edges in case the "match" fails later
         wildcard_states = [_WildcardState()]
         root = node = _Node()
         flatterm = Flatterm(pattern)
@@ -170,7 +168,7 @@ class DiscriminationNet(object):
             # For wildcards, generate a chain of #min_count Wildcard edges
             # If the wildcard is unbounded (fixed_size = False),
             # add a wildcard self loop at the end
-            if isinstance(term, Wildcard):            
+            if isinstance(term, Wildcard):
                 last_term = Wildcard
                 for _ in range(term.min_count):
                     node[Wildcard] = _Node()
@@ -245,7 +243,7 @@ class DiscriminationNet(object):
                 try:
                     try:
                         return node[key], False
-                    except (KeyError):
+                    except KeyError:
                         if key == OPERATION_END:
                             return None, False
                         return node[Wildcard], True
@@ -256,7 +254,7 @@ class DiscriminationNet(object):
         root = _Node()
         nodes = {(node1.id, node2.id, 0): root}
         queue = [_NodeQueueItem(node1, node2)]
-        
+
         while len(queue) > 0:
             state = queue.pop(0)
             node = nodes[(state.id1, state.id2, state.depth)]
@@ -301,19 +299,19 @@ class DiscriminationNet(object):
                         else:
                             assert False # unreachable
                         child_state.fixed = 0
-                
+
                 if child_state.id1 != 0 or child_state.id2 != 0:
                     if (child_state.id1, child_state.id2, child_state.depth) not in nodes:
                         nodes[(child_state.id1, child_state.id2, child_state.depth)] = _Node()
                         queue.append(child_state)
-                    
+
                     node[k] = nodes[(child_state.id1, child_state.id2, child_state.depth)]
                 else:
-                    if type(child_state.node1) == list and type(child_state.node2) == list:
-                        node[k] = child_state.node1 + child_state.node2               
-                    elif type(child_state.node1) == list:
-                        node[k] = child_state.node1              
-                    elif type(child_state.node2) == list:
+                    if isinstance(child_state.node1, list) and isinstance(child_state.node2, list):
+                        node[k] = child_state.node1 + child_state.node2
+                    elif isinstance(child_state.node1, list):
+                        node[k] = child_state.node1
+                    elif isinstance(child_state.node2, list):
                         node[k] = child_state.node2
 
         return root
@@ -340,10 +338,10 @@ class DiscriminationNet(object):
                 except KeyError:
                     return []
 
-                if type(node) == list:
+                if isinstance(node, list):
                     return node
 
-        assert type(node) == list
+        assert isinstance(node, list)
         return node
 
     def _term_str(self, term):
@@ -393,7 +391,7 @@ class DiscriminationNet(object):
 def _logic_test():
     lxor = Operation.new('xor', Arity.binary, 'LXor') #, commutative=True, associative=True)
     land = Operation.new('and', Arity.binary, 'LAnd') #, commutative=True, associative=True)
-    lor  = Operation.new('or', Arity.binary, 'Lor') #, commutative=True, associative=True)
+    lor = Operation.new('or', Arity.binary, 'Lor') #, commutative=True, associative=True)
     lnot = Operation.new('not', Arity.unary, 'LNot')
     limplies = Operation.new('implies', Arity.binary, 'LImplies')
     liff = Operation.new('iff', Arity.binary, 'LIff')
@@ -433,7 +431,7 @@ def _logic_test():
     graph.render()
 
 def _random_test(count):
-    
+
     f = Operation.new('f', arity=Arity.binary)
     g = Operation.new('g', arity=Arity.unary)
     a = Symbol('a')
@@ -442,12 +440,12 @@ def _random_test(count):
     x = Variable.dot('x')
 
     import hypothesis.strategies as st
-    
+
     def func_wrap_strategy(args, func):
         min_size = func.arity[0]
         max_size = func.arity[1] and func.arity[0] or 4
         return st.lists(args, min_size=min_size, max_size=max_size).map(lambda a: func(*a))
-    
+
     ExpressionBaseStrategy = st.sampled_from([a, b, c, x])
     ExpressionRecurseStrategy = lambda args: func_wrap_strategy(args, f) | func_wrap_strategy(args, g)
     ExpressionStrategy = st.recursive(ExpressionBaseStrategy, ExpressionRecurseStrategy, max_leaves=10)
@@ -461,7 +459,7 @@ def _random_test(count):
 
     graph.render()
 
-def _main():    
+def _main():
     f = Operation.new('f', arity=Arity.binary)
     g = Operation.new('g', arity=Arity.unary)
     a = Symbol('a')
@@ -472,7 +470,7 @@ def _main():
     z = Variable.plus('z')
 
     net = DiscriminationNet()
-    
+
     # problem case:
     #net.add(x1)
     #net.add(f(x2, g(a), f(x1, a)))

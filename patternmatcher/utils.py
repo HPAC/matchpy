@@ -4,38 +4,38 @@ import inspect
 import itertools
 import math
 import re
-from typing import Iterator, List, Sequence, Tuple, TypeVar, cast, Optional
+from typing import Iterator, List, Sequence, Tuple, TypeVar, cast, Optional #pylint: disable=unused-import
 
 T = TypeVar('T')
 
-def partitions_with_limits(values : List[T], limits : List[Tuple[int, int]]) -> Iterator[Tuple[List[T], ...]]:
+def partitions_with_limits(values: List[T], limits: List[Tuple[int, int]]) -> Iterator[Tuple[List[T], ...]]:
     limits = list(limits)
     count = len(values)
-    varCount = count - sum([m for (m, _) in limits])
+    var_count = count - sum([m for (m, _) in limits])
     counts = []
-    
-    for (minCount, maxCount) in limits:
-        if maxCount > minCount + varCount:
-            maxCount = minCount + varCount
-        counts.append(list(range(minCount, maxCount + 1)))
-                        
+
+    for (min_count, max_count) in limits:
+        if max_count > min_count + var_count:
+            max_count = min_count + var_count
+        counts.append(list(range(min_count, max_count + 1)))
+
     for countPartition in itertools.product(*counts):
         if sum(countPartition) != count:
             continue
-            
+
         v = []
         i = 0
-        
+
         for c in countPartition:
             v.append(values[i:i+c])
             i += c
-            
-        yield tuple(v)   
+
+        yield tuple(v)
 
 def partitions_with_count(n, m):
     # H1: Initialize
     a = [1] * m
-    a.append(-1) 
+    a.append(-1)
     a[0] = n - m + 1
 
     while True:
@@ -61,7 +61,7 @@ def partitions_with_count(n, m):
         # H5: Increase a[j]
         if j >= m:
             return
-        
+
         x = a[j] + 1
         a[j] = x
         j -= 1
@@ -71,17 +71,17 @@ def partitions_with_count(n, m):
             a[j] = x
             s -= x
             j -= 1
-        
+
         a[0] = s
 
-def fixed_sum_vector_iter(min_vect : Sequence[int], max_vect : Sequence[int], total : int) -> Iterator[List[int]]:
+def fixed_sum_vector_iter(min_vect: Sequence[int], max_vect: Sequence[int], total: int) -> Iterator[List[int]]:
     assert len(min_vect) == len(max_vect), 'len(min_vect) != len(max_vect)'
-    assert all(minValue <= maxValue for minValue, maxValue in zip(min_vect, max_vect)), 'min_vect > max_vect'
+    assert all(min_value <= max_value for min_value, max_value in zip(min_vect, max_vect)), 'min_vect > max_vect'
 
-    minSum = sum(min_vect)
-    maxSum = sum(max_vect)
+    min_sum = sum(min_vect)
+    max_sum = sum(max_vect)
 
-    if minSum > total or maxSum < total:
+    if min_sum > total or max_sum < total:
         return
 
     count = len(max_vect)
@@ -93,20 +93,20 @@ def fixed_sum_vector_iter(min_vect : Sequence[int], max_vect : Sequence[int], to
             yield []
         return
 
-    remaining = total - minSum
+    remaining = total - min_sum
 
-    realMins = list(min_vect)
-    realMaxs = list(max_vect)
+    real_mins = list(min_vect)
+    real_maxs = list(max_vect)
 
     for i, (minimum, maximum) in enumerate(zip(min_vect, max_vect)):
         left_over_sum = sum(max_vect[:i]) + sum(max_vect[i+1:])
         if left_over_sum != math.inf:
-            realMins[i] = max(total - left_over_sum, minimum)
-        realMaxs[i] = min(remaining + minimum, maximum)
+            real_mins[i] = max(total - left_over_sum, minimum)
+        real_maxs[i] = min(remaining + minimum, maximum)
 
-    values = list(realMins)
+    values = list(real_mins)
 
-    remaining = total - sum(realMins)
+    remaining = total - sum(real_mins)
 
     if remaining == 0:
         yield values
@@ -114,9 +114,9 @@ def fixed_sum_vector_iter(min_vect : Sequence[int], max_vect : Sequence[int], to
 
     j = count - 1
     while remaining > 0:
-        toAdd = min(realMaxs[j] - realMins[j], remaining)
-        values[j] += toAdd
-        remaining -= toAdd
+        to_add = min(real_maxs[j] - real_mins[j], remaining)
+        values[j] += to_add
+        remaining -= to_add
         j -= 1
 
     while True:
@@ -125,21 +125,21 @@ def fixed_sum_vector_iter(min_vect : Sequence[int], max_vect : Sequence[int], to
         while True:
             values[pos] += 1
             values[-1] -= 1
-            if values[-1] < realMins[-1] or values[pos] > realMaxs[pos]:
+            if values[-1] < real_mins[-1] or values[pos] > real_maxs[pos]:
                 if pos == 0:
                     return
-                variable_amount = values[pos] - realMins[pos] 
-                values[pos] = realMins[pos] # reset current position
+                variable_amount = values[pos] - real_mins[pos]
+                values[pos] = real_mins[pos] # reset current position
                 values[-1] += variable_amount # reset last position
 
-                if values[-1] > realMaxs[-1]:
-                    remaining = values[-1] - realMaxs[-1] - 1
-                    values[-1] = realMaxs[-1] + 1
+                if values[-1] > real_maxs[-1]:
+                    remaining = values[-1] - real_maxs[-1] - 1
+                    values[-1] = real_maxs[-1] + 1
                     j = count - 2
                     while remaining > 0:
-                        toAdd = min(realMaxs[j] - values[j], remaining)
-                        values[j] += toAdd
-                        remaining -= toAdd
+                        to_add = min(real_maxs[j] - values[j], remaining)
+                        values[j] += to_add
+                        remaining -= to_add
                         j -= 1
                 pos -= 1
             else:
@@ -238,7 +238,7 @@ def isidentifier(ident):
 
 def extended_euclid(a: int, b: int) -> Tuple[int, int, int]:
     """Extended Euclidean algorithm that computes the Bézout coefficients as well as `gcd(a, b)`
-    
+
     Returns `x, y, d` where `x` and `y` are a solution to `ax + by = d` and `d = gcd(a, b)`.
     `x` and `y` are a minimal pair of Bézout's coefficients.
 
@@ -255,12 +255,12 @@ def extended_euclid(a: int, b: int) -> Tuple[int, int, int]:
 
 def base_solution_linear(a: int, b: int, c: int) -> Iterator[Tuple[int, int]]:
     r"""Yields solution for a basic linear Diophantine equation of the form :math:`ax + by = c`.
-    
+
     First, the equation is normalized by dividing :math:`a, b, c` by their gcd.
     Then, the extended Euclidean algorithm (:func:`extended_euclid`) is used to find a base solution :math:`(x_0, y_0)`.
     From that all non-negative solutions are generated by using that the general solution is :math:`(x_0 + b t, y_0 - a t)`.
     Hence, by adding or substracting :math:`a` resp. :math:`b` from the base solution, all solutions can be generated.
-    Because the base solution is one of the minimal pairs of Bézout's coefficients, for all non-negative solutions 
+    Because the base solution is one of the minimal pairs of Bézout's coefficients, for all non-negative solutions
     either :math:`t \geq 0` or :math:`t \leq 0` must hold. Also, all the non-negative solutions are consecutive with
     respect to :math:`t`. Therefore, all non-negative solutions can be generated efficiently from the base solution.
     """
@@ -300,10 +300,10 @@ def solve_linear_diop(total: int, *coeffs: int) -> Iterator[Tuple[int, ...]]:
     r"""Generator for the solutions of a linear Diophantine equation of the form :math:`c_1 x_1 + \dots + c_n x_n = total`
 
     `coeffs` are the coefficients `c_i`.
-    
+
     If there are at most two coefficients, :func:`base_solution_linear` is used to find the solutions.
     Otherwise, the solutions are found recursively, by reducing the number of variables in each recursion:
-    
+
     1. Compute :math:`d := gcd(c_2, \dots , c_n)`
     2. Solve :math:`c_1 x + d y = total`
     3. Recursively solve :math:`c_2 x_2 + \dots + c_n x_n = y` for each solution for `y`
@@ -328,17 +328,17 @@ def solve_linear_diop(total: int, *coeffs: int) -> Iterator[Tuple[int, ...]]:
 
     # solve coeffs[0] * x + remainder_gcd * y = total
     for coeff0_solution, remainder_gcd_solution in base_solution_linear(coeffs[0], remainder_gcd, total):
-        newCoeffs = [c // remainder_gcd for c in coeffs[1:]]
+        new_coeffs = [c // remainder_gcd for c in coeffs[1:]]
         # use the solutions for y to solve the remaining variables recursively
-        for remainder_solution in solve_linear_diop(remainder_gcd_solution, *newCoeffs):
+        for remainder_solution in solve_linear_diop(remainder_gcd_solution, *new_coeffs):
             yield (coeff0_solution, ) + remainder_solution
 
-def _match_value_repr_str(value): # pragma: no cover 
-    if type(value) == list:
+def _match_value_repr_str(value): # pragma: no cover
+    if isinstance(value, list):
         return '(%s)' % (', '.join(str(x) for x in value))
     return str(value)
 
-def match_repr_str(match): # pragma: no cover 
+def match_repr_str(match): # pragma: no cover
     return ', '.join('%s: %s' % (k, _match_value_repr_str(v)) for k, v in match.items())
 
 if __name__ == '__main__': # pragma: no cover

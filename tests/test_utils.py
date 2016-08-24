@@ -34,7 +34,7 @@ class FixedSumVectorIteratorTest(unittest.TestCase):
                                 self.assertGreaterEqual(v, l[0], 'Value %r out of range %r in vector %r' % (v, l, vect))
                                 self.assertLessEqual(v, l[1], 'Value %r out of range %r in vector %r' % (v, l, vect))
 
-    
+
 
 
     def test_completeness(self):

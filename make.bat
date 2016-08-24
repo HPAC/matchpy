@@ -8,15 +8,19 @@ goto :eof
 
 :init
 	pip install -r requirements.txt
+goto :eof
 
 :test
-	python -m unittest discover tests
+	py -3 -m unittest discover tests
+goto :eof
 
 :check
 	pylint patternmatcher
+goto :eof
 
 :coverage
     coverage run --branch --source patternmatcher/syntactic.py -m tests.test_syntactic
     coverage run -a --branch --source patternmatcher/functions.py -m tests.test_functions
     coverage run -a --branch --source patternmatcher/utils.py -m tests.test_utils
     coverage html
+goto :eof

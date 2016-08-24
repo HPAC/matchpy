@@ -214,7 +214,7 @@ class MatchTest(unittest.TestCase):
             self.assertIn(expected_match, result, 'Expression %s and %s did not yield the match %s but were supposed to' % (expr, pattern, match_repr_str(expected_match)))
         for result_match in result:
             self.assertIn(result_match, expected_matches, 'Expression %s and %s yielded the unexpected match %s' % (expr, pattern, match_repr_str(result_match)))
-    
+
     @unpack
     @data(
         (a,                         x__,                 [{'x': [a]}]),
@@ -262,7 +262,7 @@ class MatchTest(unittest.TestCase):
             self.assertIn(expected_match, result, 'Expression %s and %s did not yield the match %s but were supposed to' % (expr, pattern, match_repr_str(expected_match)))
         for result_match in result:
             self.assertIn(result_match, expected_matches, 'Expression %s and %s yielded the unexpected match %s' % (expr, pattern, match_repr_str(result_match)))
-    
+
     @unpack
     @data(
         (f(a, b),                   f(x__, y___),       [{'x': [a, b],      'y': []}, \
