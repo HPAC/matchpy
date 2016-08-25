@@ -472,12 +472,12 @@ def _main():
     net = DiscriminationNet()
 
     # problem case:
-    #net.add(x1)
-    #net.add(f(x2, g(a), f(x1, a)))
-    #net.add(f(b, x3, b))
+    # net.add(x1)
+    # net.add(f(x2, g(a), f(x1, a)))
+    # net.add(f(b, x3, b))
 
-    #net.add(f(g(b, x), f(a, c, a, x), c, x))
-    #net.add(f(g(b, a), x, c, g(b, c, a)))
+    # net.add(f(g(b, x), f(a, c, a, x), c, x))
+    # net.add(f(g(b, a), x, c, g(b, c, a)))
 
     net.add(f(z, a, x, b))
 

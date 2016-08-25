@@ -274,7 +274,7 @@ class Operation(Expression, metaclass=OperationMeta):
     def __hash__(self):
         return hash(tuple([type(self)] + self.operands))
 
-class Atom(Expression): #pylint: disable=abstract-method
+class Atom(Expression): # pylint: disable=abstract-method
     pass
 
 class Symbol(Atom):

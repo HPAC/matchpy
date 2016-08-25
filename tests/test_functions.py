@@ -6,7 +6,6 @@ from ddt import ddt, data, unpack
 from patternmatcher.expressions import Operation, Symbol, Variable, Arity, Wildcard
 from patternmatcher.functions import match, substitute, replace
 from patternmatcher.utils import match_repr_str
-from patternmatcher.constraints import CustomConstraint
 
 
 f = Operation.new('f', Arity.variadic)
@@ -126,7 +125,7 @@ class MatchTest(unittest.TestCase):
     def test_wildcard_dot_match(self, expr, pattern, expected_match):
         result = list(match(expr, pattern))
         if expected_match is not None:
-            self.assertEqual(result, [expected_match], 'Expression %s and %s did not match as %s but were supposed to' \
+            self.assertEqual(result, [expected_match], 'Expression %s and %s did not match as %s but were supposed to'
                 % (expr, pattern, match_repr_str(expected_match)))
         else:
             self.assertEqual(result, [], 'Expression %s and %s did match but were not supposed to' % (expr, pattern))
@@ -142,7 +141,7 @@ class MatchTest(unittest.TestCase):
         (fa(a, b, a, b),        fa(x_, x_),     [{'x': fa(a, b)}]),
         (fa(a, b, a),           fa(x_, b, x_),  [{'x': a}]),
         (fa(a, a, b, a, a),     fa(x_, b, x_),  [{'x': fa(a, a)}]),
-        (fa(a, b, c),           fa(x_, y_),     [{'x': a,          'y': fa(b, c)}, \
+        (fa(a, b, c),           fa(x_, y_),     [{'x': a,           'y': fa(b, c)},
                                                  {'x': fa(a, b),    'y': c}])
     )
     def test_associative_wildcard_dot_match(self, expr, pattern, expected_matches):
@@ -165,39 +164,39 @@ class MatchTest(unittest.TestCase):
         (f(a, b),                   f(a, x___),         [{'x': [b]}]),
         (f(a, b),                   f(x___, x___),      []),
         (f(a, a),                   f(x___, x___),      [{'x': [a]}]),
-        (f(a, b),                   f(x___, y___),      [{'x': [],                'y': [a, b]},     \
-                                                         {'x': [a],               'y': [b]},        \
+        (f(a, b),                   f(x___, y___),      [{'x': [],                'y': [a, b]},
+                                                         {'x': [a],               'y': [b]},
                                                          {'x': [a, b],            'y': []}]),
-        (f(a),                      f(x___, y___),      [{'x': [],                'y': [a]},        \
+        (f(a),                      f(x___, y___),      [{'x': [],                'y': [a]},
                                                          {'x': [a],               'y': []}]),
-        (f(a, b, c),                f(x___, y___),      [{'x': [],                'y': [a, b, c]},  \
-                                                         {'x': [a],               'y': [b, c]},     \
-                                                         {'x': [a, b],            'y': [c]},        \
+        (f(a, b, c),                f(x___, y___),      [{'x': [],                'y': [a, b, c]},
+                                                         {'x': [a],               'y': [b, c]},
+                                                         {'x': [a, b],            'y': [c]},
                                                          {'x': [a, b, c],         'y': []}]),
-        (f(a, f2(b)),               f(x___, y___),      [{'x': [],                'y': [a, f2(b)]}, \
-                                                         {'x': [a],               'y': [f2(b)]},    \
+        (f(a, f2(b)),               f(x___, y___),      [{'x': [],                'y': [a, f2(b)]},
+                                                         {'x': [a],               'y': [f2(b)]},
                                                          {'x': [a, f2(b)],        'y': []}]),
         (f(a, f2(b)),               f(x___, f2(y___)),  [{'x': [a],               'y': [b]}]),
         (f(a, f2(b)),               f(x___, f2(x___)),  []),
         (f(a, f2(a)),               f(x___, f2(x___)),  [{'x': [a]}]),
         (f(f2(a), f2(b)),           f(x___, x___),      []),
-        (f(f2(a), f2(b)),           f(x___, y___),      [{'x': [f2(a), f2(b)],    'y': []},         \
-                                                         {'x': [f2(a)],           'y': [f2(b)]},    \
+        (f(f2(a), f2(b)),           f(x___, y___),      [{'x': [f2(a), f2(b)],    'y': []},
+                                                         {'x': [f2(a)],           'y': [f2(b)]},
                                                          {'x': [],                'y': [f2(a), f2(b)]}]),
         (f(f2(a), a),               f(x___, x___),      []),
         (f(f2(a), a),               f(f2(x___), x___),  [{'x': [a]}]),
-        (f(f(a, b)),                f(x___, y___),      [{'x': [f(a, b)],         'y': []},         \
+        (f(f(a, b)),                f(x___, y___),      [{'x': [f(a, b)],         'y': []},
                                                          {'x': [],                'y': [f(a, b)]}]),
         (f(f(a, b)),                f(x___),            [{'x': [f(a, b)]}]),
         (f2(a, b),                  f(x___, y___),      []),
         (f(a, a, a),                f(x___, b, y___),   []),
-        (f(a, a, a),                f(x___, a, y___),   [{'x': [],                'y': [a, a]},     \
-                                                         {'x': [a],               'y': [a]},        \
+        (f(a, a, a),                f(x___, a, y___),   [{'x': [],                'y': [a, a]},
+                                                         {'x': [a],               'y': [a]},
                                                          {'x': [a, a],            'y': []}]),
         (f(a),                      f(x___, a, y___),   [{'x': [],                'y': []}]),
-        (f(a, a),                   f(x___, a, y___),   [{'x': [a],               'y': []},         \
+        (f(a, a),                   f(x___, a, y___),   [{'x': [a],               'y': []},
                                                          {'x': [],                'y': [a]}]),
-        (f(a, b, a),                f(x___, a, y___),   [{'x': [],                'y': [b, a]},     \
+        (f(a, b, a),                f(x___, a, y___),   [{'x': [],                'y': [b, a]},
                                                          {'x': [a, b],            'y': []}]),
         (f(a, b, a, b),             f(x___, x___),      [{'x': [a, b]}]),
         (f(a, b, a, a),             f(x___, x___),      []),
@@ -205,7 +204,7 @@ class MatchTest(unittest.TestCase):
         (f(a, b, a, a),             f(x___, b, x___),   []),
         (f(a, a, b, a),             f(x___, b, x___),   []),
         (f(a, b, a, b, a, b, a),    f(x___, b, x___),   [{'x': [a, b, a]}]),
-        (f(a, b, a, b),             f(x___, b, y___),   [{'x': [a, b, a],         'y': []},         \
+        (f(a, b, a, b),             f(x___, b, y___),   [{'x': [a, b, a],         'y': []},
                                                          {'x': [a],               'y': [a, b]}]),
     )
     def test_wildcard_star_match(self, expr, pattern, expected_matches):
@@ -230,7 +229,7 @@ class MatchTest(unittest.TestCase):
         (f(a, a),                   f(x__, x__),         [{'x': [a]}]),
         (f(a, b),                   f(x__, y__),         [{'x': [a],          'y': [b]}]),
         (f(a),                      f(x__, y__),         []),
-        (f(a, b, c),                f(x__, y__),         [{'x': [a],          'y': [b, c]},     \
+        (f(a, b, c),                f(x__, y__),         [{'x': [a],          'y': [b, c]},
                                                           {'x': [a, b],       'y': [c]}]),
         (f(a, f2(b)),               f(x__, y__),         [{'x': [a],          'y': [f2(b)]}]),
         (f(a, f2(b)),               f(x__, f2(y__)),     [{'x': [a],          'y': [b]}]),
@@ -265,20 +264,20 @@ class MatchTest(unittest.TestCase):
 
     @unpack
     @data(
-        (f(a, b),                   f(x__, y___),       [{'x': [a, b],      'y': []}, \
+        (f(a, b),                   f(x__, y___),       [{'x': [a, b],      'y': []},
                                                          {'x': [a],         'y': [b]}]),
-        (f(a, b),                   f(x___, y__),       [{'x': [a],         'y': [b]}, \
+        (f(a, b),                   f(x___, y__),       [{'x': [a],         'y': [b]},
                                                          {'x': [],          'y': [a, b]}]),
         (f(a, b, c),                f(x_, y__),         [{'x': a,           'y': [b, c]}]),
         (f(a, b, c),                f(x__, y_),         [{'x': [a, b],      'y': c}]),
         (f(a, b, c),                f(x_, y___),        [{'x': a,           'y': [b, c]}]),
         (f(a, b, c),                f(x___, y_),        [{'x': [a, b],      'y': c}]),
-        (f(a, b, c),                f(x___, y_, z___),  [{'x': [a, b],      'y': c,        'z': []}, \
-                                                         {'x': [a],         'y': b,        'z': [c]}, \
+        (f(a, b, c),                f(x___, y_, z___),  [{'x': [a, b],      'y': c,        'z': []},
+                                                         {'x': [a],         'y': b,        'z': [c]},
                                                          {'x': [],          'y': a,        'z': [b, c]}]),
-        (f(a, b, c),                f(x__, y_, z___),   [{'x': [a, b],      'y': c,        'z': []}, \
+        (f(a, b, c),                f(x__, y_, z___),   [{'x': [a, b],      'y': c,        'z': []},
                                                          {'x': [a],         'y': b,        'z': [c]}]),
-        (f(a, b, c),                f(x___, y_, z__),   [{'x': [a],         'y': b,        'z': [c]}, \
+        (f(a, b, c),                f(x___, y_, z__),   [{'x': [a],         'y': b,        'z': [c]},
                                                          {'x': [],          'y': a,        'z': [b, c]}]),
     )
     def test_wildcard_mixed_match(self, expr, pattern, expected_matches):
@@ -372,22 +371,16 @@ class RandomizedMatchTest(unittest.TestCase):
         # pattern must not be just a single variable
         assume(sum(pattern_symbols.values()) > 0)
 
-        diff1 = sum((expr_symbols - pattern_symbols).values())
         diff2 = sum((pattern_symbols - expr_symbols).values())
 
         # Pattern cannot contain symbols which are not contained in the expression
         assume(diff2 < 1)
 
-        #var_count = sum(pattern.variables.values())
-        #assume(abs(var_count - diff1) < 3)
-
         results = list(match(expr, pattern))
 
         # exclude non-matching pairs
         assume(len(results) > 0)
-        #print(expr, pattern)
         for result in results:
-            #print('->', match_repr_str(result))
             reverse, replaced = substitute(pattern, result)
             if isinstance(reverse, list) and len(reverse) == 1:
                 reverse = reverse[0]
@@ -424,10 +417,10 @@ class SubstituteTest(unittest.TestCase):
 
     def test_error_with_nested_variables(self):
         with self.assertRaises(ValueError):
-            substitute(Variable('x', Variable('y', a)), {'y' : [a, b]})
+            substitute(Variable('x', Variable('y', a)), {'y': [a, b]})
 
         with self.assertRaises(ValueError):
-            substitute(Variable('x', Variable('y', a)), {'y' : []})
+            substitute(Variable('x', Variable('y', a)), {'y': []})
 
 
 @ddt

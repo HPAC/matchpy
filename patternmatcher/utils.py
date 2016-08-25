@@ -4,7 +4,7 @@ import inspect
 import itertools
 import math
 import re
-from typing import Iterator, List, Sequence, Tuple, TypeVar, cast, Optional #pylint: disable=unused-import
+from typing import Iterator, List, Sequence, Tuple, TypeVar, cast, Optional # pylint: disable=unused-import
 
 T = TypeVar('T')
 
@@ -189,7 +189,6 @@ def commutative_partition_iter(values: Sequence[T], min_vect: Sequence[int], max
                 yield partiton
             i -= 1
         except StopIteration:
-            #print('s', i)
             iterators[i] = None
             i -= 1
             if i < 0:
@@ -343,13 +342,3 @@ def match_repr_str(match): # pragma: no cover
 
 if __name__ == '__main__': # pragma: no cover
     print(list(solve_linear_diop(5, 2, 3, 1)))
-    #for a in range(1, 6):
-    #    for b in range(a, 6):
-    #        for c in range(1, 16):
-    #            print('%d*x + %d*y = %d' % (a, b, c), list(base_solution_linear(c, a, b)))
-    #print(list(fixed_sum_vector_iter((0,1,1), (8000,2,2), 5)))
-    # values = ('a', 'a', 'b', 'b', 'c')
-    # mins = (0, 2)
-    # maxs = (math.inf, math.inf)
-    # for p in commutative_partition_iter(values, mins, maxs):
-    #     print(p)

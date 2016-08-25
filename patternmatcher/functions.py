@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 import math
 import itertools
-from typing import Dict, Iterator, List, Tuple, Union, cast, Sequence
-from collections import namedtuple
+from typing import Dict, Iterator, List, Tuple, Union, cast, Sequence, NamedTuple, Callable
 
 from patternmatcher.constraints import (Constraint, CustomConstraint,
                                         EqualVariablesConstraint,
@@ -278,7 +277,7 @@ def replace(expression: Expression, position: Sequence[int], replacement: Union[
     operands[pos] = subexpr
     return op_class(*operands)
 
-ReplacementRule = namedtuple('ReplacementRule', ('pattern', 'replacement'))
+ReplacementRule = NamedTuple('ReplacementRule', [('pattern', Expression), ('replacement', Callable[..., Expression])])
 
 def replace_all(expression: Expression, rules: Sequence[ReplacementRule]) -> Union[Expression, List[Expression]]:
     grouped = itertools.groupby(rules, lambda r: r.pattern.head)
@@ -318,19 +317,14 @@ def replace_all(expression: Expression, rules: Sequence[ReplacementRule]) -> Uni
 if __name__ == '__main__': # pragma: no cover
     def _main():
         from patternmatcher.utils import match_repr_str
-        #f = Operation.new('f', arity=Arity.binary, associative=True, commutative=True)
         f = Operation.new('f', arity=Arity.binary)
         g = Operation.new('g', arity=Arity.unary)
         a = Symbol('a')
         b = Symbol('b')
         c = Symbol('c')
         x = Variable.dot('x')
-        x2 = Variable.dot('x2')
-        y = Variable.star('y')
-        z = Variable.plus('z')
 
         expr = f(a, g(b), g(g(c), g(a), g(g(b))), g(c), c)
-        #pattern = f(x, g(Wildcard.dot()), x2)
         pattern = g(x)
 
         for m, pos in match_anywhere(expr, pattern):
@@ -346,7 +340,7 @@ if __name__ == '__main__': # pragma: no cover
         print(expr)
 
     def _main3():
-        #pylint: disable=invalid-name,bad-continuation
+        # pylint: disable=invalid-name,bad-continuation
         LAnd = Operation.new('and', Arity.variadic, 'LAnd', associative=True, one_identity=True, commutative=True)
         LOr = Operation.new('or', Arity.variadic, 'LOr', associative=True, one_identity=True, commutative=True)
         LXor = Operation.new('xor', Arity.variadic, 'LXor', associative=True, one_identity=True, commutative=True)
