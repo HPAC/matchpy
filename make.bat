@@ -1,4 +1,4 @@
-@ECHO off    
+@ECHO off
 if /I %1 == init goto :init
 if /I %1 == test goto :test
 if /I %1 == check goto :check
@@ -11,7 +11,7 @@ goto :eof
 goto :eof
 
 :test
-	py -3 -m unittest discover tests
+	python -m unittest discover tests
 goto :eof
 
 :check
@@ -19,8 +19,8 @@ goto :eof
 goto :eof
 
 :coverage
-    coverage run --branch --source patternmatcher/syntactic.py -m tests.test_syntactic
-    coverage run -a --branch --source patternmatcher/functions.py -m tests.test_functions
-    coverage run -a --branch --source patternmatcher/utils.py -m tests.test_utils
-    coverage html
+	coverage run --branch --source patternmatcher/syntactic.py -m tests.test_syntactic
+	coverage run -a --branch --source patternmatcher/functions.py -m tests.test_functions
+	coverage run -a --branch --source patternmatcher/utils.py -m tests.test_utils
+	coverage html
 goto :eof
