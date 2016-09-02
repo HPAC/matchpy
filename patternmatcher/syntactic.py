@@ -388,7 +388,7 @@ class DiscriminationNet(object):
 
         return dot
 
-def _logic_test():
+def _logic_test(): # pragma: no cover
     lxor = Operation.new('xor', Arity.binary, 'LXor') #, commutative=True, associative=True)
     land = Operation.new('and', Arity.binary, 'LAnd') #, commutative=True, associative=True)
     lor = Operation.new('or', Arity.binary, 'Lor') #, commutative=True, associative=True)
@@ -430,8 +430,67 @@ def _logic_test():
 
     graph.render()
 
-def _random_test(count):
+def _test_times_with_types(): # pragma: no cover
+    Times = Operation.new('Times', Arity.variadic, 'Times', one_identity=True)
+    Inverse = Operation.new('Inv', Arity.unary, 'Inverse')
+    InverseTranspose = Operation.new('InvT', Arity.unary, 'InverseTranspose')
+    Transpose = Operation.new('T', Arity.unary, 'Transpose')
 
+    scalar = Symbol('Scalar')
+    vector = Symbol('Vector')
+    matrix = Symbol('Matrix')
+
+    patterns = {
+        Times(scalar, scalar),
+        Times(Transpose(vector), vector),
+        Times(scalar, vector),
+        Times(vector, Transpose(vector)),
+        Times(Transpose(matrix), vector),
+        Times(Transpose(vector), matrix),
+        Times(matrix, vector),
+        Times(Transpose(vector), Transpose(matrix)),
+        Times(InverseTranspose(matrix), vector),
+        Times(Transpose(vector), Inverse(matrix)),
+        Times(InverseTranspose(matrix), vector),
+        Times(Transpose(vector), Inverse(matrix)),
+        Times(Inverse(matrix), vector),
+        Times(Transpose(vector), InverseTranspose(matrix)),
+        Times(Inverse(matrix), vector),
+        Times(Transpose(vector), InverseTranspose(matrix)),
+        Times(Transpose(matrix), Transpose(matrix)),
+        Times(Transpose(matrix), matrix),
+        Times(matrix, Transpose(matrix)),
+        Times(matrix, matrix),
+        Times(matrix, InverseTranspose(matrix)),
+        Times(Inverse(matrix), Transpose(matrix)),
+        Times(matrix, InverseTranspose(matrix)),
+        Times(Inverse(matrix), Transpose(matrix)),
+        Times(matrix, Inverse(matrix)),
+        Times(InverseTranspose(matrix), Transpose(matrix)),
+        Times(matrix, Inverse(matrix)),
+        Times(InverseTranspose(matrix), Transpose(matrix)),
+        Times(InverseTranspose(matrix), matrix),
+        Times(Transpose(matrix), Inverse(matrix)),
+        Times(InverseTranspose(matrix), matrix),
+        Times(Transpose(matrix), Inverse(matrix)),
+        Times(Inverse(matrix), matrix),
+        Times(Transpose(matrix), InverseTranspose(matrix)),
+        Times(Inverse(matrix), matrix),
+        Times(Transpose(matrix), InverseTranspose(matrix)),
+        Times(scalar, matrix),
+        Times(Inverse(scalar), matrix),
+        Times(scalar, matrix),
+        Times(Inverse(scalar), matrix),
+        Times(scalar, matrix),
+        Times(Inverse(scalar), matrix)
+    }
+    net = DiscriminationNet()
+    for pattern in patterns:
+        net.add(pattern)
+
+    net.as_graph().render()
+
+def _random_test(count): # pragma: no cover
     f = Operation.new('f', arity=Arity.binary)
     g = Operation.new('g', arity=Arity.unary)
     a = Symbol('a')
@@ -459,7 +518,7 @@ def _random_test(count):
 
     graph.render()
 
-def _main():
+def _main(): # pragma: no cover
     f = Operation.new('f', arity=Arity.binary)
     g = Operation.new('g', arity=Arity.unary)
     a = Symbol('a')
@@ -485,5 +544,6 @@ def _main():
 
     graph.render()
 
-if __name__ == '__main__':
-    _random_test(20)
+if __name__ == '__main__': # pragma: no cover
+    _test_times_with_types()
+    #_random_test(20)
