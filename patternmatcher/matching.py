@@ -19,35 +19,65 @@ RIGHT = 1
 
 TUTuple = TypeVar('TUTuple', bound=Tuple[T,U])
 class BipartiteGraph(Dict[TUTuple,V]):
-    def as_graph(self): # pragma: no cover
+    """A bipartite graph representation.
+
+    This class is a specilized dictionary, where each edge is represented by a 2-tuple that is used as a key in the
+    dictionary. The value can either be `True` or any value that you want to associate with the edge.
+    """
+
+    def __setitem__(self, key, value):
+        if not isinstance(key, tuple) or len(key) != 2:
+            raise TypeError('Key must a 2-tuple')
+        super(BipartiteGraph, self).__setitem__(key, value)
+
+    def __getitem__(self, key):
+        if not isinstance(key, tuple) or len(key) != 2:
+            raise TypeError('Key must a 2-tuple')
+        return super(BipartiteGraph, self).__getitem__(key)
+
+    def __delitem__(self, key):
+        if not isinstance(key, tuple) or len(key) != 2:
+            raise TypeError('Key must a 2-tuple')
+        return super(BipartiteGraph, self).__delitem__(key)
+
+    def as_graph(self) -> Graph: # pragma: no cover
+        """Returns a :class:`graphviz.Graph` representation of this bipartite graph."""
         graph = Graph()
 
-        nodes1 = {}
-        nodes2 = {}
-        i = 0
-        for (a, b), l in self.items():
-            a = str(a)
-            b = str(b)
-            if a not in nodes1:
-                name = 'a%d' % i
-                nodes1[a] = name
-                graph.node(name, label=a)
-                i += 1
-            if b not in nodes2:
-                name = 'b%d' % i
-                nodes2[b] = name
-                graph.node(name, label=b)
-                i += 1
-            l = l is not True and str(l) or ''
-            graph.edge(nodes1[a], nodes2[b], l)
+        nodes_left = {}
+        nodes_right = {}
+        node_id = 0
+        for (left, right), value in self.items():
+            if left not in nodes_left:
+                name = 'node%d' % node_id
+                nodes_left[left] = name
+                graph.node(name, label=str(left))
+                node_id += 1
+            if right not in nodes_right:
+                name = 'node%d' % node_id
+                nodes_right[right] = name
+                graph.node(name, label=str(right))
+                node_id += 1
+            edge_label = value is not True and str(value) or ''
+            graph.edge(nodes_left[left], nodes_right[right], edge_label)
+
         return graph
 
-    def find_matching(self) -> Dict[T,Set[U]]:
+    def find_matching(self) -> Dict[T,U]:
+        """Finds a matching in the bipartite graph.
+
+        This is done using the Hopcroft-Karp algorithm with an implementation from the
+        `hopcroftkarp` package.
+
+        :returns: A dictionary where each edge of the matching is represeted by a key-value pair
+        with the key being from the left half of the graph and the value from te right half.
+        """
         # The directed graph is represented as a dictionary of edges
         # The key is the tail of all edges which are represented by the value
         # The value is a set of heads for the all edges originating from the tail (key)
         # In addition, the graph stores which half of the bipartite graph a node originated from
         # to avoid problems when a value exists in both halfs.
+        # Only one direction of the undirected edge is needed for the HopcroftKarp class
         directed_graph = {} # type: Dict[Tuple(int, T),Set[Tuple(int,U)]]
 
         for (left, right) in self:
@@ -61,7 +91,7 @@ class BipartiteGraph(Dict[TUTuple,V]):
         matching = HopcroftKarp(directed_graph).maximum_matching()
 
         # Filter out the partitions (LEFT and RIGHT) and only return the matching edges
-        # that gor from LEFT to RIGHT
+        # that go from LEFT to RIGHT
         return dict((tail[1], head[1]) for tail, head in matching.items() if tail[0] == LEFT)
 
 

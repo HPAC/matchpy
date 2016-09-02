@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
-import unittest
 import itertools
 import math
+import unittest
 
 import hypothesis.strategies as st
 from ddt import data, ddt, unpack
-from hypothesis import given, example
+from hypothesis import given
 
-from patternmatcher.matching import BipartiteGraph, find_cycle, _DGM, enum_maximum_matchings_iter
+from patternmatcher.matching import (_DGM, BipartiteGraph,
+                                     enum_maximum_matchings_iter, find_cycle)
+
 
 @st.composite
 def bipartite_graph(draw):
@@ -24,9 +26,8 @@ def bipartite_graph(draw):
     return graph
 
 @ddt
-class RandomizedBipartiteMatchTest(unittest.TestCase):    
+class RandomizedBipartiteMatchTest(unittest.TestCase):
     @given(bipartite_graph())
-    @example(BipartiteGraph(map(lambda x: (x, True), itertools.product(range(3), repeat=2))))
     def test_correctness(self, graph):
         matching = graph.find_matching()
         size = len(matching)
@@ -38,7 +39,7 @@ class RandomizedBipartiteMatchTest(unittest.TestCase):
                 self.assertIn(kv, graph, 'Matching contains an edge that was not in the graph')
             frozen_matching = frozenset(matching.items())
             self.assertNotIn(frozen_matching, matchings, "Matching was duplicate")
-    
+
     @unpack
     @data(*filter(lambda x: x[0] >= x[1], itertools.product(range(1, 8), range(1, 8))))
     def test_completeness(self, n, m):
