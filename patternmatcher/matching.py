@@ -127,9 +127,7 @@ class _DGM(Dict[DGMNode,DGMEdge]):
         super(_DGM, self).__init__()
         for (n1, n2) in G:
             if n1 in M and M[n1] == n2:
-                if (LEFT, n1) not in self:
-                    self[(LEFT, n1)] = set()
-                self[(LEFT, n1)].add((RIGHT, n2))
+                self[(LEFT, n1)] = {(RIGHT, n2)}
             else:
                 if (RIGHT, n2) not in self:
                     self[(RIGHT, n2)] = set()
@@ -232,20 +230,19 @@ def enum_maximum_matchings_iter(G: Dict[T, Set[T]], M: Dict[T, T], DGM: Dict[T, 
 
         # Find feasible path of length 2 in D(G, M)
         for k in DGM:
-            if k[0] == LEFT and k[1] not in M:
+            if k[0] == LEFT and k[1] in M:
                 for o in DGM[k]:
                     if o in DGM:
                         for _, o2 in DGM[o]:
-                            n1 = k[1]
-                            n2 = o2
-                            n = o[1]
-                            break
+                            if o2 not in M:
+                                n1 = k[1]
+                                n2 = o2
+                                n = o[1]
+                                break
                     if n1 is not None:
                         break
                 if n1 is not None:
                     break
-            if n1 is not None:
-                break
 
         if n1 is None:
             return
@@ -254,15 +251,15 @@ def enum_maximum_matchings_iter(G: Dict[T, Set[T]], M: Dict[T, T], DGM: Dict[T, 
 
         # Construct M'
         M2 = M.copy()
-        del M2[n2]
-        M2[n1] = n
+        del M2[n1]
+        M2[n2] = n
 
         yield M2
 
-        e = (n1, n)
+        e = (n2, n)
 
         M3 = M2.copy()
-        del M3[n1]
+        del M3[n2]
 
         # Construct G+(e) and G-(e)
         Gp = _graph_plus(G, e)

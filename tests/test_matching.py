@@ -11,8 +11,8 @@ from patternmatcher.matching import BipartiteGraph, find_cycle, _DGM, enum_maxim
 
 @st.composite
 def bipartite_graph(draw):
-    n = draw(st.integers(min_value=1, max_value=8))
-    m = draw(st.integers(min_value=n, max_value=10))
+    m = draw(st.integers(min_value=1, max_value=8))
+    n = draw(st.integers(min_value=m, max_value=10))
 
     graph = BipartiteGraph()
     for i in range(n):
@@ -39,13 +39,14 @@ class RandomizedBipartiteMatchTest(unittest.TestCase):
             frozen_matching = frozenset(matching.items())
             self.assertNotIn(frozen_matching, matchings, "Matching was duplicate")
     
-    @data(*range(1, 8))
-    def test_completeness(self, i):
-        graph = BipartiteGraph(map(lambda x: (x, True), itertools.product(range(i), repeat=2)))
+    @unpack
+    @data(*filter(lambda x: x[0] >= x[1], itertools.product(range(1, 8), range(1, 8))))
+    def test_completeness(self, n, m):
+        graph = BipartiteGraph(map(lambda x: (x, True), itertools.product(range(n), range(m))))
         matching = graph.find_matching()
         DGM = _DGM(graph, matching)
         count = len(list(enum_maximum_matchings_iter(graph, matching, DGM)))
-        expected_count = math.factorial(i) - 1
+        expected_count = math.factorial(n) / math.factorial(n - m) - 1
         self.assertEqual(count, expected_count)
 
 
