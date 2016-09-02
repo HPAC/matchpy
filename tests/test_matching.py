@@ -7,7 +7,7 @@ import hypothesis.strategies as st
 from ddt import data, ddt, unpack
 from hypothesis import given
 
-from patternmatcher.matching import (_DGM, BipartiteGraph,
+from patternmatcher.matching import (BipartiteGraph,
                                      enum_maximum_matchings_iter, find_cycle)
 
 
@@ -26,14 +26,14 @@ def bipartite_graph(draw):
     return graph
 
 @ddt
-class RandomizedBipartiteMatchTest(unittest.TestCase):
+class EnumMaximumMatchingsIterTest(unittest.TestCase):
     @given(bipartite_graph())
     def test_correctness(self, graph):
-        matching = graph.find_matching()
-        size = len(matching)
-        matchings = {frozenset(matching.items())}
-        DGM = _DGM(graph, matching)
-        for matching in enum_maximum_matchings_iter(graph, matching, DGM):
+        size = None
+        matchings = {}
+        for matching in enum_maximum_matchings_iter(graph):
+            if size is None:
+                size = len(matching)
             self.assertEqual(len(matching), size, 'Matching has a different size than the first one')
             for kv in matching.items():
                 self.assertIn(kv, graph, 'Matching contains an edge that was not in the graph')
@@ -41,13 +41,11 @@ class RandomizedBipartiteMatchTest(unittest.TestCase):
             self.assertNotIn(frozen_matching, matchings, "Matching was duplicate")
 
     @unpack
-    @data(*filter(lambda x: x[0] >= x[1], itertools.product(range(1, 8), range(1, 8))))
+    @data(*filter(lambda x: x[0] >= x[1], itertools.product(range(1, 6), range(0, 4))))
     def test_completeness(self, n, m):
         graph = BipartiteGraph(map(lambda x: (x, True), itertools.product(range(n), range(m))))
-        matching = graph.find_matching()
-        DGM = _DGM(graph, matching)
-        count = len(list(enum_maximum_matchings_iter(graph, matching, DGM)))
-        expected_count = math.factorial(n) / math.factorial(n - m) - 1
+        count = sum(1 for _ in enum_maximum_matchings_iter(graph))
+        expected_count = m > 0 and math.factorial(n) / math.factorial(n - m) or 0
         self.assertEqual(count, expected_count)
 
 
