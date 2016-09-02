@@ -20,6 +20,14 @@ patternmatcher.functions module
     :undoc-members:
     :show-inheritance:
 
+patternmatcher.matching module
+------------------------------
+
+.. automodule:: patternmatcher.matching
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 patternmatcher.utils module
 ---------------------------
 

@@ -1,50 +1,21 @@
 # -*- coding: utf-8 -*-
 
-from patternmatcher.expressions import Expression, Operation, Variable, Symbol, Arity, Wildcard
+from typing import Dict, List, Set, Tuple, TypeVar, Union
+
+from graphviz import Digraph, Graph
+
+from patternmatcher.expressions import (Arity, Expression, Operation, Symbol,
+                                        Variable, Wildcard)
 from patternmatcher.functions import ReplacementRule
 from patternmatcher.syntactic import DiscriminationNet
-
-from typing import Dict, TypeVar, Set, List, Tuple, Generic
-from graphviz import Graph, Digraph
 
 T = TypeVar('T')
 U = TypeVar('U')
 V = TypeVar('V')
 
-class UndirectedGraph(dict):
-    def __getitem__(self, key):
-        return dict.__getitem__(self, tuple(sorted(key)))
-
-    def __setitem__(self, key, value):
-        dict.__setitem__(self, tuple(sorted(key)), value)
-
-    def __delitem__(self, key):
-        dict.__delitem__(self, tuple(sorted(key)))
-
-    def as_graph(self):
-        graph = Graph()
-
-        nodes = {}
-        i = 0
-        for (a, b), l in self.items():
-            a = str(a)
-            b = str(b)
-            if a not in nodes:
-                name = 'node%d' % i
-                nodes[a] = name
-                graph.node(name, label=a)
-                i += 1
-            if b not in nodes:
-                name = 'node%d' % i
-                nodes[b] = name
-                graph.node(name, label=b)
-                i += 1
-            graph.edge(nodes[a], nodes[b], str(l))
-        return graph
-
 TUTuple = TypeVar('TUTuple', bound=Tuple[T,U])
 class BipartiteGraph(Dict[TUTuple,V]):
-    def as_graph(self):
+    def as_graph(self): # pragma: no cover
         graph = Graph()
 
         nodes1 = {}
@@ -87,17 +58,17 @@ class ManyToOneMatcher(object):
                 net.add(expr)
             self.nets[g] = net
 
-def find_circle(graph):
+def find_cycle(graph):
     #print('-'*100)
     #print('g', graph)
     visited = set()
     for n in graph:
-        circle = _find_circle(graph, n, [], visited)
-        if circle:
-            return circle
+        cycle = _find_cycle(graph, n, [], visited)
+        if cycle:
+            return cycle
     return []
 
-def _find_circle(graph: Dict[T, T], node:T, path:List[T], visited:Set[T]) -> bool:
+def _find_cycle(graph: Dict[T, T], node:T, path:List[T], visited:Set[T]) -> bool:
     if node in visited:
         try:
             index = path.index(node)
@@ -111,32 +82,34 @@ def _find_circle(graph: Dict[T, T], node:T, path:List[T], visited:Set[T]) -> boo
         return []
 
     for other in graph[node]:
-        circle = _find_circle(graph, other, path + [node], visited)
-        if circle:
-            return circle
+        cycle = _find_cycle(graph, other, path + [node], visited)
+        if cycle:
+            return cycle
 
     return []
 
-def _graph_plus(G: UndirectedGraph, e: Tuple[T, T]):
-    return UndirectedGraph([((n1, n2), v) for (n1, n2), v in G.items() if n1 not in e and n2 not in e])
+def _graph_plus(G: BipartiteGraph[TUTuple, V], e: Tuple[T, U]) -> BipartiteGraph[TUTuple, V]:
+    return BipartiteGraph([((n1, n2), v) for (n1, n2), v in G.items() if n1 not in e and n2 not in e])
 
-def _graph_minus(G: UndirectedGraph, e: Tuple[T, T]):
-    return UndirectedGraph([(e2, v) for e2, v in G.items() if e != e2])
+def _graph_minus(G: BipartiteGraph[TUTuple, V], e: Tuple[T, U]) -> BipartiteGraph[TUTuple, V]:
+    return BipartiteGraph([(e2, v) for e2, v in G.items() if e != e2])
 
-def _DGM(G: BipartiteGraph[TUTuple,V], M: Dict[T, U]):
-    DGM = {}
-    for (n1, n2) in G:
-        if n1 in M and M[n1] == n2:
-            if (1, n2) not in DGM:
-                DGM[(1, n2)] = set()
-            DGM[(1, n2)].add((0, n1))
-        else:
-            if (0, n1) not in DGM:
-                DGM[(0, n1)] = set()
-            DGM[(0, n1)].add((1, n2))
-    return DGM
+DGMNode = TypeVar('DGMNode', bound=Tuple[int,Union[T,U]])
+DGMEdge = TypeVar('DGMEdge', bound=Set[DGMNode])
+class _DGM(Dict[DGMNode,DGMEdge]):
+    def __init__(self, G: BipartiteGraph[TUTuple,V], M: Dict[T, U]) -> None:
+        super(_DGM, self).__init__()
+        for (n1, n2) in G:
+            if n1 in M and M[n1] == n2:
+                if (1, n2) not in self:
+                    self[(1, n2)] = set()
+                self[(1, n2)].add((0, n1))
+            else:
+                if (0, n1) not in self:
+                    self[(0, n1)] = set()
+                self[(0, n1)].add((1, n2))
 
-def _make_graph(G):
+def _make_graph(G): # pragma: no cover
     graph = Digraph()
 
     subgraphs = [Digraph(graph_attr={'rank': 'same'}), Digraph(graph_attr={'rank': 'same'})]
@@ -179,43 +152,46 @@ def enum_maximum_matchings_iter(G: Dict[T, Set[T]], M: Dict[T, T], DGM: Dict[T, 
     # Step 1
     if len(G) == 0:
         return
-    
-    # Step 2
-    circle = find_circle(DGM)
 
-    if circle:
-        if circle[0][0] != 0:
-            circle = tuple([circle[-1][1]] + list(x[1] for x in circle[:-1]))
+    # Step 2
+    cycle = find_cycle(DGM)
+
+    if cycle:
+        if cycle[0][0] != 0:
+            cycle = tuple([cycle[-1][1]] + list(x[1] for x in cycle[:-1]))
         else:
-            circle = tuple(x[1] for x in circle)
-        #print ('circle: ', ' -> '.join(str(x) for x in circle))
+            cycle = tuple(x[1] for x in cycle)
+        #print ('cycle: ', ' -> '.join(str(x) for x in cycle))
 
         # Step 3
-        e = circle[:2] # TODO: Properly find right edge
+        e = cycle[:2] # TODO: Properly find right edge
         #print('e: ', e)
-        
+
         # Step 4
         # already done
-        
+
         # Step 5
+        # Construct new matching M' by changing edges along the cycle
         M2 = M.copy()
-        for i in range(0, len(circle), 2):
-            M2[circle[i]] = circle[i-1]
+        for i in range(0, len(cycle), 2):
+            M2[cycle[i]] = cycle[i-1]
 
         yield M2
         #print ('M2: ', ', '.join('%s: %s' % x for x in M2.items()))
-        
+
         # Step 6
         Gp = _graph_plus(G, e)
-        M3 = M.copy()
-        del M3[e[0]]
+
+        # Construct M\e
+        M_minus_e = M.copy()
+        del M_minus_e[e[0]]
 
         #print('GP: ')
         #for x in Gp:
         #    print ('\t%s\t--\t%s' % x)
-        #print ('M3: ', ', '.join('%s: %s' % x for x in M3.items()))
+        #print ('M_minus_e: ', ', '.join('%s: %s' % x for x in M_minus_e.items()))
 
-        yield from enum_maximum_matchings_iter(Gp, M, _DGM(Gp, M3))
+        yield from enum_maximum_matchings_iter(Gp, M, _DGM(Gp, M_minus_e))
 
         # Step 7
         Gm = _graph_minus(G, e)
@@ -241,7 +217,7 @@ def enum_maximum_matchings_iter(G: Dict[T, Set[T]], M: Dict[T, T], DGM: Dict[T, 
                     if n1 is not None:
                         break
                 if n1 is not None:
-                    break            
+                    break
             if n1 is not None:
                 break
 
@@ -270,7 +246,7 @@ def enum_maximum_matchings_iter(G: Dict[T, Set[T]], M: Dict[T, T], DGM: Dict[T, 
         yield from enum_maximum_matchings_iter(Gm, M, {})
 
 enum_maximum_matchings_iter.DGM_COUNT = 0
-    
+
 
 if __name__ == '__main__': # pragma: no cover
     def _main3():
@@ -301,7 +277,7 @@ if __name__ == '__main__': # pragma: no cover
             # -0 -> 0
             ReplacementRule(
                 Minus(Zero),
-                lambda: Zero 
+                lambda: Zero
             ),
             # x + 0 -> x
             ReplacementRule(
@@ -321,12 +297,12 @@ if __name__ == '__main__': # pragma: no cover
             # x * x^-1 -> I
             ReplacementRule(
                 Times(y___, x_, Inv(x_), z___),
-                lambda x, y, z: Times(*y, Identity, *z)
+                lambda x, y, z: Times(*(y + [Identity] + z))
             ),
             # T(x) * T(x^-1) -> I
             ReplacementRule(
                 Times(y___, Trans(x_), Trans(Inv(x_)), z___),
-                lambda x, y, z: Times(*y, Identity, *z)
+                lambda x, y, z: Times(*(y + [Identity] + z))
             ),
             # T(T(x)) -> x
             ReplacementRule(
@@ -351,12 +327,12 @@ if __name__ == '__main__': # pragma: no cover
             # x * I -> x
             ReplacementRule(
                 Times(y___, x_, Identity, z___),
-                lambda x, y, z: Times(*y, x, *z)
+                lambda x, y, z: Times(*(y + [x] + z))
             ),
             # I * x -> x
             ReplacementRule(
                 Times(y___, Identity, x_, z___),
-                lambda x, y, z: Times(*y, x, *z)
+                lambda x, y, z: Times(*(y + [x] + z))
             ),
         ]
 
@@ -400,9 +376,9 @@ if __name__ == '__main__': # pragma: no cover
 
         h = HopcroftKarp(G2)
         m = h.maximum_matching()
-        
+
         m2 = dict([(k[1], v[1]) for k, v in m.items() if k[0] == 0])
-        
+
         for k, v in m2.items():
             print('%s: %s' % (k, v))
 
@@ -412,7 +388,7 @@ if __name__ == '__main__': # pragma: no cover
 
         _make_graph(DGM).render('DGM')
 
-        # print(find_circle(DGM))
+        # print(find_cycle(DGM))
 
         for m in enum_maximum_matchings_iter(G, m2, DGM):
             print('match!')
