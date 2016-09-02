@@ -3,6 +3,7 @@
 from typing import Dict, List, Set, Tuple, TypeVar, Union
 
 from graphviz import Digraph, Graph
+from hopcroftkarp import HopcroftKarp
 
 from patternmatcher.expressions import (Arity, Expression, Operation, Symbol,
                                         Variable, Wildcard)
@@ -12,6 +13,9 @@ from patternmatcher.syntactic import DiscriminationNet
 T = TypeVar('T')
 U = TypeVar('U')
 V = TypeVar('V')
+
+LEFT = 0
+RIGHT = 1
 
 TUTuple = TypeVar('TUTuple', bound=Tuple[T,U])
 class BipartiteGraph(Dict[TUTuple,V]):
@@ -37,6 +41,28 @@ class BipartiteGraph(Dict[TUTuple,V]):
             l = l is not True and str(l) or ''
             graph.edge(nodes1[a], nodes2[b], l)
         return graph
+
+    def find_matching(self) -> Dict[T,Set[U]]:
+        # The directed graph is represented as a dictionary of edges
+        # The key is the tail of all edges which are represented by the value
+        # The value is a set of heads for the all edges originating from the tail (key)
+        # In addition, the graph stores which half of the bipartite graph a node originated from
+        # to avoid problems when a value exists in both halfs.
+        directed_graph = {} # type: Dict[Tuple(int, T),Set[Tuple(int,U)]]
+
+        for (left, right) in self:
+            tail = (LEFT, left)
+            head = (RIGHT, right)
+            if tail not in directed_graph:
+                directed_graph[tail] = {head}
+            else:
+                directed_graph[tail].add(head)
+
+        matching = HopcroftKarp(directed_graph).maximum_matching()
+
+        # Filter out the partitions (LEFT and RIGHT) and only return the matching edges
+        # that gor from LEFT to RIGHT
+        return dict((tail[1], head[1]) for tail, head in matching.items() if tail[0] == LEFT)
 
 
 class ManyToOneMatcher(object):
@@ -89,7 +115,7 @@ def _find_cycle(graph: Dict[T, T], node:T, path:List[T], visited:Set[T]) -> bool
     return []
 
 def _graph_plus(G: BipartiteGraph[TUTuple, V], e: Tuple[T, U]) -> BipartiteGraph[TUTuple, V]:
-    return BipartiteGraph([((n1, n2), v) for (n1, n2), v in G.items() if n1 not in e and n2 not in e])
+    return BipartiteGraph([((n1, n2), v) for (n1, n2), v in G.items() if n1 != e[0] and n2 != e[1]])
 
 def _graph_minus(G: BipartiteGraph[TUTuple, V], e: Tuple[T, U]) -> BipartiteGraph[TUTuple, V]:
     return BipartiteGraph([(e2, v) for e2, v in G.items() if e != e2])
@@ -101,13 +127,13 @@ class _DGM(Dict[DGMNode,DGMEdge]):
         super(_DGM, self).__init__()
         for (n1, n2) in G:
             if n1 in M and M[n1] == n2:
-                if (1, n2) not in self:
-                    self[(1, n2)] = set()
-                self[(1, n2)].add((0, n1))
+                if (LEFT, n1) not in self:
+                    self[(LEFT, n1)] = set()
+                self[(LEFT, n1)].add((RIGHT, n2))
             else:
-                if (0, n1) not in self:
-                    self[(0, n1)] = set()
-                self[(0, n1)].add((1, n2))
+                if (RIGHT, n2) not in self:
+                    self[(RIGHT, n2)] = set()
+                self[(RIGHT, n2)].add((LEFT, n1))
 
 def _make_graph(G): # pragma: no cover
     graph = Digraph()
@@ -146,8 +172,8 @@ def enum_maximum_matchings_iter(G: Dict[T, Set[T]], M: Dict[T, T], DGM: Dict[T, 
     #print ('D(G, M): ')
     #for x in DGM.items():
     #    print ('\t%s\t->\t%s' % x)
-    _make_graph(DGM).render('DGM%d' % enum_maximum_matchings_iter.DGM_COUNT)
-    enum_maximum_matchings_iter.DGM_COUNT += 1
+    #_make_graph(DGM).render('DGM%d' % enum_maximum_matchings_iter.DGM_COUNT)
+    #enum_maximum_matchings_iter.DGM_COUNT += 1
 
     # Step 1
     if len(G) == 0:
@@ -157,7 +183,7 @@ def enum_maximum_matchings_iter(G: Dict[T, Set[T]], M: Dict[T, T], DGM: Dict[T, 
     cycle = find_cycle(DGM)
 
     if cycle:
-        if cycle[0][0] != 0:
+        if cycle[0][0] != LEFT:
             cycle = tuple([cycle[-1][1]] + list(x[1] for x in cycle[:-1]))
         else:
             cycle = tuple(x[1] for x in cycle)
@@ -206,7 +232,7 @@ def enum_maximum_matchings_iter(G: Dict[T, Set[T]], M: Dict[T, T], DGM: Dict[T, 
 
         # Find feasible path of length 2 in D(G, M)
         for k in DGM:
-            if k[0] == 0 and k[1] not in M:
+            if k[0] == LEFT and k[1] not in M:
                 for o in DGM[k]:
                     if o in DGM:
                         for _, o2 in DGM[o]:
@@ -235,15 +261,18 @@ def enum_maximum_matchings_iter(G: Dict[T, Set[T]], M: Dict[T, T], DGM: Dict[T, 
 
         e = (n1, n)
 
+        M3 = M2.copy()
+        del M3[n1]
+
         # Construct G+(e) and G-(e)
         Gp = _graph_plus(G, e)
         Gm = _graph_minus(G, e)
 
         # Step 10
-        yield from enum_maximum_matchings_iter(Gp, M2, {})
+        yield from enum_maximum_matchings_iter(Gp, M2, _DGM(Gp, M3))
 
         # Step 10
-        yield from enum_maximum_matchings_iter(Gm, M, {})
+        yield from enum_maximum_matchings_iter(Gm, M, _DGM(Gm, M))
 
 enum_maximum_matchings_iter.DGM_COUNT = 0
 
@@ -364,25 +393,12 @@ if __name__ == '__main__': # pragma: no cover
 
         G.as_graph().render('G')
 
-        from hopcroftkarp import HopcroftKarp
+        m = G.find_matching()
 
-        G2 = {}
-
-        for (n1, n2) in G:
-            if (0, n1) not in G2:
-                G2[(0, n1)] = set([(1, n2)])
-            else:
-                G2[(0, n1)].add((1, n2))
-
-        h = HopcroftKarp(G2)
-        m = h.maximum_matching()
-
-        m2 = dict([(k[1], v[1]) for k, v in m.items() if k[0] == 0])
-
-        for k, v in m2.items():
+        for k, v in m.items():
             print('%s: %s' % (k, v))
 
-        DGM = _DGM(G, m2)
+        DGM = _DGM(G, m)
 
         #print(len(DGM))
 
@@ -390,7 +406,7 @@ if __name__ == '__main__': # pragma: no cover
 
         # print(find_cycle(DGM))
 
-        for m in enum_maximum_matchings_iter(G, m2, DGM):
+        for m in enum_maximum_matchings_iter(G, m, DGM):
             print('match!')
             for kv in m.items():
                 print('\t%s: %s' % kv)
@@ -398,7 +414,3 @@ if __name__ == '__main__': # pragma: no cover
         #print(matches)
 
     _main4()
-
-    #_main3()
-
-    #print(_graph_minus())

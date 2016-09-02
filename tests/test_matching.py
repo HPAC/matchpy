@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 import unittest
+import itertools
+import math
 
 import hypothesis.strategies as st
 from ddt import data, ddt, unpack
-from hypothesis import assume, given
+from hypothesis import given, example
 
-from patternmatcher.matching import BipartiteGraph, find_cycle
+from patternmatcher.matching import BipartiteGraph, find_cycle, _DGM, enum_maximum_matchings_iter
 
 @st.composite
 def bipartite_graph(draw):
@@ -21,15 +23,32 @@ def bipartite_graph(draw):
 
     return graph
 
-@unittest.skip('temp')
-class RandomizedBipartiteMatchTest(unittest.TestCase):
-    i = 0
-    
+@ddt
+class RandomizedBipartiteMatchTest(unittest.TestCase):    
     @given(bipartite_graph())
-    def test_find_cycle_correct(self, graph):
-        print(graph)
-        graph.as_graph().render('G%d' % self.i)
-        self.i += 1
+    @example(BipartiteGraph(map(lambda x: (x, True), itertools.product(range(3), repeat=2))))
+    def test_correctness(self, graph):
+        matching = graph.find_matching()
+        size = len(matching)
+        matchings = {frozenset(matching.items())}
+        DGM = _DGM(graph, matching)
+        for matching in enum_maximum_matchings_iter(graph, matching, DGM):
+            self.assertEqual(len(matching), size, 'Matching has a different size than the first one')
+            for kv in matching.items():
+                self.assertIn(kv, graph, 'Matching contains an edge that was not in the graph')
+            frozen_matching = frozenset(matching.items())
+            self.assertNotIn(frozen_matching, matchings, "Matching was duplicate")
+    
+    @data(*range(1, 8))
+    def test_completeness(self, i):
+        graph = BipartiteGraph(map(lambda x: (x, True), itertools.product(range(i), repeat=2)))
+        matching = graph.find_matching()
+        DGM = _DGM(graph, matching)
+        count = len(list(enum_maximum_matchings_iter(graph, matching, DGM)))
+        expected_count = math.factorial(i) - 1
+        self.assertEqual(count, expected_count)
+
+
 
 @ddt
 class FindCycleTest(unittest.TestCase):
