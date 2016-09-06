@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from typing import Dict, List, Set, Tuple, TypeVar, Union, Iterator, Generic, cast, Any
+from typing import Dict, List, Set, Tuple, TypeVar, Union, Iterator, Generic, cast, Hashable
 
 from graphviz import Digraph, Graph
 from hopcroftkarp import HopcroftKarp
@@ -11,13 +11,14 @@ from patternmatcher.functions import ReplacementRule
 from patternmatcher.syntactic import DiscriminationNet
 
 T = TypeVar('T')
-U = TypeVar('U')
-V = TypeVar('V')
+TLeft = TypeVar('TLeft', bound=Hashable)
+TRight = TypeVar('TRight', bound=Hashable)
+TEdge = TypeVar('TEdge')
 
 LEFT = 0
 RIGHT = 1
 
-class BipartiteGraph(Dict[Tuple[T, U],V], Generic[T, U, V]):
+class BipartiteGraph(Dict[Tuple[TLeft, TRight], TEdge], Generic[TLeft, TRight, TEdge]):
     """A bipartite graph representation.
 
     This class is a specilized dictionary, where each edge is represented by a 2-tuple that is used as a key in the
@@ -43,8 +44,8 @@ class BipartiteGraph(Dict[Tuple[T, U],V], Generic[T, U, V]):
         """Returns a :class:`graphviz.Graph` representation of this bipartite graph."""
         graph = Graph()
 
-        nodes_left = {} # type: Dict[T,str]
-        nodes_right = {} # type: Dict[U,str]
+        nodes_left = {} # type: Dict[TLeft,str]
+        nodes_right = {} # type: Dict[TRight,str]
         node_id = 0
         for (left, right), value in self.items():
             if left not in nodes_left:
@@ -62,7 +63,7 @@ class BipartiteGraph(Dict[Tuple[T, U],V], Generic[T, U, V]):
 
         return graph
 
-    def find_matching(self) -> Dict[T,U]:
+    def find_matching(self) -> Dict[TLeft,TRight]:
         """Finds a matching in the bipartite graph.
 
         This is done using the Hopcroft-Karp algorithm with an implementation from the
@@ -77,7 +78,7 @@ class BipartiteGraph(Dict[Tuple[T, U],V], Generic[T, U, V]):
         # In addition, the graph stores which part of the bipartite graph a node originated from
         # to avoid problems when a value exists in both halfs.
         # Only one direction of the undirected edge is needed for the HopcroftKarp class
-        directed_graph = {} # type: Dict[Tuple[int, T],Set[Tuple[int,U]]]
+        directed_graph = {} # type: Dict[Tuple[int, TLeft],Set[Tuple[int,TRight]]]
 
         for (left, right) in self:
             tail = (LEFT, left)
@@ -92,6 +93,14 @@ class BipartiteGraph(Dict[Tuple[T, U],V], Generic[T, U, V]):
         # Filter out the partitions (LEFT and RIGHT) and only return the matching edges
         # that go from LEFT to RIGHT
         return dict((tail[1], head[1]) for tail, head in matching.items() if tail[0] == LEFT)
+
+    def without_nodes(self, edge: Tuple[TLeft, TRight]) -> 'BipartiteGraph[TLeft, TRight, TEdge]':
+        """Returns a copy of this bipartite graph with the given edge and its adjacent nodes removed."""
+        return BipartiteGraph(((n1, n2), v) for (n1, n2), v in self.items() if n1 != edge[0] and n2 != edge[1])
+
+    def without_edge(self, edge: Tuple[TLeft, TRight]) -> 'BipartiteGraph[TLeft, TRight, TEdge]':
+        """Returns a copy of this bipartite graph with the given edge removed."""
+        return BipartiteGraph((e2, v) for e2, v in self.items() if edge != e2)
 
 
 class ManyToOneMatcher(object):
@@ -114,86 +123,80 @@ class ManyToOneMatcher(object):
                 net.add(expr)
             self.nets[g] = net
 
-def find_cycle(graph: Dict[T, Set[T]]) -> List[T]:
-    visited = cast(Set[T], set())
-    for n in graph:
-        cycle = _find_cycle(graph, n, cast(List[T], []), visited)
-        if cycle:
-            return cycle
-    return cast(List[T], [])
 
-def _find_cycle(graph: Dict[T, Set[T]], node:T, path:List[T], visited:Set[T]) -> List[T]:
-    if node in visited:
-        try:
-            index = path.index(node)
-            return path[index:]
-        except ValueError:
-            return cast(List[T], [])
-
-    visited.add(node)
-
-    if node not in graph:
-        return cast(List[T], [])
-
-    for other in graph[node]:
-        cycle = _find_cycle(graph, other, path + [node], visited)
-        if cycle:
-            return cycle
-
-    return cast(List[T], [])
-
-def _graph_plus(G: BipartiteGraph[T, U, V], e: Tuple[T, U]) -> BipartiteGraph[T, U, V]:
-    return BipartiteGraph([((n1, n2), v) for (n1, n2), v in G.items() if n1 != e[0] and n2 != e[1]])
-
-def _graph_minus(G: BipartiteGraph[T, U, V], e: Tuple[T, U]) -> BipartiteGraph[T, U, V]:
-    return BipartiteGraph([(e2, v) for e2, v in G.items() if e != e2])
-
-class DirectedMatchGraph(Dict[Tuple[int,Union[T,U]],Set[Tuple[int,Union[T,U]]]], Generic[T, U]):
-    def __init__(self, G: BipartiteGraph[T, U, V], M: Dict[T, U]) -> None:
-        super(DirectedMatchGraph, self).__init__()
-        for (n1, n2) in G:
-            if n1 in M and M[n1] == n2:
-                self[(LEFT, n1)] = {(RIGHT, n2)}
+class _DirectedMatchGraph(Dict[Tuple[int,Union[TLeft,TRight]],Set[Tuple[int,Union[TLeft,TRight]]]], Generic[TLeft, TRight]):
+    def __init__(self, graph: BipartiteGraph[TLeft, TRight, TEdge], matching: Dict[TLeft, TRight]) -> None:
+        super(_DirectedMatchGraph, self).__init__()
+        for (tail, head) in graph:
+            if tail in matching and matching[tail] == head:
+                self[(LEFT, tail)] = {(RIGHT, head)}
             else:
-                if (RIGHT, n2) not in self:
-                    self[(RIGHT, n2)] = set()
-                self[(RIGHT, n2)].add((LEFT, n1))
+                if (RIGHT, head) not in self:
+                    self[(RIGHT, head)] = set()
+                self[(RIGHT, head)].add((LEFT, tail))
 
-def _make_graph(G): # pragma: no cover
-    graph = Digraph()
+    def as_graph(self) -> Digraph: # pragma: no cover
+        """Returns a :class:`graphviz.Digraph` representation of this directed match graph."""
+        graph = Digraph()
 
-    subgraphs = [Digraph(graph_attr={'rank': 'same'}), Digraph(graph_attr={'rank': 'same'})]
-    nodes = [{}, {}]
-    edges = []
-    i = 0
-    for (s, n), es in G.items():
-        n = str(n)
-        if n not in nodes[s]:
-            name = 'node%d' % i
-            nodes[s][n] = name
-            subgraphs[s].node(name, label=n)
-            i += 1
-        for s2, e in es:
-            e = str(e)
-            if e not in nodes[s2]:
-                name = 'node%d' % i
-                nodes[s2][e] = name
-                subgraphs[s2].node(name, label=e)
-                i += 1
-            edges.append((nodes[s][n], nodes[s2][e]))
-    graph.subgraph(subgraphs[0])
-    graph.subgraph(subgraphs[1])
-    for a, b in edges:
-        graph.edge(a, b)
-    return graph
+        subgraphs = [Digraph(graph_attr={'rank': 'same'}), Digraph(graph_attr={'rank': 'same'})]
+        nodes = [{}, {}] # type: List[Dict[Union[TLeft, TRight], str]]
+        edges = [] # type: List [Tuple[str,str]]
+        node_id = 0
+        for (tail_part, tail), head_set in self.items():
+            if tail not in nodes[tail_part]:
+                name = 'node%d' % node_id
+                nodes[tail_part][tail] = name
+                subgraphs[tail_part].node(name, label=str(tail))
+                node_id += 1
+            for head_part, head in head_set:
+                if head not in nodes[head_part]:
+                    name = 'node%d' % node_id
+                    nodes[head_part][head] = name
+                    subgraphs[head_part].node(name, label=str(head))
+                    node_id += 1
+                edges.append((nodes[tail_part][tail], nodes[head_part][head]))
+        graph.subgraph(subgraphs[0])
+        graph.subgraph(subgraphs[1])
+        for tail_node, head_node in edges:
+            graph.edge(tail_node, head_node)
+        return graph
 
-def enum_maximum_matchings_iter(graph: BipartiteGraph[T, U, V]) -> Iterator[Dict[T, U]]:
+    def find_cycle(self) -> List[Tuple[int,Union[TLeft,TRight]]]:
+        visited = cast(Set[Tuple[int,Union[TLeft,TRight]]], set())
+        for n in self:
+            cycle = self._find_cycle(n, cast(List[Tuple[int,Union[TLeft,TRight]]], []), visited)
+            if cycle:
+                return cycle
+        return cast(List[Tuple[int,Union[TLeft,TRight]]], [])
+
+    def _find_cycle(self, node:Tuple[int,Union[TLeft,TRight]], path:List[Tuple[int,Union[TLeft,TRight]]], visited:Set[Tuple[int,Union[TLeft,TRight]]]) -> List[Tuple[int,Union[TLeft,TRight]]]:
+        if node in visited:
+            try:
+                index = path.index(node)
+                return path[index:]
+            except ValueError:
+                return cast(List[Tuple[int,Union[TLeft,TRight]]], [])
+
+        visited.add(node)
+
+        if node not in self:
+            return cast(List[Tuple[int,Union[TLeft,TRight]]], [])
+
+        for other in self[node]:
+            cycle = self._find_cycle(other, path + [node], visited)
+            if cycle:
+                return cycle
+
+        return cast(List[Tuple[int,Union[TLeft,TRight]]], [])
+
+def enum_maximum_matchings_iter(graph: BipartiteGraph[TLeft, TRight, TEdge]) -> Iterator[Dict[TLeft, TRight]]:
     matching = graph.find_matching()
     if matching:
         yield matching
-        yield from _enum_maximum_matchings_iter(graph, matching, DirectedMatchGraph(graph, matching))
+        yield from _enum_maximum_matchings_iter(graph, matching, _DirectedMatchGraph(graph, matching))
 
-def _enum_maximum_matchings_iter(graph: BipartiteGraph[T, U, V], matching: Dict[T, U], directed_match_graph: DirectedMatchGraph[T, U]) -> Iterator[Dict[T, U]]:
+def _enum_maximum_matchings_iter(graph: BipartiteGraph[TLeft, TRight, TEdge], matching: Dict[TLeft, TRight], directed_match_graph: _DirectedMatchGraph[TLeft, TRight]) -> Iterator[Dict[TLeft, TRight]]:
     # Algorithm described in "Algorithms for Enumerating All Perfect, Maximum and Maximal Matchings in Bipartite Graphs"
     # By Takeaki Uno in "Algorithms and Computation: 8th International Symposium, ISAAC '97 Singapore, December 17-19, 1997 Proceedings"
     # See http://dx.doi.org/10.1007/3-540-63890-3_11
@@ -205,7 +208,7 @@ def _enum_maximum_matchings_iter(graph: BipartiteGraph[T, U, V], matching: Dict[
     # Step 2
     # Find a circle in the directed matching graph
     # Note that this circle alternates between nodes from the left and the right part of the graph
-    raw_cycle = find_cycle(directed_match_graph)
+    raw_cycle = directed_match_graph.find_cycle()
 
     if raw_cycle:        
         # Make sure the circle "starts"" in the the left part
@@ -216,7 +219,7 @@ def _enum_maximum_matchings_iter(graph: BipartiteGraph[T, U, V], matching: Dict[
             cycle = tuple(x[1] for x in raw_cycle)
 
         # Step 3 - TODO: Properly find right edge
-        e = cast(Tuple[T,U], cycle[:2])
+        edge = cast(Tuple[TLeft,TRight], cycle[:2])
 
         # Step 4
         # already done because we are not really finding the optimal edge
@@ -231,23 +234,23 @@ def _enum_maximum_matchings_iter(graph: BipartiteGraph[T, U, V], matching: Dict[
         yield new_match
 
         # Construct G+(e) and G-(e)
-        graph_plus = _graph_plus(graph, e)
-        graph_minus = _graph_minus(graph, e)
+        graph_plus = graph.without_nodes(edge)
+        graph_minus = graph.without_edge(edge)
 
         # Step 6
         # Recurse with the old matching M but without the edge e
 
         # Construct M\e
         match_minus_e = matching.copy()
-        del match_minus_e[e[0]]
+        del match_minus_e[edge[0]]
 
-        directed_match_graph_plus = DirectedMatchGraph(graph_plus, match_minus_e)
+        directed_match_graph_plus = _DirectedMatchGraph(graph_plus, match_minus_e)
 
         yield from _enum_maximum_matchings_iter(graph_plus, matching, directed_match_graph_plus)
 
         # Step 7
         # Recurse with the new matching M' but without the edge e
-        directed_match_graph_minus = DirectedMatchGraph(graph_minus, new_match)
+        directed_match_graph_minus = _DirectedMatchGraph(graph_minus, new_match)
 
         yield from _enum_maximum_matchings_iter(graph_minus, new_match, directed_match_graph_minus)
 
@@ -258,18 +261,18 @@ def _enum_maximum_matchings_iter(graph: BipartiteGraph[T, U, V], matching: Dict[
         # left1 must be in the left part of the graph and in matching
         # right must be in the right part of the graph
         # left2 is also in the left part of the graph and but must not be in matching
-        left1 = None # type: T
-        left2 = None # type: T
-        right = None # type: U
+        left1 = None # type: TLeft
+        left2 = None # type: TLeft
+        right = None # type: TRight
 
         for part1, node1 in directed_match_graph:
             if part1 == LEFT and node1 in matching:
-                left1 = cast(T, node1)
+                left1 = cast(TLeft, node1)
                 right = matching[left1]
                 if (RIGHT, right) in directed_match_graph:
                     for _, node2 in directed_match_graph[(RIGHT, right)]:
                         if node2 not in matching:
-                            left2 = cast(T, node2)
+                            left2 = cast(TLeft, node2)
                             break
                     if left2 is not None:
                         break
@@ -286,21 +289,21 @@ def _enum_maximum_matchings_iter(graph: BipartiteGraph[T, U, V], matching: Dict[
 
         yield new_match
 
-        e = (left2, right)
+        edge = (left2, right)
 
         # Construct M'\e
         new_match_minus_e = new_match.copy()
         del new_match_minus_e[left2]
 
         # Construct G+(e) and G-(e)
-        graph_plus = _graph_plus(graph, e)
-        graph_minus = _graph_minus(graph, e)
+        graph_plus = graph.without_nodes(edge)
+        graph_minus = graph.without_edge(edge)
 
         # Step 9
-        yield from _enum_maximum_matchings_iter(graph_plus, new_match, DirectedMatchGraph(graph_plus, new_match_minus_e))
+        yield from _enum_maximum_matchings_iter(graph_plus, new_match, _DirectedMatchGraph(graph_plus, new_match_minus_e))
 
         # Step 10
-        yield from _enum_maximum_matchings_iter(graph_minus, matching, DirectedMatchGraph(graph_minus, matching))
+        yield from _enum_maximum_matchings_iter(graph_minus, matching, _DirectedMatchGraph(graph_minus, matching))
 
 
 if __name__ == '__main__': # pragma: no cover
@@ -310,7 +313,7 @@ if __name__ == '__main__': # pragma: no cover
         Plus = Operation.new('+', Arity.variadic, 'Plus', associative=True, one_identity=True, commutative=True)
         Minus = Operation.new('-', Arity.unary, 'Minus')
         Inv = Operation.new('Inv', Arity.unary, 'Inv')
-        Trans = Operation.new('T', Arity.unary, 'Trans')
+        Trans = Operation.new('TLeft', Arity.unary, 'Trans')
 
         x_ = Variable.dot('x')
         y_ = Variable.dot('y')
@@ -352,22 +355,22 @@ if __name__ == '__main__': # pragma: no cover
                 Times(y___, x_, Inv(x_), z___),
                 lambda x, y, z: Times(*(y + [Identity] + z))
             ),
-            # T(x) * T(x^-1) -> I
+            # TLeft(x) * TLeft(x^-1) -> I
             ReplacementRule(
                 Times(y___, Trans(x_), Trans(Inv(x_)), z___),
                 lambda x, y, z: Times(*(y + [Identity] + z))
             ),
-            # T(T(x)) -> x
+            # TLeft(TLeft(x)) -> x
             ReplacementRule(
                 Trans(Trans(x_)),
                 lambda x: x
             ),
-            # T(0) -> 0
+            # TLeft(0) -> 0
             ReplacementRule(
                 Trans(Zero),
                 lambda: Zero
             ),
-            # T(I) -> I
+            # TLeft(I) -> I
             ReplacementRule(
                 Trans(Identity),
                 lambda: Identity
@@ -422,11 +425,11 @@ if __name__ == '__main__': # pragma: no cover
         for k, v in m.items():
             print('%s: %s' % (k, v))
 
-        DGM = DirectedMatchGraph(G, m)
+        DGM = _DirectedMatchGraph(G, m)
 
         #print(len(DGM))
 
-        _make_graph(DGM).render('DGM')
+        DGM.as_graph().render('DGM')
 
         # print(find_cycle(DGM))
 

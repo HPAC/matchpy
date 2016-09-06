@@ -8,7 +8,7 @@ from ddt import data, ddt, unpack
 from hypothesis import given
 
 from patternmatcher.matching import (BipartiteGraph,
-                                     enum_maximum_matchings_iter, find_cycle)
+                                     enum_maximum_matchings_iter, _DirectedMatchGraph)
 
 
 @st.composite
@@ -51,7 +51,7 @@ class EnumMaximumMatchingsIterTest(unittest.TestCase):
 
 
 @ddt
-class FindCycleTest(unittest.TestCase):
+class DirectedMatchGraphFindCycleTest(unittest.TestCase):
     @unpack
     @data(
         ({},                        []),
@@ -68,13 +68,68 @@ class FindCycleTest(unittest.TestCase):
         ({0: {2}, 1: {2}, 2: {1}},  [1, 2]),
     )
     def test_find_cycle(self, graph, expected_cycle):
-        cycle = find_cycle(graph)
+        dmg = _DirectedMatchGraph({}, {})
+        dmg.update(graph)
+        cycle = dmg.find_cycle()
         if len(expected_cycle) > 0:
             self.assertIn(expected_cycle[0], cycle)
             start = cycle.index(expected_cycle[0])
             cycle = cycle[start:] + cycle[:start]
         self.assertListEqual(cycle, expected_cycle)
 
+
+class BipartiteGraphTest(unittest.TestCase):
+    def test_setitem(self):
+        graph = BipartiteGraph()
+
+        graph[0,1] = True
+
+        with self.assertRaises(TypeError):
+            graph[0] = True 
+
+        with self.assertRaises(TypeError):
+            graph[0,] = True 
+
+        with self.assertRaises(TypeError):
+            graph[0,1,2] = True 
+
+    def test_getitem(self):
+        graph = BipartiteGraph({(0,0): True})
+
+        self.assertEqual(graph[0,0], True)
+
+        with self.assertRaises(TypeError):
+            _ = graph[0]
+
+        with self.assertRaises(TypeError):
+            _ = graph[0,]
+
+        with self.assertRaises(TypeError):
+            _ = graph[0,1,2]
+
+        with self.assertRaises(KeyError):
+            _ = graph[0,1]
+
+    def test_delitem(self):
+        graph = BipartiteGraph({(0,0): True})
+
+        self.assertIn((0,0), graph)
+
+        del graph[0,0]
+
+        self.assertNotIn((0,0), graph)
+
+        with self.assertRaises(TypeError):
+            del graph[0]
+
+        with self.assertRaises(TypeError):
+            del graph[0,]
+
+        with self.assertRaises(TypeError):
+            del graph[0,1,2]
+
+        with self.assertRaises(KeyError):
+            del graph[0,1]
 
 if __name__ == '__main__':
     unittest.main()
