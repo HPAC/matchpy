@@ -7,7 +7,7 @@ import hypothesis.strategies as st
 from ddt import data, ddt, unpack
 from hypothesis import given
 
-from patternmatcher.matching import (BipartiteGraph,
+from patternmatcher.bipartite import (BipartiteGraph,
                                      enum_maximum_matchings_iter, _DirectedMatchGraph)
 
 
