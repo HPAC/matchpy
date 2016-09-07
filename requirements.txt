@@ -5,3 +5,4 @@ graphviz
 coverage
 sphinx-autodoc-typehints
 hypothesis
+hopcroftkarp
