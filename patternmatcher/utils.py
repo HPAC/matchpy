@@ -74,6 +74,56 @@ def partitions_with_count(n, m):
 
         a[0] = s
 
+
+def fixed_integer_vector_iter(maxVect: Tuple[int, ...], vector_sum: int) -> Iterator[Tuple[int, ...]]:
+    """
+    Return an iterator over the integer vectors which
+
+    - are componentwise less than or equal to `maxVect`, and
+    - are non-negative, and where
+    - the sum of their components is exactly `vector_sum`.
+
+    The iterator yields the vectors in lexicographical order.
+
+    Examples
+    --------
+    
+    List all vectors that are between (0, 0) and (2, 2) componentwise, where the sum of components is 2:
+
+    >>> vectors = list(integer_vector_iter([2, 2], 2))
+    >>> vectors
+    [[0, 2], [1, 1], [2, 0]]
+    >>> list(map(sum, vectors))
+    [2, 2, 2]
+    """
+    if len(maxVect) == 0:
+        yield tuple()
+        return
+
+    total = sum(maxVect)
+    if vector_sum <= total:
+        vector_sum = min(vector_sum, total)
+        start  = max(maxVect[0] + vector_sum - total, 0)
+        end    = min(maxVect[0], vector_sum)
+
+        for j in range(start, end + 1):
+            for vec in fixed_integer_vector_iter(maxVect[1:], vector_sum - j):
+                yield (j, ) + vec
+
+def minimum_integer_vector_iter(maxVect: Tuple[int, ...], minSum:int=0) -> Iterator[Tuple[int, ...]]:
+    if len(maxVect) == 0:
+        yield tuple()
+        return
+
+    total = sum(maxVect)
+    if minSum <= total:
+        start  = max(maxVect[0] + minSum - total, 0)
+
+        for j in range(start, maxVect[0] + 1):
+            newmin = max(0, minSum - j)
+            for vec in minimum_integer_vector_iter(maxVect[1:], newmin):
+                yield (j, ) + vec
+
 def fixed_sum_vector_iter(min_vect: Sequence[int], max_vect: Sequence[int], total: int) -> Iterator[List[int]]:
     assert len(min_vect) == len(max_vect), 'len(min_vect) != len(max_vect)'
     assert all(min_value <= max_value for min_value, max_value in zip(min_vect, max_vect)), 'min_vect > max_vect'
@@ -341,4 +391,6 @@ def match_repr_str(match): # pragma: no cover
     return ', '.join('%s: %s' % (k, _match_value_repr_str(v)) for k, v in match.items())
 
 if __name__ == '__main__': # pragma: no cover
-    print(list(solve_linear_diop(5, 2, 3, 1)))
+    for p in integer_vector_iter((5, 3), 2):
+        print (p)
+    #print(list(solve_linear_diop(5, 2, 3, 1)))

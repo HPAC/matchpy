@@ -97,6 +97,10 @@ class BipartiteGraph(Dict[Tuple[TLeft, TRight], TEdge], Generic[TLeft, TRight, T
         """Returns a copy of this bipartite graph with the given edge removed."""
         return BipartiteGraph((e2, v) for e2, v in self.items() if edge != e2)
 
+    def limited_to(self, left: Set[TLeft], right: Set[TRight]) -> 'BipartiteGraph[TLeft, TRight, TEdge]':
+        """Returns the induced subgraph where only the nodes from the given sets are included."""
+        return BipartiteGraph(((n1, n2), v) for (n1, n2), v in self.items() if n1 in left and n2 in right)
+
 
 class _DirectedMatchGraph(Dict[Tuple[int,Union[TLeft,TRight]],Set[Tuple[int,Union[TLeft,TRight]]]], Generic[TLeft, TRight]):
     def __init__(self, graph: BipartiteGraph[TLeft, TRight, TEdge], matching: Dict[TLeft, TRight]) -> None:
