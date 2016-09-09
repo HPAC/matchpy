@@ -190,7 +190,8 @@ class Operation(Expression, metaclass=OperationMeta):
                 docstring of :class:`Operation`.
         """
         class_name = class_name or name
-        assert isidentifier(class_name), 'invalid identifier'
+        if not isidentifier(class_name):
+            raise ValueError("Invalid identifier for new operator class.")
 
         return type(class_name, (Operation,), dict({
             'name': name,
@@ -364,6 +365,11 @@ class Variable(Atom):
         """Creates a `Variable` with :class:`Wildcard` that matches at least one and up to any number of arguments."""
         return Variable(name, Wildcard.plus(), constraint)
 
+    @staticmethod
+    def fixed(name: str, length: int, constraint:Optional[Constraint]=None):
+        """Creates a `Variable` with :class:`Wildcard` that matches exactly `length` expressions."""
+        return Variable(name, Wildcard.dot(length), constraint)
+
     def preorder_iter(self, predicate:Optional[ExpressionPredicate]=None, position:Tuple[int,...]=()) -> Iterator[Tuple['Expression',Tuple[int,...]]]:
         if predicate is None or predicate(self):
             yield self, position
@@ -431,7 +437,10 @@ class Wildcard(Atom):
                 callback is invoked for every match and the return value is utilized to decide
                 whether the match is valid.
         """
-        assert min_count >= 0, 'Negative min_count'
+        if min_count < 0:
+            raise ValueError("min_count cannot be negative")
+        if min_count == 0 and fixed_size:
+            raise ValueError("Cannot create a fixed zero length wildcard")
 
         super().__init__(constraint)
         self.min_count = min_count
@@ -446,9 +455,11 @@ class Wildcard(Atom):
         return self.fixed_size
 
     @staticmethod
-    def dot():
-        """Creates a :class:`Wildcard` that matches exactly one argument."""
-        return Wildcard(min_count=1, fixed_size=True)
+    def dot(length:int=1):
+        """Creates a :class:`Wildcard` that matches a fixed number `length` of arguments.
+        
+        Defaults to matching only a single argument."""
+        return Wildcard(min_count=length, fixed_size=True)
 
     @staticmethod
     def star():
