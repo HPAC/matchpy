@@ -390,6 +390,32 @@ def _match_value_repr_str(value): # pragma: no cover
 def match_repr_str(match): # pragma: no cover
     return ', '.join('%s: %s' % (k, _match_value_repr_str(v)) for k, v in match.items())
 
+def is_sorted(l):
+    for i, el in enumerate(l[1:]):
+        if el > l[i]:
+            return False
+    return True
+
+def iterator_chain(initial_data, *factories):
+    f_count = len(factories)
+    iterators = [None] * f_count
+    next_data = initial_data
+    i = 0
+    while True:
+        try:
+            while i < f_count:
+                if iterators[i] is None:
+                    iterators[i] = factories[i](*next_data)
+                next_data = iterators[i].__next__()
+                i += 1
+            yield next_data
+            i -= 1
+        except StopIteration:
+            iterators[i] = None
+            i -= 1
+            if i < 0:
+                break
+
 if __name__ == '__main__': # pragma: no cover
     for p in integer_vector_iter((5, 3), 2):
         print (p)
