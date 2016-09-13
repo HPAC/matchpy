@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
+import keyword
 from collections import Counter as Multiset
 from enum import Enum
 from typing import (Any, Callable, Dict, Iterator, List, Optional, Set, Tuple,
                     Union)
-
-from patternmatcher.utils import isidentifier
 
 
 class Arity(tuple, Enum):
@@ -190,7 +189,7 @@ class Operation(Expression, metaclass=OperationMeta):
                 docstring of :class:`Operation`.
         """
         class_name = class_name or name
-        if not isidentifier(class_name):
+        if not class_name.isidentifier() or keyword.iskeyword(class_name):
             raise ValueError("Invalid identifier for new operator class.")
 
         return type(class_name, (Operation,), dict({

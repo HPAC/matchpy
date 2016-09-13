@@ -8,7 +8,7 @@ from patternmatcher.bipartite import (BipartiteGraph,
 from patternmatcher.expressions import (Arity, Expression, Operation, Symbol,
                                         Variable)
 from patternmatcher.syntactic import DiscriminationNet
-from patternmatcher.utils import fixed_integer_vector_iter, minimum_integer_vector_iter, iterator_chain
+from patternmatcher.utils import fixed_integer_vector_iter, minimum_integer_vector_iter, iterator_chain, commutative_sequence_variable_partition_iter
 
 class CommutativePatternsParts(object):
     def __init__(self, *expressions: Expression) -> None:
@@ -215,14 +215,16 @@ class CommutativeMatcher(object):
                 del fixed_vars[(name, length)]
 
         factories = [self._fixed_expr_factory(e) for e in pattern.rest] + \
-                    [self._fixed_var_iter_factory(v, l, c) for (v, l), c in fixed_vars.items()] + \
-                    [self._sequence_var_iter_factory(v, l) for v, l in pattern.sequence_variables]
+                    [self._fixed_var_iter_factory(v, l, c) for (v, l), c in fixed_vars.items()]
 
         expr_counter = Counter(remaining)
 
         for rem_expr, subst in iterator_chain((expr_counter, subst), *factories):
-            if not rem_expr:
-                yield subst
+            for sequence_subst in commutative_sequence_variable_partition_iter(Counter(rem_expr), pattern.sequence_variables):
+                s = Substitution((var, sorted(exprs.elements())) for var, exprs in sequence_subst.items())
+                result = self._unify_substitutions(subst, s)
+                if result is not None:
+                    yield result
 
     @staticmethod
     def _fixed_expr_factory(expression):
@@ -297,7 +299,7 @@ class CommutativeMatcher(object):
 
     @staticmethod
     def _unify_substitutions(*substs: Substitution) -> Substitution:
-        unified = substs[0]
+        unified = Substitution(substs[0])
         for subst in substs[1:]:
             for variable, value in subst.items():
                 if variable in unified:
@@ -350,8 +352,8 @@ if __name__ == '__main__': # pragma: no cover
         ]
 
         #expr = f(a, b, g(a), g(b))
-        #expr = f(a, b, g(a), g(b), g(a, b), g(b, a))
-        expr = f(g(a), g(a), g(b), g(b))
+        expr = f(a, b, g(a), g(b), g(a, b), g(b, a))
+        #expr = f(g(a), g(a), g(b), g(b))
 
         print('Expression: ', expr)
 

@@ -4,7 +4,9 @@ import inspect
 import itertools
 import math
 import re
-from typing import Iterator, List, Sequence, Tuple, TypeVar, cast, Optional # pylint: disable=unused-import
+from collections import Counter
+from typing import (Callable, Dict, Iterator,  # pylint: disable=unused-import
+                    List, Optional, Sequence, Tuple, TypeVar, cast)
 
 T = TypeVar('T')
 
@@ -244,6 +246,37 @@ def commutative_partition_iter(values: Sequence[T], min_vect: Sequence[int], max
             if i < 0:
                 return
 
+def _make_iter_factory(value, total, var_names, var_counts):
+    def factory(subst):
+        for solution in solve_linear_diop(total, *var_counts):
+            for var, count in zip(var_names, solution):
+                subst[var][value] = count
+            yield (subst, )
+
+    return factory
+
+def commutative_sequence_variable_partition_iter(values: Counter, variables: Counter) -> Iterator[Dict[str, Counter]]:
+    sorted_vars = sorted(variables.items())
+    var_names = [name for (name, _), _ in sorted_vars]
+    var_counts = [count for _, count in sorted_vars]
+    var_minimums = dict(variables.keys())
+
+    iterators = []
+    for value, count in values.items():
+        iterators.append(_make_iter_factory(value, count, var_names, var_counts))
+
+    initial = dict((var, Counter()) for var in var_names)
+
+    for (subst, ) in iterator_chain((initial, ), *iterators):
+        valid = True
+        for var, counter in subst.items():
+            if sum(counter.values()) < var_minimums[var]:
+                valid = False
+                break
+        if valid:
+            yield subst
+
+
 def get_lambda_source(l):
     src = inspect.getsource(l)
     match = re.search("lambda.*?:(.*)$", src)
@@ -252,38 +285,6 @@ def get_lambda_source(l):
         return l.__name__
 
     return match.group(1)
-
-# http://stackoverflow.com/questions/12700893/how-to-check-if-a-string-is-a-valid-python-identifier-including-keyword-check
-def isidentifier(ident):
-    """Determines, if string is valid Python identifier."""
-
-    # Smoke test — if it's not string, then it's not identifier, but we don't
-    # want to just silence exception. It's better to fail fast.
-    if not isinstance(ident, str):
-        raise TypeError('expected str, but got {!r}'.format(type(ident)))
-
-    # Resulting AST of simple identifier is <Module [<Expr <Name "foo">>]>
-    try:
-        root = ast.parse(ident)
-    except SyntaxError:
-        return False
-
-    if not isinstance(root, ast.Module):
-        return False
-
-    if len(root.body) != 1:
-        return False
-
-    if not isinstance(root.body[0], ast.Expr):
-        return False
-
-    if not isinstance(root.body[0].value, ast.Name):
-        return False
-
-    if root.body[0].value.id != ident:
-        return False
-
-    return True
 
 def extended_euclid(a: int, b: int) -> Tuple[int, int, int]:
     """Extended Euclidean algorithm that computes the Bézout coefficients as well as `gcd(a, b)`
@@ -396,8 +397,11 @@ def is_sorted(l):
             return False
     return True
 
-def iterator_chain(initial_data, *factories):
+def iterator_chain(initial_data: Tuple, *factories: Callable[..., Iterator[Tuple]]) -> Iterator[Tuple]:
     f_count = len(factories)
+    if f_count == 0:
+        yield initial_data
+        return
     iterators = [None] * f_count
     next_data = initial_data
     i = 0
@@ -417,6 +421,12 @@ def iterator_chain(initial_data, *factories):
                 break
 
 if __name__ == '__main__': # pragma: no cover
-    for p in integer_vector_iter((5, 3), 2):
-        print (p)
+    #for p in integer_vector_iter((5, 3), 2):
+    #    print (p)
+    values = Counter('aaabbc')
+    vars = Counter({('x', 1): 2, ('y', 0): 1, ('z', 1): 1})
+    for part in commutative_sequence_variable_partition_iter(values, vars):
+        print('m')
+        for v, c in part.items():
+            print('%s: %s' % (v, sorted(c.elements())))
     #print(list(solve_linear_diop(5, 2, 3, 1)))
