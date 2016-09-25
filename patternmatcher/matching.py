@@ -11,7 +11,8 @@ from patternmatcher.syntactic import DiscriminationNet
 from patternmatcher.utils import fixed_integer_vector_iter, minimum_integer_vector_iter, iterator_chain, commutative_sequence_variable_partition_iter
 
 class CommutativePatternsParts(object):
-    def __init__(self, *expressions: Expression) -> None:
+    def __init__(self, operation: type, *expressions: Expression) -> None:
+        self.operation = operation
         self.length = len(expressions)
 
         self.constant = Counter()
@@ -95,7 +96,7 @@ class ManyToOneMatcher(object):
             operation = cast(Operation, subexpr)
             if type(operation) not in subexpressions:
                 subexpressions[type(operation)] = set()
-            parts = CommutativePatternsParts(*operation.operands)
+            parts = CommutativePatternsParts(type(operation), *operation.operands)
             expressions = parts.syntactic
             if include_constant:
                 expressions += parts.constant
@@ -209,19 +210,39 @@ class CommutativeMatcher(object):
         fixed_vars = Counter(pattern.fixed_variables)
         for (name, length), count in pattern.fixed_variables.items():
             if name in subst:
-                if remaining[subst[name]] < count:
-                    return
-                remaining[subst[name]] -= count
+                if pattern.operation.associative and isinstance(subst[name], pattern.operation):
+                    needed_count = Counter(subst[name].operands)
+                    if count > 1:
+                        for k in needed_count:
+                            needed_count[k] = needed_count[k] * count
+                    if needed_count - remaining:
+                        return
+                    remaining -= needed_count
+                else:
+                    if remaining[subst[name]] < count:
+                        return
+                    remaining[subst[name]] -= count
                 del fixed_vars[(name, length)]
 
-        factories = [self._fixed_expr_factory(e) for e in pattern.rest] + \
-                    [self._fixed_var_iter_factory(v, l, c) for (v, l), c in fixed_vars.items()]
+        factories = [self._fixed_expr_factory(e) for e in pattern.rest]
+        
+        if not pattern.operation.associative:
+            factories += [self._fixed_var_iter_factory(v, l, c) for (v, l), c in fixed_vars.items()]
 
         expr_counter = Counter(remaining)
 
         for rem_expr, subst in iterator_chain((expr_counter, subst), *factories):
-            for sequence_subst in commutative_sequence_variable_partition_iter(Counter(rem_expr), pattern.sequence_variables):
+            sequence_vars = pattern.sequence_variables
+            if pattern.operation.associative:
+                sequence_vars += fixed_vars
+            for sequence_subst in commutative_sequence_variable_partition_iter(Counter(rem_expr), sequence_vars):
                 s = Substitution((var, sorted(exprs.elements())) for var, exprs in sequence_subst.items())
+                if pattern.operation.associative:
+                    for v, l in fixed_vars:
+                        if len(s[v]) > l:
+                            s[v] = pattern.operation(*s[v])
+                        elif l == len(s[v]) and l == 1:
+                            s[v] = s[v][0]
                 result = self._unify_substitutions(subst, s)
                 if result is not None:
                     yield result
@@ -359,7 +380,7 @@ if __name__ == '__main__': # pragma: no cover
 
         matcher = CommutativeMatcher()
 
-        parts = [CommutativePatternsParts(*p.operands) for p in patterns]
+        parts = [CommutativePatternsParts(type(p), *p.operands) for p in patterns]
 
         for part in parts:
             for op in part.syntactic:
