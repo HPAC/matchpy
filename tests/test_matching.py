@@ -57,7 +57,7 @@ class CommutativePatternsPartsTest(unittest.TestCase):
         ([a, x_, x__, f(x_), fc(x_)], [a],            [f(x_)],        [('x', 1)],           [('x', 1)],           [fc(x_)]),
     )
     def test_find_cycle(self, expressions, constant, syntactic, seq_vars, fixed_vars, rest):
-        parts = CommutativePatternsParts(*expressions)
+        parts = CommutativePatternsParts(None, *expressions)
 
         self.assertListEqual(constant, sorted(parts.constant.elements()))
         self.assertListEqual(syntactic, sorted(parts.syntactic.elements()))

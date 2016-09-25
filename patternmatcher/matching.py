@@ -6,7 +6,7 @@ from typing import Dict, Set, cast, Tuple, Union, List, Iterator, Any
 from patternmatcher.bipartite import (BipartiteGraph,
                                       enum_maximum_matchings_iter)
 from patternmatcher.expressions import (Arity, Expression, Operation, Symbol,
-                                        Variable)
+                                        Variable, Wildcard)
 from patternmatcher.syntactic import DiscriminationNet
 from patternmatcher.utils import fixed_integer_vector_iter, minimum_integer_vector_iter, iterator_chain, commutative_sequence_variable_partition_iter
 
@@ -171,6 +171,8 @@ class CommutativeMatcher(object):
                     remaining = rest + (syntactics - matched)
                     if subst is not None:
                         yield from self._matches_from_matching(subst, remaining, pattern)
+        else:
+            yield from self._matches_from_matching(Substitution(), expressions, pattern)
 
     def _match_and_remove_constants(self, expressions, pattern):
         constants = sorted(expressions)
@@ -212,16 +214,16 @@ class CommutativeMatcher(object):
             if name in subst:
                 if pattern.operation.associative and isinstance(subst[name], pattern.operation):
                     needed_count = Counter(subst[name].operands)
-                    if count > 1:
-                        for k in needed_count:
-                            needed_count[k] = needed_count[k] * count
-                    if needed_count - remaining:
-                        return
-                    remaining -= needed_count
+                elif isinstance(subst[name], (list, tuple)):
+                    needed_count = Counter(subst[name])
                 else:
-                    if remaining[subst[name]] < count:
-                        return
-                    remaining[subst[name]] -= count
+                    needed_count = Counter({subst[name]: 1})
+                if count > 1:
+                    for k in needed_count:
+                        needed_count[k] = needed_count[k] * count
+                if needed_count - remaining:
+                    return
+                remaining -= needed_count
                 del fixed_vars[(name, length)]
 
         factories = [self._fixed_expr_factory(e) for e in pattern.rest]
