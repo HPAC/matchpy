@@ -1,15 +1,20 @@
 # -*- coding: utf-8 -*-
-
+import itertools
+import operator
 from collections import Counter
-from typing import Dict, Set, cast, Tuple, Union, List, Iterator, Any
+from typing import Any, Dict, Iterator, List, Set, Tuple, Union, cast
 
 from patternmatcher.bipartite import (BipartiteGraph,
                                       enum_maximum_matchings_iter)
 from patternmatcher.expressions import (Arity, Expression, Operation, Symbol,
                                         Variable, Wildcard)
+from patternmatcher.functions import (_match_operation, _match_variable,
+                                      _match_wildcard)
 from patternmatcher.syntactic import DiscriminationNet
-from patternmatcher.utils import fixed_integer_vector_iter, minimum_integer_vector_iter, iterator_chain, commutative_sequence_variable_partition_iter
-from patternmatcher.functions import _match_variable, _match_wildcard, _match_operation
+from patternmatcher.utils import (commutative_sequence_variable_partition_iter,
+                                  fixed_integer_vector_iter, iterator_chain,
+                                  minimum_integer_vector_iter)
+
 
 class CommutativePatternsParts(object):
     def __init__(self, operation: type, *expressions: Expression) -> None:
@@ -65,8 +70,6 @@ class ManyToOneMatcher(object):
     def __init__(self, *patterns: Expression) -> None:
         self.patterns = patterns
         self.graphs = {} # type: Dict[type, Set[Expression]]
-        self.nets = {} # type: Dict[type, DiscriminationNet]
-        self.bipartites  = {} # type: Dict[type, BipartiteGraph]
         self.commutative = {}
 
         for pattern in patterns:
@@ -74,24 +77,20 @@ class ManyToOneMatcher(object):
 
         for g, exprs in self.graphs.items():
             matcher = CommutativeMatcher(self)
-            net = DiscriminationNet()
             for expr in exprs:
-                net.add(expr)
                 matcher.add_pattern(expr)
-            self.nets[g] = net
             self.commutative[g] = matcher
 
     def match(self, expression):
         subexpressions = self._extract_subexpressions(expression, True)
-        print(subexpressions)
-        bipartites = {}
         for t, es in subexpressions.items():
-            if t in self.nets:
-                bipartites[t] = BipartiteGraph()
+            if t in self.commutative:
                 for e in es:
-                    for p in self.nets[t].match(e):
-                        bipartites[t][e,p] = True
-                bipartites[t].as_graph().render('tmp/' + t.__name__ + '.gv')
+                    self.commutative[t].add_expression(e)
+
+        for pattern in self.patterns:
+            for match in self._match(expression, pattern, Substitution()):
+                yield pattern, match 
 
     def _match(self, expression, pattern, subst):
         if isinstance(expression, list):
@@ -121,7 +120,7 @@ class ManyToOneMatcher(object):
             if op_expr.commutative:
                 matcher = self.commutative[type(op_expr)]
                 parts = CommutativePatternsParts(type(pattern), *pattern.operands)
-                yield from matcher.match(op_expr.operands, parts, None)
+                yield from matcher.match(op_expr.operands, parts)
             else:
                 for result in _match_operation(op_expr.operands, pattern, subst, self._match):
                     if pattern.constraint is None or pattern.constraint(result):
@@ -169,7 +168,7 @@ class CommutativeMatcher(object):
                 if self._extract_substitution(expression, pattern, subst):
                     self.bipartite[expression, pattern] = subst
 
-    def match(self, expression: List[Expression], pattern: CommutativePatternsParts, label) -> Iterator[Substitution]:
+    def match(self, expression: List[Expression], pattern: CommutativePatternsParts) -> Iterator[Substitution]:
         if any(not e.is_constant for e in expression):
             raise ValueError('All given expressions must be constant.')
 
@@ -189,7 +188,7 @@ class CommutativeMatcher(object):
 
         if pattern.syntactic:
             subgraph = self._build_bipartite(syntactics, pattern.syntactic)
-            subgraph.as_graph().render('tmp/' + label + '.gv')
+            #subgraph.as_graph().render('tmp/' + label + '.gv')
             match_iter = enum_maximum_matchings_iter(subgraph)
             try:
                 matching = next(match_iter)
@@ -423,26 +422,31 @@ if __name__ == '__main__': # pragma: no cover
 
         print('Expression: ', expr)
 
-        parent = ManyToOneMatcher(*patterns)
-        matcher = CommutativeMatcher(parent)
+        matcher = ManyToOneMatcher(*patterns)
+        #matcher = CommutativeMatcher(parent)
 
-        parts = [CommutativePatternsParts(type(p), *p.operands) for p in patterns]
+        #parts = [CommutativePatternsParts(type(p), *p.operands) for p in patterns]
 
-        for part in parts:
-            for op in part.syntactic:
-                matcher.add_pattern(op)
+        #for part in parts:
+        #    for op in part.syntactic:
+        #        matcher.add_pattern(op)
 
-        _, expr_synts = matcher.split_expressions(Counter(expr.operands))
+        #_, expr_synts = matcher.split_expressions(Counter(expr.operands))
 
-        for e in expr_synts:
-            matcher.add_expression(e)
+        #for e in expr_synts:
+        #    matcher.add_expression(e)
 
-        matcher.bipartite.as_graph().render('tmp/BP.gv')
+        #matcher.bipartite.as_graph().render('tmp/BP.gv')
 
-        for i, pattern in enumerate(parts):
-            print ('-------- %s ----------' % patterns[i])
-            for match in matcher.match(expr.operands, pattern, str(patterns[i])):
+        for pattern, matches in itertools.groupby(matcher.match(expr), operator.itemgetter(0)):
+            print ('-------- %s ----------' % pattern)
+            for _, match in matches:
                 print ('match: ', match)
+
+        #for i, pattern in enumerate(parts):
+        #    print ('-------- %s ----------' % patterns[i])
+        #    for match in matcher.match(expr.operands, pattern):
+        #        print ('match: ', match)
 
 
 
