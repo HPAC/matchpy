@@ -17,6 +17,63 @@ from patternmatcher.utils import (commutative_sequence_variable_partition_iter,
 
 
 class CommutativePatternsParts(object):
+    """Representation of the parts of a commutative pattern expression.
+
+    This data structure contains all the operands of a commutative operation pattern.
+    They are distinguished by how they need to be matched against an expression.
+
+    All parts are represented by a :class:`collections.Counter`. This is essentially
+    equivalent to a multiset. It is used, because the order of operands does not matter
+    in a commutative operation. The count (value) represents how many times the expression (key)
+    occured in the operation.
+
+    In addition, some lengths are precalculated during the initialization of this data structure
+    so that they do not have to be recalculated later.
+
+    This data structure is meant to be immutable, so do not change any of its attributes!
+
+    Attributes:
+        operation (type):
+            The type of of the original pattern expression. Must be a subclass of
+            :class:`.Operation`.
+
+        constant (collections.Counter):
+            A :class:`collections.Counter` representing the constant operands of the pattern.
+            An expression is constant, if it does not contain variables or wildcards.
+        syntactic (collections.Counter):
+            A :class:`collections.Counter` representing the syntactic operands of the pattern.
+            An expression is syntactic, if it does contain neither associative nor commutative operations
+            nor sequence variables. Here, constant expressions and variables also get their own counters,
+            so they are not included in this counter.
+        sequence_variables (collections.Counter):
+            A :class:`collections.Counter` representing the sequence variables of the pattern.
+            Here the key is a tuple of the form `(name, min_count)` where `name` is the name of the
+            sequence variable and `min_count` is the minimum length of the sequence variable.
+        fixed_variables (collections.Counter):
+            A :class:`collections.Counter` representing the fixed length variables of the pattern.
+            Here the key is a tuple of the form `(name, length)` of the variable.
+        rest (collections.Counter):
+            A :class:`collections.Counter` representing the operands of the pattern that do not fall
+            into one of the previous categories. That means it contains operation expressions, which
+            are not syntactic.
+
+        length (int):
+            The total count of operands of the commutative operation pattern.
+        sequence_variable_min_length (int):
+            The total combined minimum length of all sequence variables in the commutative
+            operation pattern. This is the sum of the `min_count` attributes of the sequence
+            variables.
+        fixed_variable_length (int):
+            The total combined length of all fixed length variables in the commutative
+            operation pattern. This is the sum of the `min_count` attributes of the
+            variables.
+        rest_length (int):
+            The total length of the `rest` part i.e. the sum of its counts.
+        constant_length (int):
+            The total length of the `constant` part i.e. the sum of its counts.
+        syntactic_length (int):
+            The total length of the `syntactic` part i.e. the sum of its counts.
+    """
     def __init__(self, operation: type, *expressions: Expression) -> None:
         self.operation = operation
         self.length = len(expressions)
