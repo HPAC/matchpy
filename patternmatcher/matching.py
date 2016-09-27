@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 import itertools
 import operator
-from collections import Counter
-from typing import Any, Dict, Iterator, List, Set, Tuple, Union, cast
+from collections import Counter as OriginalCounter
+from typing import (Any, Dict, Generic, Iterable, Iterator, List, Mapping,
+                    Optional, Set, Tuple, Type, TypeVar, Union, cast)
 
 from patternmatcher.bipartite import (BipartiteGraph,
                                       enum_maximum_matchings_iter)
@@ -14,6 +15,10 @@ from patternmatcher.syntactic import DiscriminationNet
 from patternmatcher.utils import (commutative_sequence_variable_partition_iter,
                                   fixed_integer_vector_iter, iterator_chain,
                                   minimum_integer_vector_iter)
+
+T = TypeVar('T')
+class Counter(OriginalCounter, Mapping[T, int], Generic[T]):
+    pass
 
 
 class CommutativePatternsParts(object):
@@ -49,9 +54,11 @@ class CommutativePatternsParts(object):
             A :class:`collections.Counter` representing the sequence variables of the pattern.
             Here the key is a tuple of the form `(name, min_count)` where `name` is the name of the
             sequence variable and `min_count` is the minimum length of the sequence variable.
+            For wildcards without variable, the name will be `None`.
         fixed_variables (collections.Counter):
             A :class:`collections.Counter` representing the fixed length variables of the pattern.
             Here the key is a tuple of the form `(name, length)` of the variable.
+            For wildcards without variable, the name will be `None`.
         rest (collections.Counter):
             A :class:`collections.Counter` representing the operands of the pattern that do not fall
             into one of the previous categories. That means it contains operation expressions, which
@@ -74,15 +81,15 @@ class CommutativePatternsParts(object):
         syntactic_length (int):
             The total length of the `syntactic` part i.e. the sum of its counts.
     """
-    def __init__(self, operation: type, *expressions: Expression) -> None:
+    def __init__(self, operation: Type[Operation], *expressions: Expression) -> None:
         self.operation = operation
         self.length = len(expressions)
 
-        self.constant = Counter()
-        self.syntactic = Counter()
-        self.sequence_variables = Counter()
-        self.fixed_variables = Counter()
-        self.rest = Counter()
+        self.constant = Counter() # type: Counter[Expression]
+        self.syntactic = Counter() # type: Counter[Expression]
+        self.sequence_variables = Counter() # type: Counter[Tuple[str, int]]
+        self.fixed_variables = Counter() # type: Counter[Tuple[str, int]]
+        self.rest = Counter() # type: Counter[Expression]
 
         self.sequence_variable_min_length = 0
         self.fixed_variable_length = 0
@@ -91,11 +98,11 @@ class CommutativePatternsParts(object):
             if expression.is_constant:
                 self.constant[expression] += 1
             elif expression.head is None:
-                wc = expression
-                name = None
+                wc = cast(Wildcard, expression)
+                name = None # type: Optional[str]
                 if isinstance(wc, Variable):
                     name = wc.name
-                    wc = wc.expression
+                    wc = cast(Wildcard, wc.expression)
                 if wc.fixed_size:
                     self.fixed_variables[(name, wc.min_count)] += 1
                     self.fixed_variable_length += wc.min_count
@@ -113,6 +120,11 @@ class CommutativePatternsParts(object):
 
 
 class Substitution(Dict[str, Union[List[Expression], Expression]]):
+    """Special `dict` for substitutions with nicer formatting.
+
+    The key is a variable's name and the value the replacement for it.
+    """
+
     @staticmethod
     def _match_value_repr_str(value: Union[List[Expression], Expression]) -> str: # pragma: no cover
         if isinstance(value, list):
@@ -126,8 +138,8 @@ class Substitution(Dict[str, Union[List[Expression], Expression]]):
 class ManyToOneMatcher(object):
     def __init__(self, *patterns: Expression) -> None:
         self.patterns = patterns
-        self.graphs = {} # type: Dict[type, Set[Expression]]
-        self.commutative = {}
+        self.graphs = {} # type: Dict[Type[Operation], Set[Expression]]
+        self.commutative = {} # type: Dict[Type[Operation], CommutativeMatcher]
 
         for pattern in patterns:
             self._extract_subexpressions(pattern, False, self.graphs)
@@ -184,18 +196,19 @@ class ManyToOneMatcher(object):
                         yield result
 
     @staticmethod
-    def _extract_subexpressions(expression: Expression, include_constant: bool, subexpressions:Dict[type, Set[Expression]]=None) -> Dict[type, Set[Expression]]:
+    def _extract_subexpressions(expression: Expression, include_constant: bool, subexpressions:Dict[Type[Operation], Set[Expression]]=None) -> Dict[Type[Operation], Set[Expression]]:
         if subexpressions is None:
             subexpressions = {}
         for subexpr, _ in expression.preorder_iter(lambda e: isinstance(e, Operation) and e.commutative):
             operation = cast(Operation, subexpr)
-            if type(operation) not in subexpressions:
-                subexpressions[type(operation)] = set()
-            parts = CommutativePatternsParts(type(operation), *operation.operands)
+            op_type = cast(Type[Operation], operation.__class__)
+            if op_type not in subexpressions:
+                subexpressions[op_type] = set()
+            parts = CommutativePatternsParts(op_type, *operation.operands)
             expressions = parts.syntactic
             if include_constant:
-                expressions += parts.constant
-            subexpressions[type(operation)].update(expressions)
+                expressions = expressions + parts.constant
+            subexpressions[op_type].update(expressions)
         return subexpressions
 
 class CommutativeMatcher(object):
@@ -205,7 +218,7 @@ class CommutativeMatcher(object):
         self.patterns = set() # type: Set[Expression]
         self.expressions = set() # type: Set[Expression]
         self.net = DiscriminationNet()
-        self.bipartite = BipartiteGraph()
+        self.bipartite = BipartiteGraph() # type: BipartiteGraph
         self.parent = parent
 
     def add_pattern(self, pattern: Expression):
@@ -229,7 +242,7 @@ class CommutativeMatcher(object):
         if any(not e.is_constant for e in expression):
             raise ValueError('All given expressions must be constant.')
 
-        expressions = Counter(expression)
+        expressions = Counter(expression) # type: Counter[Expression]
 
         if pattern.constant - expressions:
             return
@@ -256,14 +269,14 @@ class CommutativeMatcher(object):
 
             if self._is_canonical_matching(matching):
                 subst = self._unify_substitutions(*(subgraph[s] for s in matching.items()))
-                matched = Counter(e for e, _ in matching)
+                matched = Counter(e for e, _ in matching) # type: Counter[Expression]
                 remaining = rest + (syntactics - matched)
                 if subst is not None:
                     yield from self._matches_from_matching(subst, remaining, pattern)
             for matching in match_iter:                
                 if self._is_canonical_matching(matching):
                     subst = self._unify_substitutions(*(subgraph[s] for s in matching.items()))
-                    matched = Counter(e for e, _ in matching)
+                    matched = Counter(e for e, _ in matching) 
                     remaining = rest + (syntactics - matched)
                     if subst is not None:
                         yield from self._matches_from_matching(subst, remaining, pattern)
@@ -283,7 +296,7 @@ class CommutativeMatcher(object):
         return constants
 
     def _build_bipartite(self, syntactics: Counter, patterns: Counter):
-        bipartite = BipartiteGraph()
+        bipartite = BipartiteGraph() # type: BipartiteGraph
         for (expr, patt), m in self.bipartite.items():
             for i in range(syntactics[expr]):
                 for j in range(patterns[patt]):
@@ -305,13 +318,13 @@ class CommutativeMatcher(object):
         if sum(remaining.values()) < needed_length:
             return
 
-        fixed_vars = Counter(pattern.fixed_variables)
+        fixed_vars = Counter(pattern.fixed_variables) # type: Counter[Tuple[str, int]]
         for (name, length), count in pattern.fixed_variables.items():
             if name in subst:
                 if pattern.operation.associative and isinstance(subst[name], pattern.operation):
-                    needed_count = Counter(subst[name].operands)
+                    needed_count = Counter(cast(Operation, subst[name]).operands) # type: Counter[Expression]
                 elif isinstance(subst[name], (list, tuple)):
-                    needed_count = Counter(subst[name])
+                    needed_count = Counter(cast(Iterable[Expression], subst[name]))
                 else:
                     needed_count = Counter({subst[name]: 1})
                 if count > 1:
@@ -327,7 +340,7 @@ class CommutativeMatcher(object):
         if not pattern.operation.associative:
             factories += [self._fixed_var_iter_factory(v, l, c) for (v, l), c in fixed_vars.items()]
 
-        expr_counter = Counter(remaining)
+        expr_counter = Counter(remaining) # type: Counter[Expression]
 
         for rem_expr, subst in iterator_chain((expr_counter, subst), *factories):
             sequence_vars = pattern.sequence_variables
@@ -337,10 +350,11 @@ class CommutativeMatcher(object):
                 s = Substitution((var, sorted(exprs.elements())) for var, exprs in sequence_subst.items())
                 if pattern.operation.associative:
                     for v, l in fixed_vars:
-                        if len(s[v]) > l:
-                            s[v] = pattern.operation(*s[v])
-                        elif l == len(s[v]) and l == 1:
-                            s[v] = s[v][0]
+                        value = cast(list, v)
+                        if len(value) > l:
+                            s[v] = pattern.operation(*value)
+                        elif l == len(value) and l == 1:
+                            s[v] = value[0]
                 result = self._unify_substitutions(subst, s)
                 if result is not None:
                     yield result
@@ -411,7 +425,8 @@ class CommutativeMatcher(object):
             return CommutativeMatcher._extract_substitution(expression, pattern.expression, subst)
         elif isinstance(pattern, Operation):
             assert isinstance(expression, type(pattern))
-            for expr, patt in zip(expression.operands, pattern.operands):
+            op_expression = cast(Operation, expression)
+            for expr, patt in zip(op_expression.operands, pattern.operands):
                 if not CommutativeMatcher._extract_substitution(expr, patt, subst):
                     return False
         return True
@@ -429,12 +444,11 @@ class CommutativeMatcher(object):
         return unified
 
     @staticmethod
-    def split_expressions(expressions: Counter) -> Tuple[Counter, Counter]:
-        constants = Counter()
-        syntactics = Counter()
+    def split_expressions(expressions: Counter[Expression]) -> Tuple[Counter[Expression], Counter[Expression]]:
+        constants = Counter() # type: Counter[Expression]
+        syntactics = Counter() # type: Counter[Expression]
 
         for expression, count in expressions.items():
-            #if expression.is_syntactic:
             if expression.is_syntactic or not (isinstance(expression, Operation) and (expression.associative or expression.commutative)):
                 syntactics[expression] = count
             else:

@@ -265,7 +265,7 @@ def commutative_sequence_variable_partition_iter(values: Counter, variables: Cou
     for value, count in values.items():
         iterators.append(_make_iter_factory(value, count, var_names, var_counts))
 
-    initial = dict((var, Counter()) for var in var_names)
+    initial = dict((var, Counter()) for var in var_names) # type: Dict[str, Counter]
 
     for (subst, ) in iterator_chain((initial, ), *iterators):
         valid = True
@@ -397,12 +397,12 @@ def is_sorted(l):
             return False
     return True
 
-def iterator_chain(initial_data: Tuple, *factories: Callable[..., Iterator[Tuple]]) -> Iterator[Tuple]:
+def iterator_chain(initial_data: tuple, *factories: Callable[..., Iterator[tuple]]) -> Iterator[tuple]:
     f_count = len(factories)
     if f_count == 0:
         yield initial_data
         return
-    iterators = [None] * f_count
+    iterators = [None] * f_count # type: List[Optional[Iterator[tuple]]]
     next_data = initial_data
     i = 0
     while True:

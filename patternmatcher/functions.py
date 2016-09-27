@@ -135,7 +135,7 @@ def _match_variable(exprs: List[Expression], variable: Variable, subst: Substitu
         if variable.constraint is None or variable.constraint(new_subst):
             yield new_subst
 
-def _match_wildcard(exprs: List[Expression], wildcard: Variable, subst: Substitution) -> Iterator[Substitution]:
+def _match_wildcard(exprs: List[Expression], wildcard: Wildcard, subst: Substitution) -> Iterator[Substitution]:
     if wildcard.fixed_size:
         if len(exprs) == wildcard.min_count:
             if wildcard.constraint is None or wildcard.constraint(subst):
@@ -287,8 +287,8 @@ ReplacementRule = NamedTuple('ReplacementRule', [('pattern', Expression), ('repl
 
 def replace_all(expression: Expression, rules: Sequence[ReplacementRule]) -> Union[Expression, List[Expression]]:
     grouped = itertools.groupby(rules, lambda r: r.pattern.head)
-    heads, groups = map(list, zip(*[(h, list(g)) for h, g in grouped]))
-    groups = [list(g) for g in groups]
+    heads, tmp_groups = map(list, zip(*[(h, list(g)) for h, g in grouped]))
+    groups = [list(g) for g in tmp_groups]
     # any_rules = []
     # for i, h in enumerate(heads):
     #     if h is None:
