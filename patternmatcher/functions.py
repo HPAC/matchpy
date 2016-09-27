@@ -97,32 +97,10 @@ def match_anywhere(expression: Expression, pattern: Expression) -> Iterator[Tupl
 
 def _match(exprs: List[Expression], pattern: Expression, subst: Substitution) -> Iterator[Substitution]:
     if isinstance(pattern, Variable):
-        inner = pattern.expression
-        while isinstance(inner, Variable):
-            inner = inner.expression
-        if len(exprs) == 1 and (not isinstance(inner, Wildcard) or inner.fixed_size):
-            expr = exprs[0] # type: Union[Expression,List[Expression]]
-        else:
-            expr = exprs
-        if pattern.name in subst:
-            if expr == subst[pattern.name]:
-                if pattern.constraint is None or pattern.constraint(subst):
-                    yield subst
-            return
-        for new_subst in _match(exprs, pattern.expression, subst):
-            new_subst = new_subst.copy()
-            new_subst[pattern.name] = expr
-            if pattern.constraint is None or pattern.constraint(new_subst):
-                yield new_subst
+        yield from _match_variable(exprs, pattern, subst, _match)
 
     elif isinstance(pattern, Wildcard):
-        if pattern.fixed_size:
-            if len(exprs) == pattern.min_count:
-                if pattern.constraint is None or pattern.constraint(subst):
-                    yield subst
-        elif len(exprs) >= pattern.min_count:
-            if pattern.constraint is None or pattern.constraint(subst):
-                yield subst
+        yield from _match_wildcard(exprs, pattern, subst)
 
     elif isinstance(pattern, Symbol):
         if len(exprs) == 1 and exprs[0] == pattern:
@@ -134,9 +112,37 @@ def _match(exprs: List[Expression], pattern: Expression, subst: Substitution) ->
         if len(exprs) != 1 or not isinstance(exprs[0], pattern.__class__):
             return
         op_expr = cast(Operation, exprs[0])
-        for result in _match_operation(op_expr.operands, pattern, subst):
+        for result in _match_operation(op_expr.operands, pattern, subst, _match):
             if pattern.constraint is None or pattern.constraint(result):
                 yield result
+
+def _match_variable(exprs: List[Expression], variable: Variable, subst: Substitution, matcher: Callable[[List[Expression], Expression, Substitution], Iterator[Substitution]]) -> Iterator[Substitution]:
+    inner = variable.expression
+    while isinstance(inner, Variable):
+        inner = inner.expression
+    if len(exprs) == 1 and (not isinstance(inner, Wildcard) or inner.fixed_size):
+        expr = exprs[0] # type: Union[Expression,List[Expression]]
+    else:
+        expr = exprs
+    if variable.name in subst:
+        if expr == subst[variable.name]:
+            if variable.constraint is None or variable.constraint(subst):
+                yield subst
+        return
+    for new_subst in matcher(exprs, variable.expression, subst):
+        new_subst = new_subst.copy()
+        new_subst[variable.name] = expr
+        if variable.constraint is None or variable.constraint(new_subst):
+            yield new_subst
+
+def _match_wildcard(exprs: List[Expression], wildcard: Variable, subst: Substitution) -> Iterator[Substitution]:
+    if wildcard.fixed_size:
+        if len(exprs) == wildcard.min_count:
+            if wildcard.constraint is None or wildcard.constraint(subst):
+                yield subst
+    elif len(exprs) >= wildcard.min_count:
+        if wildcard.constraint is None or wildcard.constraint(subst):
+            yield subst
 
 def _associative_operand_max(operand):
     while isinstance(operand, Variable):
@@ -161,7 +167,7 @@ def _size(expr):
         return (expr.min_count, (not expr.fixed_size) and math.inf or expr.min_count)
     return (1, 1)
 
-def _match_operation(exprs, operation, subst):
+def _match_operation(exprs, operation, subst, matcher):
     if len(operation.operands) == 0:
         if len(exprs) == 0:
             yield subst
@@ -191,7 +197,7 @@ def _match_operation(exprs, operation, subst):
             try:
                 while i < o_count:
                     if iterators[i] is None:
-                        iterators[i] = _match(part[i], operation.operands[i], next_subst)
+                        iterators[i] = matcher(part[i], operation.operands[i], next_subst)
                     next_subst = iterators[i].__next__()
                     i += 1
                 yield next_subst

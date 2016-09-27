@@ -9,6 +9,7 @@ from patternmatcher.expressions import (Arity, Expression, Operation, Symbol,
                                         Variable, Wildcard)
 from patternmatcher.syntactic import DiscriminationNet
 from patternmatcher.utils import fixed_integer_vector_iter, minimum_integer_vector_iter, iterator_chain, commutative_sequence_variable_partition_iter
+from patternmatcher.functions import _match_variable, _match_wildcard, _match_operation
 
 class CommutativePatternsParts(object):
     def __init__(self, operation: type, *expressions: Expression) -> None:
@@ -66,15 +67,19 @@ class ManyToOneMatcher(object):
         self.graphs = {} # type: Dict[type, Set[Expression]]
         self.nets = {} # type: Dict[type, DiscriminationNet]
         self.bipartites  = {} # type: Dict[type, BipartiteGraph]
+        self.commutative = {}
 
         for pattern in patterns:
             self._extract_subexpressions(pattern, False, self.graphs)
 
         for g, exprs in self.graphs.items():
+            matcher = CommutativeMatcher(self)
             net = DiscriminationNet()
             for expr in exprs:
                 net.add(expr)
+                matcher.add_pattern(expr)
             self.nets[g] = net
+            self.commutative[g] = matcher
 
     def match(self, expression):
         subexpressions = self._extract_subexpressions(expression, True)
@@ -87,6 +92,40 @@ class ManyToOneMatcher(object):
                     for p in self.nets[t].match(e):
                         bipartites[t][e,p] = True
                 bipartites[t].as_graph().render('tmp/' + t.__name__ + '.gv')
+
+    def _match(self, expression, pattern, subst):
+        if isinstance(expression, list):
+            if len(expression) == 1:
+                expression = expression[0]
+            else:
+                # TODO: Correct behaviour
+                return
+
+        if isinstance(pattern, Variable):
+            yield from _match_variable([expression], pattern, subst, self._match)
+
+        elif isinstance(pattern, Wildcard):
+            yield from _match_wildcard([expression], pattern, subst)
+
+        elif isinstance(pattern, Symbol):
+            if expression == pattern:
+                if pattern.constraint is None or pattern.constraint(subst):
+                    yield subst
+
+        else:
+            assert isinstance(pattern, Operation), 'Unexpected expression of type %r' % type(pattern)
+            if not isinstance(expression, pattern.__class__):
+                return
+            op_expr = cast(Operation, expression)
+
+            if op_expr.commutative:
+                matcher = self.commutative[type(op_expr)]
+                parts = CommutativePatternsParts(type(pattern), *pattern.operands)
+                yield from matcher.match(op_expr.operands, parts, None)
+            else:
+                for result in _match_operation(op_expr.operands, pattern, subst, self._match):
+                    if pattern.constraint is None or pattern.constraint(result):
+                        yield result
 
     @staticmethod
     def _extract_subexpressions(expression: Expression, include_constant: bool, subexpressions:Dict[type, Set[Expression]]=None) -> Dict[type, Set[Expression]]:
@@ -106,11 +145,12 @@ class ManyToOneMatcher(object):
 class CommutativeMatcher(object):
     _cnt = 0
 
-    def __init__(self) -> None:
+    def __init__(self, parent: ManyToOneMatcher) -> None:
         self.patterns = set() # type: Set[Expression]
         self.expressions = set() # type: Set[Expression]
         self.net = DiscriminationNet()
         self.bipartite = BipartiteGraph()
+        self.parent = parent
 
     def add_pattern(self, pattern: Expression):
         if not pattern.is_syntactic:
@@ -236,7 +276,7 @@ class CommutativeMatcher(object):
         for rem_expr, subst in iterator_chain((expr_counter, subst), *factories):
             sequence_vars = pattern.sequence_variables
             if pattern.operation.associative:
-                sequence_vars += fixed_vars
+                sequence_vars = sequence_vars + fixed_vars
             for sequence_subst in commutative_sequence_variable_partition_iter(Counter(rem_expr), sequence_vars):
                 s = Substitution((var, sorted(exprs.elements())) for var, exprs in sequence_subst.items())
                 if pattern.operation.associative:
@@ -249,12 +289,12 @@ class CommutativeMatcher(object):
                 if result is not None:
                     yield result
 
-    @staticmethod
-    def _fixed_expr_factory(expression):
+    def _fixed_expr_factory(self, expression):
         def factory(expressions, substitution):
             for expr in expressions:
                 if expr.head == expression.head:
-                    yield expressions - Counter({expr: 1}), substitution
+                    for subst in self.parent._match(expr, expression, substitution):
+                        yield expressions - Counter({expr: 1}), subst
 
         return factory
 
@@ -338,7 +378,8 @@ class CommutativeMatcher(object):
         syntactics = Counter()
 
         for expression, count in expressions.items():
-            if expression.is_syntactic:
+            #if expression.is_syntactic:
+            if expression.is_syntactic or not (isinstance(expression, Operation) and (expression.associative or expression.commutative)):
                 syntactics[expression] = count
             else:
                 constants[expression] = count
@@ -371,16 +412,19 @@ if __name__ == '__main__': # pragma: no cover
             f(c, x_, g(y_), g(c), g(g(a)), g(a, c)),
             f(b, c, x_, g(x_), g(x_)),
             f(g(x_), g(c), b, g(g(y_))),
-            f(y_, y_, g(x_), g(x_))
+            f(y_, y_, g(x_), g(x_)),
+            f(x_, g(f(x_, z___)))
         ]
 
         #expr = f(a, b, g(a), g(b))
         expr = f(a, b, g(a), g(b), g(a, b), g(b, a))
         #expr = f(g(a), g(a), g(b), g(b))
+        #expr = f(a, b, g(f(a, a, b)))
 
         print('Expression: ', expr)
 
-        matcher = CommutativeMatcher()
+        parent = ManyToOneMatcher(*patterns)
+        matcher = CommutativeMatcher(parent)
 
         parts = [CommutativePatternsParts(type(p), *p.operands) for p in patterns]
 
