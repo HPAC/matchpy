@@ -2,7 +2,7 @@
 import itertools
 import operator
 from collections import Counter as OriginalCounter
-from typing import (Any, Dict, Generic, Iterable, Iterator, List, Mapping,
+from typing import (Any, Dict, Generic, Iterable, Iterator, List, Mapping, # pylint: disable=unused-import
                     Optional, Set, Tuple, Type, TypeVar, Union, cast)
 
 from patternmatcher.bipartite import (BipartiteGraph,
@@ -18,7 +18,40 @@ from patternmatcher.utils import (commutative_sequence_variable_partition_iter,
 
 T = TypeVar('T')
 class Counter(OriginalCounter, Mapping[T, int], Generic[T]):
-    pass
+    # pylint: disable=abstract-method
+    def __le__(self, other: OriginalCounter):
+        '''Checks if all counts from this counter are less than or equal to the other.
+
+        >>> Counter('ab') <= Counter('aabc')
+        True
+
+        '''
+        if not isinstance(other, OriginalCounter):
+            return NotImplemented
+        for elem in self:
+            if self[elem] > other[elem]:
+                return False
+        for elem in other:
+            if self[elem] > other[elem]:
+                return False
+        return True
+
+    def __ge__(self, other: OriginalCounter):
+        '''Checks if all counts from this counter are greater than or equal to the other.
+
+        >>> Counter('aabc') >= Counter('ab')
+        True
+
+        '''
+        if not isinstance(other, OriginalCounter):
+            return NotImplemented
+        for elem in self:
+            if self[elem] < other[elem]:
+                return False
+        for elem in other:
+            if self[elem] < other[elem]:
+                return False
+        return True
 
 
 class CommutativePatternsParts(object):
@@ -244,7 +277,7 @@ class CommutativeMatcher(object):
 
         expressions = Counter(expression) # type: Counter[Expression]
 
-        if pattern.constant - expressions:
+        if not (pattern.constant <= expressions):
             return
 
         expressions.subtract(pattern.constant)
@@ -330,7 +363,7 @@ class CommutativeMatcher(object):
                 if count > 1:
                     for k in needed_count:
                         needed_count[k] = needed_count[k] * count
-                if needed_count - remaining:
+                if not (needed_count <= remaining):
                     return
                 remaining -= needed_count
                 del fixed_vars[(name, length)]
@@ -373,7 +406,7 @@ class CommutativeMatcher(object):
         def factory(expressions, substitution):
             if variable in substitution:
                 existing = Counter(not isinstance(substitution[variable], list) and [substitution[variable]] or substitution[variable]) * count
-                if existing - expressions:
+                if not (existing <= expressions):
                     return
                 yield expressions - existing, substitution
             else:
@@ -400,7 +433,7 @@ class CommutativeMatcher(object):
         def factory(expressions, substitution):
             if variable in substitution:
                 existing = Counter(substitution[variable])
-                if existing - expressions:
+                if not (existing <= expressions):
                     return
                 yield expressions - existing, substitution
             else:
