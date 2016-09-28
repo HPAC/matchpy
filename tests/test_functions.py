@@ -1,12 +1,15 @@
 # -*- coding: utf-8 -*-
 import unittest
 from unittest.mock import Mock
-from ddt import ddt, data, unpack
 
-from patternmatcher.expressions import Operation, Symbol, Variable, Arity, Wildcard
-from patternmatcher.functions import match, substitute, replace
+import hypothesis.strategies as st
+from ddt import data, ddt, unpack
+from hypothesis import assume, given
+
+from patternmatcher.expressions import (Arity, Operation, Symbol, Variable,
+                                        Wildcard)
+from patternmatcher.functions import match, replace, substitute
 from patternmatcher.utils import match_repr_str
-
 
 f = Operation.new('f', Arity.variadic)
 f2 = Operation.new('f2', Arity.variadic)
@@ -347,8 +350,6 @@ class MatchTest(unittest.TestCase):
         matches = list(_match([], x__, {}))
         self.assertEqual(matches, [])
 
-from hypothesis import given, assume
-import hypothesis.strategies as st
 
 def func_wrap_strategy(args, func):
     return st.lists(args, min_size=1, max_size=4).map(lambda a: func(*a))

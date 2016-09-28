@@ -20,12 +20,11 @@ T = TypeVar('T')
 class Counter(OriginalCounter, Mapping[T, int], Generic[T]):
     # pylint: disable=abstract-method
     def __le__(self, other: OriginalCounter):
-        '''Checks if all counts from this counter are less than or equal to the other.
+        """Check if all counts from this counter are less than or equal to the other.
 
         >>> Counter('ab') <= Counter('aabc')
         True
-
-        '''
+        """
         if not isinstance(other, OriginalCounter):
             return NotImplemented
         for elem in self:
@@ -37,12 +36,11 @@ class Counter(OriginalCounter, Mapping[T, int], Generic[T]):
         return True
 
     def __ge__(self, other: OriginalCounter):
-        '''Checks if all counts from this counter are greater than or equal to the other.
+        """Check if all counts from this counter are greater than or equal to the other.
 
         >>> Counter('aabc') >= Counter('ab')
         True
-
-        '''
+        """
         if not isinstance(other, OriginalCounter):
             return NotImplemented
         for elem in self:
@@ -114,6 +112,7 @@ class CommutativePatternsParts(object):
         syntactic_length (int):
             The total length of the `syntactic` part i.e. the sum of its counts.
     """
+
     def __init__(self, operation: Type[Operation], *expressions: Expression) -> None:
         self.operation = operation
         self.length = len(expressions)
@@ -196,17 +195,19 @@ class ManyToOneMatcher(object):
 
     def _match(self, expression, pattern, subst):
         if isinstance(expression, list):
+            expressions = expression
             if len(expression) == 1:
                 expression = expression[0]
             else:
-                # TODO: Correct behaviour
-                return
+                expression = None
+        else:            
+            expressions = [expression]
 
         if isinstance(pattern, Variable):
-            yield from _match_variable([expression], pattern, subst, self._match)
+            yield from _match_variable(expressions, pattern, subst, self._match)
 
         elif isinstance(pattern, Wildcard):
-            yield from _match_wildcard([expression], pattern, subst)
+            yield from _match_wildcard(expressions, pattern, subst)
 
         elif isinstance(pattern, Symbol):
             if expression == pattern:
