@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 import keyword
-from collections import Counter as Multiset
 from enum import Enum
 from typing import (Any, Callable, Dict, Iterator, List, Optional, Set, Tuple,
                     Union)
+
+from patternmatcher.multiset import Multiset
 
 
 class Arity(tuple, Enum):

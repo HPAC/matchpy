@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
-import ast
 import inspect
 import itertools
 import math
 import re
-from collections import Counter
-from typing import (Callable, Dict, Iterator,  # pylint: disable=unused-import
-                    List, Optional, Sequence, Tuple, TypeVar, cast)
+from typing import (Callable, Dict, Generic,  # pylint: disable=unused-import
+                    Iterator, List, Mapping, Optional, Sequence, Tuple,
+                    TypeVar, cast)
+
+from patternmatcher.multiset import Multiset
 
 T = TypeVar('T')
 
@@ -255,7 +256,7 @@ def _make_iter_factory(value, total, var_names, var_counts):
 
     return factory
 
-def commutative_sequence_variable_partition_iter(values: Counter, variables: Counter) -> Iterator[Dict[str, Counter]]:
+def commutative_sequence_variable_partition_iter(values: Multiset, variables: Multiset) -> Iterator[Dict[str, Multiset]]:
     sorted_vars = sorted(variables.items())
     var_names = [name for (name, _), _ in sorted_vars]
     var_counts = [count for _, count in sorted_vars]
@@ -265,7 +266,7 @@ def commutative_sequence_variable_partition_iter(values: Counter, variables: Cou
     for value, count in values.items():
         iterators.append(_make_iter_factory(value, count, var_names, var_counts))
 
-    initial = dict((var, Counter()) for var in var_names) # type: Dict[str, Counter]
+    initial = dict((var, Multiset()) for var in var_names) # type: Dict[str, Multiset]
 
     for (subst, ) in iterator_chain((initial, ), *iterators):
         valid = True
@@ -420,11 +421,12 @@ def iterator_chain(initial_data: tuple, *factories: Callable[..., Iterator[tuple
             if i < 0:
                 break
 
+
 if __name__ == '__main__': # pragma: no cover
     #for p in integer_vector_iter((5, 3), 2):
     #    print (p)
-    values = Counter('aaabbc')
-    vars = Counter({('x', 1): 2, ('y', 0): 1, ('z', 1): 1})
+    values = Multiset('aaabbc')
+    vars = Multiset({('x', 1): 2, ('y', 0): 1, ('z', 1): 1})
     for part in commutative_sequence_variable_partition_iter(values, vars):
         print('m')
         for v, c in part.items():

@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 import itertools
 import operator
-from collections import Counter as OriginalCounter
-from typing import (Any, Dict, Generic, Iterable, Iterator, List, Mapping, # pylint: disable=unused-import
-                    Optional, Set, Tuple, Type, TypeVar, Union, cast)
+from typing import (Any, Dict, Generic,  # pylint: disable=unused-import
+                    Iterable, Iterator, List, Mapping, Optional, Set, Tuple,
+                    Type, TypeVar, Union, cast)
 
 from patternmatcher.bipartite import (BipartiteGraph,
                                       enum_maximum_matchings_iter)
@@ -11,45 +11,11 @@ from patternmatcher.expressions import (Arity, Expression, Operation, Symbol,
                                         Variable, Wildcard)
 from patternmatcher.functions import (_match_operation, _match_variable,
                                       _match_wildcard)
+from patternmatcher.multiset import Multiset
 from patternmatcher.syntactic import DiscriminationNet
 from patternmatcher.utils import (commutative_sequence_variable_partition_iter,
                                   fixed_integer_vector_iter, iterator_chain,
                                   minimum_integer_vector_iter)
-
-T = TypeVar('T')
-class Counter(OriginalCounter, Mapping[T, int], Generic[T]):
-    # pylint: disable=abstract-method
-    def __le__(self, other: OriginalCounter):
-        """Check if all counts from this counter are less than or equal to the other.
-
-        >>> Counter('ab') <= Counter('aabc')
-        True
-        """
-        if not isinstance(other, OriginalCounter):
-            return NotImplemented
-        for elem in self:
-            if self[elem] > other[elem]:
-                return False
-        for elem in other:
-            if self[elem] > other[elem]:
-                return False
-        return True
-
-    def __ge__(self, other: OriginalCounter):
-        """Check if all counts from this counter are greater than or equal to the other.
-
-        >>> Counter('aabc') >= Counter('ab')
-        True
-        """
-        if not isinstance(other, OriginalCounter):
-            return NotImplemented
-        for elem in self:
-            if self[elem] < other[elem]:
-                return False
-        for elem in other:
-            if self[elem] < other[elem]:
-                return False
-        return True
 
 
 class CommutativePatternsParts(object):
@@ -58,7 +24,7 @@ class CommutativePatternsParts(object):
     This data structure contains all the operands of a commutative operation pattern.
     They are distinguished by how they need to be matched against an expression.
 
-    All parts are represented by a :class:`collections.Counter`. This is essentially
+    All parts are represented by a :class:`collections.Multiset`. This is essentially
     equivalent to a multiset. It is used, because the order of operands does not matter
     in a commutative operation. The count (value) represents how many times the expression (key)
     occured in the operation.
@@ -73,25 +39,25 @@ class CommutativePatternsParts(object):
             The type of of the original pattern expression. Must be a subclass of
             :class:`.Operation`.
 
-        constant (collections.Counter):
-            A :class:`collections.Counter` representing the constant operands of the pattern.
+        constant (collections.Multiset):
+            A :class:`collections.Multiset` representing the constant operands of the pattern.
             An expression is constant, if it does not contain variables or wildcards.
-        syntactic (collections.Counter):
-            A :class:`collections.Counter` representing the syntactic operands of the pattern.
+        syntactic (collections.Multiset):
+            A :class:`collections.Multiset` representing the syntactic operands of the pattern.
             An expression is syntactic, if it does contain neither associative nor commutative operations
             nor sequence variables. Here, constant expressions and variables also get their own counters,
             so they are not included in this counter.
-        sequence_variables (collections.Counter):
-            A :class:`collections.Counter` representing the sequence variables of the pattern.
+        sequence_variables (collections.Multiset):
+            A :class:`collections.Multiset` representing the sequence variables of the pattern.
             Here the key is a tuple of the form `(name, min_count)` where `name` is the name of the
             sequence variable and `min_count` is the minimum length of the sequence variable.
             For wildcards without variable, the name will be `None`.
-        fixed_variables (collections.Counter):
-            A :class:`collections.Counter` representing the fixed length variables of the pattern.
+        fixed_variables (collections.Multiset):
+            A :class:`collections.Multiset` representing the fixed length variables of the pattern.
             Here the key is a tuple of the form `(name, length)` of the variable.
             For wildcards without variable, the name will be `None`.
-        rest (collections.Counter):
-            A :class:`collections.Counter` representing the operands of the pattern that do not fall
+        rest (collections.Multiset):
+            A :class:`collections.Multiset` representing the operands of the pattern that do not fall
             into one of the previous categories. That means it contains operation expressions, which
             are not syntactic.
 
@@ -117,11 +83,11 @@ class CommutativePatternsParts(object):
         self.operation = operation
         self.length = len(expressions)
 
-        self.constant = Counter() # type: Counter[Expression]
-        self.syntactic = Counter() # type: Counter[Expression]
-        self.sequence_variables = Counter() # type: Counter[Tuple[str, int]]
-        self.fixed_variables = Counter() # type: Counter[Tuple[str, int]]
-        self.rest = Counter() # type: Counter[Expression]
+        self.constant = Multiset() # type: Multiset[Expression]
+        self.syntactic = Multiset() # type: Multiset[Expression]
+        self.sequence_variables = Multiset() # type: Multiset[Tuple[str, int]]
+        self.fixed_variables = Multiset() # type: Multiset[Tuple[str, int]]
+        self.rest = Multiset() # type: Multiset[Expression]
 
         self.sequence_variable_min_length = 0
         self.fixed_variable_length = 0
@@ -276,7 +242,7 @@ class CommutativeMatcher(object):
         if any(not e.is_constant for e in expression):
             raise ValueError('All given expressions must be constant.')
 
-        expressions = Counter(expression) # type: Counter[Expression]
+        expressions = Multiset(expression) # type: Multiset[Expression]
 
         if not (pattern.constant <= expressions):
             return
@@ -303,14 +269,14 @@ class CommutativeMatcher(object):
 
             if self._is_canonical_matching(matching):
                 subst = self._unify_substitutions(*(subgraph[s] for s in matching.items()))
-                matched = Counter(e for e, _ in matching) # type: Counter[Expression]
+                matched = Multiset(e for e, _ in matching) # type: Multiset[Expression]
                 remaining = rest + (syntactics - matched)
                 if subst is not None:
                     yield from self._matches_from_matching(subst, remaining, pattern)
             for matching in match_iter:                
                 if self._is_canonical_matching(matching):
                     subst = self._unify_substitutions(*(subgraph[s] for s in matching.items()))
-                    matched = Counter(e for e, _ in matching) 
+                    matched = Multiset(e for e, _ in matching) 
                     remaining = rest + (syntactics - matched)
                     if subst is not None:
                         yield from self._matches_from_matching(subst, remaining, pattern)
@@ -329,7 +295,7 @@ class CommutativeMatcher(object):
                 return
         return constants
 
-    def _build_bipartite(self, syntactics: Counter, patterns: Counter):
+    def _build_bipartite(self, syntactics: Multiset, patterns: Multiset):
         bipartite = BipartiteGraph() # type: BipartiteGraph
         for (expr, patt), m in self.bipartite.items():
             for i in range(syntactics[expr]):
@@ -346,21 +312,21 @@ class CommutativeMatcher(object):
                 return False
         return True
 
-    def _matches_from_matching(self, subst: Substitution, remaining: Counter, pattern: CommutativePatternsParts) -> Iterator[Substitution]:
+    def _matches_from_matching(self, subst: Substitution, remaining: Multiset, pattern: CommutativePatternsParts) -> Iterator[Substitution]:
         needed_length = pattern.sequence_variable_min_length + pattern.fixed_variable_length + pattern.rest_length
 
         if sum(remaining.values()) < needed_length:
             return
 
-        fixed_vars = Counter(pattern.fixed_variables) # type: Counter[Tuple[str, int]]
+        fixed_vars = Multiset(pattern.fixed_variables) # type: Multiset[Tuple[str, int]]
         for (name, length), count in pattern.fixed_variables.items():
             if name in subst:
                 if pattern.operation.associative and isinstance(subst[name], pattern.operation):
-                    needed_count = Counter(cast(Operation, subst[name]).operands) # type: Counter[Expression]
+                    needed_count = Multiset(cast(Operation, subst[name]).operands) # type: Multiset[Expression]
                 elif isinstance(subst[name], (list, tuple)):
-                    needed_count = Counter(cast(Iterable[Expression], subst[name]))
+                    needed_count = Multiset(cast(Iterable[Expression], subst[name]))
                 else:
-                    needed_count = Counter({subst[name]: 1})
+                    needed_count = Multiset({subst[name]: 1})
                 if count > 1:
                     for k in needed_count:
                         needed_count[k] = needed_count[k] * count
@@ -374,13 +340,13 @@ class CommutativeMatcher(object):
         if not pattern.operation.associative:
             factories += [self._fixed_var_iter_factory(v, l, c) for (v, l), c in fixed_vars.items()]
 
-        expr_counter = Counter(remaining) # type: Counter[Expression]
+        expr_counter = Multiset(remaining) # type: Multiset[Expression]
 
         for rem_expr, subst in iterator_chain((expr_counter, subst), *factories):
             sequence_vars = pattern.sequence_variables
             if pattern.operation.associative:
                 sequence_vars = sequence_vars + fixed_vars
-            for sequence_subst in commutative_sequence_variable_partition_iter(Counter(rem_expr), sequence_vars):
+            for sequence_subst in commutative_sequence_variable_partition_iter(Multiset(rem_expr), sequence_vars):
                 s = Substitution((var, sorted(exprs.elements())) for var, exprs in sequence_subst.items())
                 if pattern.operation.associative:
                     for v, l in fixed_vars:
@@ -398,7 +364,7 @@ class CommutativeMatcher(object):
             for expr in expressions:
                 if expr.head == expression.head:
                     for subst in self.parent._match(expr, expression, substitution):
-                        yield expressions - Counter({expr: 1}), subst
+                        yield expressions - Multiset({expr: 1}), subst
 
         return factory
 
@@ -406,7 +372,7 @@ class CommutativeMatcher(object):
     def _fixed_var_iter_factory(variable, length, count):
         def factory(expressions, substitution):
             if variable in substitution:
-                existing = Counter(not isinstance(substitution[variable], list) and [substitution[variable]] or substitution[variable]) * count
+                existing = Multiset(not isinstance(substitution[variable], list) and [substitution[variable]] or substitution[variable]) * count
                 if not (existing <= expressions):
                     return
                 yield expressions - existing, substitution
@@ -417,12 +383,12 @@ class CommutativeMatcher(object):
                             break
                         new_substitution = Substitution(substitution)
                         new_substitution[variable] = expr
-                        yield expressions - Counter({expr: count}), new_substitution
+                        yield expressions - Multiset({expr: count}), new_substitution
                 else:
                     exprs_with_counts = list(expressions.items())
                     counts = tuple(c // count for _, c in exprs_with_counts)
                     for subset in fixed_integer_vector_iter(counts, length):
-                        sub_counter = Counter(dict((exprs_with_counts[i][0], c * count) for i, c in enumerate(subset)))
+                        sub_counter = Multiset(dict((exprs_with_counts[i][0], c * count) for i, c in enumerate(subset)))
                         new_substitution = Substitution(substitution)
                         new_substitution[variable] = list(sorted(sub_counter.elements()))
                         yield expressions - sub_counter, new_substitution
@@ -433,7 +399,7 @@ class CommutativeMatcher(object):
     def _sequence_var_iter_factory(variable, minimum):
         def factory(expressions, substitution):
             if variable in substitution:
-                existing = Counter(substitution[variable])
+                existing = Multiset(substitution[variable])
                 if not (existing <= expressions):
                     return
                 yield expressions - existing, substitution
@@ -441,7 +407,7 @@ class CommutativeMatcher(object):
                 exprs_with_counts = list(expressions.items())
                 counts = tuple(c for _, c in exprs_with_counts)
                 for subset in minimum_integer_vector_iter(counts, minimum):
-                    sub_counter = Counter(dict((exprs_with_counts[i][0], c) for i, c in enumerate(subset)))
+                    sub_counter = Multiset(dict((exprs_with_counts[i][0], c) for i, c in enumerate(subset)))
                     new_substitution = Substitution(substitution)
                     new_substitution[variable] = list(sorted(sub_counter.elements()))
                     yield expressions - sub_counter, new_substitution
@@ -478,9 +444,9 @@ class CommutativeMatcher(object):
         return unified
 
     @staticmethod
-    def split_expressions(expressions: Counter[Expression]) -> Tuple[Counter[Expression], Counter[Expression]]:
-        constants = Counter() # type: Counter[Expression]
-        syntactics = Counter() # type: Counter[Expression]
+    def split_expressions(expressions: Multiset[Expression]) -> Tuple[Multiset[Expression], Multiset[Expression]]:
+        constants = Multiset() # type: Multiset[Expression]
+        syntactics = Multiset() # type: Multiset[Expression]
 
         for expression, count in expressions.items():
             if expression.is_syntactic or not (isinstance(expression, Operation) and (expression.associative or expression.commutative)):
@@ -536,7 +502,7 @@ if __name__ == '__main__': # pragma: no cover
         #    for op in part.syntactic:
         #        matcher.add_pattern(op)
 
-        #_, expr_synts = matcher.split_expressions(Counter(expr.operands))
+        #_, expr_synts = matcher.split_expressions(Multiset(expr.operands))
 
         #for e in expr_synts:
         #    matcher.add_expression(e)
