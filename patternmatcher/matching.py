@@ -11,7 +11,7 @@ from patternmatcher.expressions import (Arity, Expression, Operation, Symbol,
                                         Variable, Wildcard)
 from patternmatcher.functions import (_match_operation, _match_variable,
                                       _match_wildcard)
-from patternmatcher.multiset import Multiset
+from patternmatcher.multiset import SortedMultiset as Multiset
 from patternmatcher.syntactic import DiscriminationNet
 from patternmatcher.utils import (commutative_sequence_variable_partition_iter,
                                   fixed_integer_vector_iter, iterator_chain,
@@ -247,7 +247,7 @@ class CommutativeMatcher(object):
         if not (pattern.constant <= expressions):
             return
 
-        expressions.subtract(pattern.constant)
+        expressions -= pattern.constant
 
         rest, syntactics = self.split_expressions(expressions)
 
@@ -347,7 +347,7 @@ class CommutativeMatcher(object):
             if pattern.operation.associative:
                 sequence_vars = sequence_vars + fixed_vars
             for sequence_subst in commutative_sequence_variable_partition_iter(Multiset(rem_expr), sequence_vars):
-                s = Substitution((var, sorted(exprs.elements())) for var, exprs in sequence_subst.items())
+                s = Substitution((var, sorted(exprs)) for var, exprs in sequence_subst.items())
                 if pattern.operation.associative:
                     for v, l in fixed_vars:
                         value = cast(list, v)
@@ -390,7 +390,7 @@ class CommutativeMatcher(object):
                     for subset in fixed_integer_vector_iter(counts, length):
                         sub_counter = Multiset(dict((exprs_with_counts[i][0], c * count) for i, c in enumerate(subset)))
                         new_substitution = Substitution(substitution)
-                        new_substitution[variable] = list(sorted(sub_counter.elements()))
+                        new_substitution[variable] = list(sub_counter)
                         yield expressions - sub_counter, new_substitution
 
         return factory
@@ -409,7 +409,7 @@ class CommutativeMatcher(object):
                 for subset in minimum_integer_vector_iter(counts, minimum):
                     sub_counter = Multiset(dict((exprs_with_counts[i][0], c) for i, c in enumerate(subset)))
                     new_substitution = Substitution(substitution)
-                    new_substitution[variable] = list(sorted(sub_counter.elements()))
+                    new_substitution[variable] = list(sub_counter)
                     yield expressions - sub_counter, new_substitution
 
         return factory

@@ -211,6 +211,8 @@ class Operation(Expression, metaclass=OperationMeta):
         for left, right in zip(self.operands, other.operands):
             if left < right:
                 return True
+            elif right < left:
+                return False
 
         return False
 
