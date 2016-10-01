@@ -309,7 +309,7 @@ class Symbol(Atom):
     def __hash__(self):
         return hash((type(self), self.name))
 
-class Variable(Atom):
+class Variable(Expression):
     """A variable that is captured during a match.
 
     Wraps another pattern expression that is used to match. On match, the matched

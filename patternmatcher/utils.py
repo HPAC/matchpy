@@ -430,5 +430,5 @@ if __name__ == '__main__': # pragma: no cover
     for part in commutative_sequence_variable_partition_iter(values, vars):
         print('m')
         for v, c in part.items():
-            print('%s: %s' % (v, sorted(c.elements())))
+            print('%s: %s' % (v, c))
     #print(list(solve_linear_diop(5, 2, 3, 1)))

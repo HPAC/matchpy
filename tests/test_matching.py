@@ -59,11 +59,11 @@ class CommutativePatternsPartsTest(unittest.TestCase):
     def test_parts(self, expressions, constant, syntactic, seq_vars, fixed_vars, rest):
         parts = CommutativePatternsParts(None, *expressions)
 
-        self.assertListEqual(constant, sorted(parts.constant.elements()))
-        self.assertListEqual(syntactic, sorted(parts.syntactic.elements()))
-        self.assertListEqual(seq_vars, sorted(parts.sequence_variables.elements()))
-        self.assertListEqual(fixed_vars, sorted(parts.fixed_variables.elements()))
-        self.assertListEqual(rest, sorted(parts.rest.elements()))
+        self.assertListEqual(constant, sorted(parts.constant))
+        self.assertListEqual(syntactic, sorted(parts.syntactic))
+        self.assertListEqual(seq_vars, sorted(parts.sequence_variables))
+        self.assertListEqual(fixed_vars, sorted(parts.fixed_variables))
+        self.assertListEqual(rest, sorted(parts.rest))
 
         self.assertEqual(sum(c for _, c in seq_vars), parts.sequence_variable_min_length)
         self.assertEqual(sum(c for _, c in fixed_vars), parts.fixed_variable_length)
