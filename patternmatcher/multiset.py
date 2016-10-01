@@ -2,23 +2,23 @@
 """Contains the :class:`Multiset` class."""
 
 from collections.abc import MutableSet, Set
-from typing import (Generic, Iterable, Mapping, Optional, Tuple, TypeVar,
-                    Union)
+from typing import (Generic, Iterable, Mapping, Optional, Tuple, TypeVar)
 
 from sortedcontainers import SortedDict
 
 T = TypeVar('T')
 
+
 class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
-    def __init__(self, iterable:Union[Iterable[T], Mapping[T, int]]=None) -> None:
+    def __init__(self, iterable: Optional[Iterable[T]]=None) -> None:
         """Create a new, empty Multiset object.
-        
+
         And if given, initialize with elements from input iterable.
         Or, initialize from a mapping of elements to their counts.
 
-        >>> c = Multiset()                           # a new, empty multiset
-        >>> c = Multiset('gallahad')                 # a new multiset from an iterable
-        >>> c = Multiset({'a': 4, 'b': 2})           # a new multiset from a mapping
+        >>> c = Multiset()                 # a new, empty multiset
+        >>> c = Multiset('gallahad')       # a new multiset from an iterable
+        >>> c = Multiset({'a': 4, 'b': 2}) # a new multiset from a mapping
         """
         self._total = 0
         super().__init__()
@@ -196,7 +196,7 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         Multiset({'a': 1, 'b': 1})
         """
         other = self._as_multiset(other)
-        keys = set(self.keys()) | set(other.keys()) 
+        keys = set(self.keys()) | set(other.keys())
         for elem in keys:
             multiplicity = self[elem]
             other_count = other[elem]
@@ -208,10 +208,10 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         self.symmetric_difference_update(other)
         return self
 
-    def add(self, element: T, multiplicity:int=1) -> None:
+    def add(self, element: T, multiplicity: int=1) -> None:
         self[element] = self[element] + multiplicity
 
-    def remove(self, element: T, multiplicity:Optional[int]=None) -> int:
+    def remove(self, element: T, multiplicity: Optional[int]=None) -> int:
         if element not in self:
             raise KeyError
         old_count = self[element]
@@ -221,8 +221,8 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
             self[element] = self[element] - multiplicity
         return old_count
 
-    def discard(self, element: T, multiplicity:Optional[int]=None) -> None:
-        """Removes the `element` from the multiset. 
+    def discard(self, element: T, multiplicity: Optional[int]=None) -> None:
+        """Removes the `element` from the multiset.
 
         If `multiplicity` is `None`, all occurances of the `element` are removed,
         otherwise the `multiplicity` is subtracted.
@@ -251,7 +251,6 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
                 raise TypeError("'%s' object is not iterable" % type(other))
             return type(self)(other)
         return other
-
 
     def isdisjoint(self, other: Iterable[T]) -> bool:
         """Return True if the set has no elements in common with other.
@@ -476,12 +475,13 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
 
     __copy__ = copy
 
+
 class SortedMultiset(Multiset[T], SortedDict, Generic[T]):
-    def pop(self, index:int=-1) -> Tuple[T, int]:
+    def pop(self, index: int=-1) -> Tuple[T, int]:
         element = self._list.pop(index)
         multiplicity = self._pop(element)
         return element, multiplicity
-        
+
 if __name__ == '__main__':
     import doctest
     doctest.testmod(exclude_empty=True)

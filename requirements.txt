@@ -6,3 +6,4 @@ coverage
 sphinx-autodoc-typehints
 hypothesis
 hopcroftkarp
+sortedcontainers

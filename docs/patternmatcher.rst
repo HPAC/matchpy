@@ -36,6 +36,14 @@ patternmatcher.utils module
     :undoc-members:
     :show-inheritance:
 
+patternmatcher.multiset module
+------------------------------
+
+.. automodule:: patternmatcher.multiset
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 
 Module contents
 ---------------
