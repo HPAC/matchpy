@@ -146,7 +146,7 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         return self
 
     def difference_update(self, *others: Iterable[T]) -> None:
-        """Return a new multiset with all elements from the others removed.
+        """Remove all elements from the others from this multiset.
 
         >>> ms = Multiset('aab')
         >>> ms.difference_update(Multiset('bc'))
@@ -176,7 +176,7 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         return self
 
     def symmetric_difference_update(self, other: Iterable[T]) -> None:
-        """Return a new set with elements in either the set or other but not both.
+        """Update the multiset to contain only elements in either this multiset or the other but not both.
 
         >>> ms = Multiset('aab')
         >>> ms.symmetric_difference_update(Multiset('bc'))
@@ -208,6 +208,24 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         self.symmetric_difference_update(other)
         return self
 
+    def times_update(self, factor: int) -> None:
+        """Update each this multiset by multiplying each element's multiplicity with the given scalar factor.
+
+        >>> ms = Multiset('aab')
+        >>> ms.times_update(2)
+        >>> ms
+        Multiset({'a': 4, 'b': 2})
+        """        
+        if factor <= 0:
+            self.clear()
+        else:
+            for elem in self.keys():
+                self[elem] *= factor
+
+    def __imul__(self, factor):
+        self.times_update(factor)
+        return self
+
     def add(self, element: T, multiplicity: int=1) -> None:
         self[element] = self[element] + multiplicity
 
@@ -221,7 +239,7 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
             self[element] = self[element] - multiplicity
         return old_count
 
-    def discard(self, element: T, multiplicity: Optional[int]=None) -> None:
+    def discard(self, element: T, multiplicity: Optional[int]=None) -> int:
         """Removes the `element` from the multiset.
 
         If `multiplicity` is `None`, all occurances of the `element` are removed,
@@ -232,18 +250,29 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
 
         >>> ms = Multiset('aab')
         >>> ms.discard('a')
+        2
         >>> ms
         Multiset({'b': 1})
         >>> ms = Multiset('aab')
         >>> ms.discard('a', 1)
+        2
         >>> ms
         Multiset({'a': 1, 'b': 1})
+        >>> ms = Multiset('a')
+        >>> ms.discard('b')
+        0
+        >>> ms
+        Multiset({'a': 1})
         """
         if element in self:
+            old_count = self[element]
             if multiplicity is None:
                 del self[element]
             else:
                 self[element] -= multiplicity
+            return old_count
+        else:
+            return 0
 
     def _as_multiset(self, other: Iterable[T]) -> 'Multiset[T]':
         if not isinstance(other, Multiset):
@@ -268,9 +297,6 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         other = self._as_multiset(other)
         for elem in self.keys():
             if elem in other:
-                return False
-        for elem in other.keys():
-            if elem in self:
                 return False
         return True
 
@@ -417,6 +443,24 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
 
     __rxor__ = __xor__
 
+    def times(self, factor: int) -> 'Multiset[T]':
+        """Return a new set with each element's multiplicity multiplied with the given scalar factor.
+
+        >>> a = Multiset('aab')
+        >>> a.times(2)
+        Multiset({'a': 4, 'b': 2})
+        """
+        result = type(self)(self)
+        result.times_update(factor)
+        return result
+
+    def __mul__(self, factor: int) -> 'Multiset[T]':
+        if not isinstance(factor, int):
+            return NotImplemented
+        return self.times(factor)
+
+    __rmul__ = __mul__
+
     def clear(self) -> None:
         super().clear()
         self._total = 0
@@ -432,8 +476,8 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         other = self._as_multiset(other)
         if len(self) > len(other):
             return False
-        for elem in self:
-            if self[elem] > other[elem]:
+        for elem, multiplicity in self.items():
+            if multiplicity > other[elem]:
                 return False
         return True
 
@@ -443,6 +487,8 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         return self.issubset(other)
 
     def __lt__(self, other: Set) -> bool:
+        if not isinstance(other, Set):
+            return NotImplemented
         return self.issubset(other) and self != other
 
     def issuperset(self, other: Iterable[T]) -> bool:
@@ -456,8 +502,8 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         other = self._as_multiset(other)
         if len(self) < len(other):
             return False
-        for elem in other:
-            if self[elem] < other[elem]:
+        for elem, multiplicity in other.items():
+            if self[elem] < multiplicity:
                 return False
         return True
 
@@ -467,6 +513,8 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         return self.issuperset(other)
 
     def __gt__(self, other: Set) -> bool:
+        if not isinstance(other, Set):
+            return NotImplemented
         return self.issuperset(other) and self != other
 
     def copy(self):
