@@ -24,7 +24,7 @@ class CommutativePatternsParts(object):
     This data structure contains all the operands of a commutative operation pattern.
     They are distinguished by how they need to be matched against an expression.
 
-    All parts are represented by a :class:`collections.Multiset`. This is essentially
+    All parts are represented by a :class:`~patternmatcher.multiset.Multiset`. This is essentially
     equivalent to a multiset. It is used, because the order of operands does not matter
     in a commutative operation. The count (value) represents how many times the expression (key)
     occured in the operation.
@@ -35,29 +35,29 @@ class CommutativePatternsParts(object):
     This data structure is meant to be immutable, so do not change any of its attributes!
 
     Attributes:
-        operation (type):
+        operation (typing.Type[Operation]):
             The type of of the original pattern expression. Must be a subclass of
             :class:`.Operation`.
 
-        constant (collections.Multiset):
-            A :class:`collections.Multiset` representing the constant operands of the pattern.
+        constant (Multiset):
+            A :class:`~patternmatcher.multiset.Multiset` representing the constant operands of the pattern.
             An expression is constant, if it does not contain variables or wildcards.
-        syntactic (collections.Multiset):
-            A :class:`collections.Multiset` representing the syntactic operands of the pattern.
+        syntactic (Multiset):
+            A :class:`~patternmatcher.multiset.Multiset` representing the syntactic operands of the pattern.
             An expression is syntactic, if it does contain neither associative nor commutative operations
             nor sequence variables. Here, constant expressions and variables also get their own counters,
             so they are not included in this counter.
-        sequence_variables (collections.Multiset):
-            A :class:`collections.Multiset` representing the sequence variables of the pattern.
+        sequence_variables (Multiset):
+            A :class:`~patternmatcher.multiset.Multiset` representing the sequence variables of the pattern.
             Here the key is a tuple of the form `(name, min_count)` where `name` is the name of the
             sequence variable and `min_count` is the minimum length of the sequence variable.
             For wildcards without variable, the name will be `None`.
-        fixed_variables (collections.Multiset):
-            A :class:`collections.Multiset` representing the fixed length variables of the pattern.
+        fixed_variables (Multiset):
+            A :class:`~patternmatcher.multiset.Multiset` representing the fixed length variables of the pattern.
             Here the key is a tuple of the form `(name, length)` of the variable.
             For wildcards without variable, the name will be `None`.
-        rest (collections.Multiset):
-            A :class:`collections.Multiset` representing the operands of the pattern that do not fall
+        rest (Multiset):
+            A :class:`~patternmatcher.multiset.Multiset` representing the operands of the pattern that do not fall
             into one of the previous categories. That means it contains operation expressions, which
             are not syntactic.
 

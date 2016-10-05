@@ -2,7 +2,7 @@
 import keyword
 from enum import Enum
 from typing import (Any, Callable, Dict, Iterator, List, Optional, Set, Tuple,
-                    Union)
+                    Type, Union)
 
 from patternmatcher.multiset import Multiset
 
@@ -15,6 +15,7 @@ class Arity(tuple, Enum):
     If it is `False`, the operator has variable width arity. In that case, the first component
     describes the minimum number of operands required.
     """
+
     nullary     = (0, True)
     unary       = (1, True)
     binary      = (2, True)
@@ -165,7 +166,7 @@ class Operation(Expression, metaclass=OperationMeta):
         return '%s(%s)' % (self.__class__.__name__, operand_str)
 
     @staticmethod
-    def new(name : str, arity : Arity, class_name : str = None, **attributes) -> Any:
+    def new(name : str, arity : Arity, class_name : str = None, **attributes) -> Type['Operation']:
         """Utility method to create a new operation type.
 
         Example:

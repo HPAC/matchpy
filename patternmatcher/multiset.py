@@ -10,27 +10,47 @@ T = TypeVar('T')
 
 
 class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
+    """A multiset implementation.
+
+    A multiset is similar to the builtin :class:`set`, but elements can occur multiple times in the multiset.
+    It is also similar to a :class:`list` without ordering of the values and hence no index-based operations.
+
+    The multiset is implemented as a specialized :class:`dict` where the key is the element and the value its
+    multiplicity. It supports all operations, that the :class:`set` supports
+
+    In contrast to the builtin :class:`collections.Counter`, no negative counts are allowed, elements with
+    zero counts are removed from the :class:`dict`, and set operations are supported.
+
+    :see: https://en.wikipedia.org/wiki/Multiset
+    """
+
     def __init__(self, iterable: Optional[Iterable[T]]=None) -> None:
         """Create a new, empty Multiset object.
 
         And if given, initialize with elements from input iterable.
-        Or, initialize from a mapping of elements to their counts.
+        Or, initialize from a mapping of elements to their multiplicity.
 
-        >>> c = Multiset()                 # a new, empty multiset
-        >>> c = Multiset('gallahad')       # a new multiset from an iterable
-        >>> c = Multiset({'a': 4, 'b': 2}) # a new multiset from a mapping
+        Example:
+
+        >>> ms = Multiset()                 # a new, empty multiset
+        >>> ms = Multiset('abc')            # a new multiset from an iterable
+        >>> ms = Multiset({'a': 4, 'b': 2}) # a new multiset from a mapping
+
+        :param iterable: An optional iterable or mapping to initialize the multiset from.
         """
         self._total = 0
         super().__init__()
         if iterable is not None:
             self.update(iterable)
 
-    def __missing__(self, element):
+    def __missing__(self, element: T):
         """The multiplicity of elements not in the multiset is zero."""
         return 0
 
-    def __setitem__(self, element, multiplicity):
-        """Set the element's multiplicity or remove it, if the multiplicity is less than or equal to zero.'"""
+    def __setitem__(self, element: T, multiplicity: int):
+        """Set the element's multiplicity.
+        This will remove the element if the multiplicity is less than or equal to zero.
+        '"""
         old = self[element]
         new = multiplicity > 0 and multiplicity or 0
         if multiplicity <= 0:
@@ -48,6 +68,24 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         return '%s({%s})' % (type(self).__name__, items)
 
     def __len__(self):
+        """Returns the total number of elements in the multiset.
+        
+        Note that this is equivalent to the sum of the multiplicities:
+        
+        >>> ms = Multiset('aab')
+        >>> len(ms)
+        3
+        >>> sum(ms.values())
+        3
+
+        If you need the total number of elements, use either the :meth:`keys`() method
+        >>> len(ms.keys())
+        2
+
+        or convert to a :class:`set`:
+        >>> len(set(ms))
+        2
+        """
         return self._total
 
     def __iter__(self):
@@ -215,7 +253,7 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         >>> ms.times_update(2)
         >>> ms
         Multiset({'a': 4, 'b': 2})
-        """        
+        """
         if factor <= 0:
             self.clear()
         else:
@@ -226,10 +264,10 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         self.times_update(factor)
         return self
 
-    def add(self, element: T, multiplicity: int=1) -> None:
+    def add(self, element: T, multiplicity: int=1) -> None: # pylint: disable=arguments-differ
         self[element] = self[element] + multiplicity
 
-    def remove(self, element: T, multiplicity: Optional[int]=None) -> int:
+    def remove(self, element: T, multiplicity: Optional[int]=None) -> int: # pylint: disable=arguments-differ
         if element not in self:
             raise KeyError
         old_count = self[element]
@@ -239,13 +277,13 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
             self[element] = self[element] - multiplicity
         return old_count
 
-    def discard(self, element: T, multiplicity: Optional[int]=None) -> int:
+    def discard(self, element: T, multiplicity: Optional[int]=None) -> int: # pylint: disable=arguments-differ
         """Removes the `element` from the multiset.
 
         If `multiplicity` is `None`, all occurances of the `element` are removed,
         otherwise the `multiplicity` is subtracted.
 
-        In contrast to :method:`remove`, this does not raise an error if the
+        In contrast to :meth:`remove`, this does not raise an error if the
         `element` is not in the multiset.
 
         >>> ms = Multiset('aab')
@@ -525,10 +563,11 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
 
 
 class SortedMultiset(Multiset[T], SortedDict, Generic[T]):
-    def pop(self, index: int=-1) -> Tuple[T, int]:
+    def pop(self, index: int=-1) -> Tuple[T, int]: # pylint: disable=arguments-differ
         element = self._list.pop(index)
         multiplicity = self._pop(element)
         return element, multiplicity
+
 
 if __name__ == '__main__':
     import doctest
