@@ -1,20 +1,31 @@
 # -*- coding: utf-8 -*-
 import keyword
-from enum import Enum
-from typing import (Any, Callable, Dict, Iterator, List, Optional, Set, Tuple,
-                    Type, Union)
+from enum import Enum, EnumMeta
+from typing import (Callable, Dict, Iterator, List, NamedTuple, Optional,
+                    Set, Tuple, TupleMeta, Type, Union)
 
 from patternmatcher.multiset import Multiset
 
 
-class Arity(tuple, Enum):
+# This class is needed so that Tuple and Enum play nicely with each other
+class _ArityMeta(TupleMeta, EnumMeta):
+    @classmethod
+    def __prepare__(metacls, cls, bases, **kwargs):
+        return super().__prepare__(cls, bases)
+
+_ArityBase = NamedTuple('_ArityBase', [('min_count', int), ('fixed_size', bool)])
+
+class Arity(_ArityBase, Enum, metaclass=_ArityMeta, _root=True):
     """Arity of an operator as (`int`, `bool`) tuple.
 
-    The first component is the number of operands.
-    If the second component is `True`, the operator has fixed width arity.
-    If it is `False`, the operator has variable width arity. In that case, the first component
-    describes the minimum number of operands required.
+    The first component is the minimum number of operands.
+    If the second component is `True`, the operator has fixed width arity. In that case, the first component
+    describes the fixed number of operands required.
+    If it is `False`, the operator has variable width arity.
     """
+    
+    def __new__(cls, *data):
+        return tuple.__new__(cls, data)
 
     nullary     = (0, True)
     unary       = (1, True)
