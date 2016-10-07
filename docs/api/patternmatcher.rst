@@ -13,7 +13,6 @@ Submodules
    patternmatcher.matching
    patternmatcher.multiset
    patternmatcher.syntactic
-   patternmatcher.tmp
    patternmatcher.utils
 
 Module contents
