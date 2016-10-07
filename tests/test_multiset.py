@@ -588,20 +588,6 @@ class MultisetTest(unittest.TestCase):
         self.assertIsNot(ms, ms_copy)
 
 
-@ddt
-class SortedMultisetTest(unittest.TestCase):
-    """Unit tests for :class:`SortedMultiset`"""
-
-    def test_pop(self):
-        ms = SortedMultiset('abcc')
-
-        self.assertEqual(ms.pop(), ('c', 2))
-        self.assertEqual(ms.pop(0), ('a', 1))
-
-        with self.assertRaises(IndexError):
-            ms.pop(1)
-
-
 def load_tests(loader, tests, ignore):
     tests.addTests(doctest.DocTestSuite(multiset))
     return tests
