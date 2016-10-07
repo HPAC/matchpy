@@ -10,8 +10,10 @@ Contents:
 
 .. toctree::
    :maxdepth: 2
+   :glob:
+   :titlesonly:
 
-   patternmatcher
+   api/patternmatcher
 
 Indices and tables
 ==================
