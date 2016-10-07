@@ -13,8 +13,8 @@ from patternmatcher.bipartite import (BipartiteGraph,
 
 @st.composite
 def bipartite_graph(draw):
-    m = draw(st.integers(min_value=1, max_value=8))
-    n = draw(st.integers(min_value=m, max_value=10))
+    m = draw(st.integers(min_value=1, max_value=4))
+    n = draw(st.integers(min_value=m, max_value=5))
 
     graph = BipartiteGraph()
     for i in range(n):
@@ -30,7 +30,7 @@ class EnumMaximumMatchingsIterTest(unittest.TestCase):
     @given(bipartite_graph())
     def test_correctness(self, graph):
         size = None
-        matchings = {}
+        matchings = set()
         for matching in enum_maximum_matchings_iter(graph):
             if size is None:
                 size = len(matching)
@@ -39,6 +39,7 @@ class EnumMaximumMatchingsIterTest(unittest.TestCase):
                 self.assertIn(kv, graph, 'Matching contains an edge that was not in the graph')
             frozen_matching = frozenset(matching.items())
             self.assertNotIn(frozen_matching, matchings, "Matching was duplicate")
+            matchings.add(frozen_matching)
 
     @unpack
     @data(*filter(lambda x: x[0] >= x[1], itertools.product(range(1, 6), range(0, 4))))
