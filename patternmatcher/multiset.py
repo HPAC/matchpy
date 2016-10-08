@@ -753,6 +753,15 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
             return False
         return self._issubset(other, False)
 
+    def __ne__(self, other: Set):
+        if not isinstance(other, Set):
+            return NotImplemented
+        if isinstance(other, Multiset):
+            return dict.__ne__(self, other)
+        if len(self) != len(other):
+            return True
+        return not self._issubset(other, False)
+
     def copy(self):
         """Return a shallow copy of the multiset."""
         return type(self)(self)

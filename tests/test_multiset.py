@@ -589,6 +589,52 @@ class MultisetTest(unittest.TestCase):
         self.assertFalse(set('ab') >= Multiset('aab'))
         self.assertLessEqual(set('ab'), Multiset('aab'))
         self.assertGreaterEqual(set('ab'), Multiset('ab'))
+    
+    def test_eq_set(self):
+        multisets = ['', 'a', 'ab', 'aa']
+        sets = ['', 'a', 'ab']
+
+        for i, ms in enumerate(multisets):
+            ms = Multiset(ms)
+            for j, s in enumerate(sets):
+                s = set(s)
+                if i == j:
+                    self.assertTrue(ms == s)
+                    self.assertTrue(s == ms)
+                else:
+                    self.assertFalse(ms == s)
+                    self.assertFalse(s == ms)
+
+    def test_eq(self):
+        self.assertFalse(Multiset('ab') == Multiset('b'))
+        self.assertFalse(Multiset('ab') == Multiset('a'))
+        self.assertTrue(Multiset('ab') == Multiset('ab'))
+        self.assertTrue(Multiset('aab') == Multiset('aab'))
+        self.assertFalse(Multiset('aab') == Multiset('abb'))
+        self.assertFalse(Multiset('ab') == 'ab')
+
+    def test_ne_set(self):
+        multisets = ['', 'a', 'ab', 'aa']
+        sets = ['', 'a', 'ab']
+
+        for i, ms in enumerate(multisets):
+            ms = Multiset(ms)
+            for j, s in enumerate(sets):
+                s = set(s)
+                if i == j:
+                    self.assertFalse(ms != s)
+                    self.assertFalse(s != ms)
+                else:
+                    self.assertTrue(ms != s)
+                    self.assertTrue(s != ms)
+
+    def test_ne(self):
+        self.assertTrue(Multiset('ab') != Multiset('b'))
+        self.assertTrue(Multiset('ab') != Multiset('a'))
+        self.assertFalse(Multiset('ab') != Multiset('ab'))
+        self.assertFalse(Multiset('aab') != Multiset('aab'))
+        self.assertTrue(Multiset('aab') != Multiset('abb'))
+        self.assertTrue(Multiset('ab') != 'ab')
 
     def test_copy(self):
         ms = Multiset('abc')
