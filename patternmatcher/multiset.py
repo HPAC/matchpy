@@ -744,6 +744,15 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
             return NotImplemented
         return self._issuperset(other, True)
 
+    def __eq__(self, other: Set):
+        if not isinstance(other, Set):
+            return NotImplemented
+        if isinstance(other, Multiset):
+            return dict.__eq__(self, other)
+        if len(self) != len(other):
+            return False
+        return self._issubset(other, False)
+
     def copy(self):
         """Return a shallow copy of the multiset."""
         return type(self)(self)

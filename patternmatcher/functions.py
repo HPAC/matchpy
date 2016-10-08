@@ -7,11 +7,9 @@ from patternmatcher.constraints import (Constraint, CustomConstraint,
                                         EqualVariablesConstraint,
                                         MultiConstraint)
 from patternmatcher.expressions import (Arity, Expression, Operation, Symbol,
-                                        Variable, Wildcard)
+                                        Variable, Wildcard, Substitution)
 from patternmatcher.utils import (commutative_partition_iter,
                                   partitions_with_limits)
-
-Substitution = Dict[str, Union[Expression, List[Expression]]]
 
 def linearize(expression, variables=None, constraints=None):
     if variables is None:

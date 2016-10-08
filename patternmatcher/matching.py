@@ -8,7 +8,7 @@ from typing import (Any, Dict, Generic,  # pylint: disable=unused-import
 from patternmatcher.bipartite import (BipartiteGraph,
                                       enum_maximum_matchings_iter)
 from patternmatcher.expressions import (Arity, Expression, Operation, Symbol,
-                                        Variable, Wildcard)
+                                        Variable, Wildcard, Substitution)
 from patternmatcher.functions import (_match_operation, _match_variable,
                                       _match_wildcard)
 from patternmatcher.multiset import SortedMultiset as Multiset
@@ -116,21 +116,6 @@ class CommutativePatternsParts(object):
         self.constant_length = sum(self.rest.values())
         self.syntactic_length = sum(self.syntactic.values())
 
-
-class Substitution(Dict[str, Union[List[Expression], Expression]]):
-    """Special `dict` for substitutions with nicer formatting.
-
-    The key is a variable's name and the value the replacement for it.
-    """
-
-    @staticmethod
-    def _match_value_repr_str(value: Union[List[Expression], Expression]) -> str: # pragma: no cover
-        if isinstance(value, list):
-            return '(%s)' % (', '.join(str(x) for x in value))
-        return str(value)
-
-    def __str__(self): # pragma: no cover
-        return ', '.join('%s ← %s' % (k, self._match_value_repr_str(v)) for k, v in self.items())
 
 
 class ManyToOneMatcher(object):
