@@ -518,13 +518,35 @@ class Substitution(Dict[str, VariableReplacement]):
     The key is a variable's name and the value the substitution for it.
     """
 
-    def union_with_variable(self, variable: str, value: VariableReplacement):
-        """Try to add the variable with its value to the substitution.
+    def _union_with_variable(self, variable: str, replacement: VariableReplacement):
+        if variable not in self:
+            self[variable] = replacement
+        else:
+            existing_value = self[variable]
 
-        This considers an existing value and will only succeed if the new value
-        can be merged with the old value. Merging can occur if either the two values
-        are equivalent. Values can also be merged the old value for the variable was unordered
-        (i.e. a :class:`~typing.Set`) and the new one is an equivalant ordered version of it:
+            if isinstance(existing_value, tuple):
+                if isinstance(replacement, set):
+                    if Multiset(existing_value) != Multiset(replacement):
+                        raise ValueError
+                elif replacement != existing_value:
+                    raise ValueError
+            elif isinstance(existing_value, Set):
+                compare_value = Multiset(isinstance(replacement, Expression) and [replacement] or replacement)
+                if existing_value == compare_value:
+                    if not isinstance(replacement, Set):
+                        self[variable] = replacement
+                else:
+                    raise ValueError
+            elif replacement != existing_value:
+                raise ValueError
+
+    def union_with_variable(self, variable: str, replacement: VariableReplacement):
+        """Try to add the variable with its replacement to the substitution.
+
+        This considers an existing replacement and will only succeed if the new replacement
+        can be merged with the old replacement. Merging can occur if either the two replacements
+        are equivalent. Replacements can also be merged if the old replacement for the variable was
+        unordered (i.e. a :class:`~typing.Set`) and the new one is an equivalant ordered version of it:
 
         >>> Substitution({'x': {'a', 'b'}}).union_with_variable('x', ('a', 'b'))
         {'x': ('a', 'b')}
@@ -532,7 +554,7 @@ class Substitution(Dict[str, VariableReplacement]):
         Parameters:
             variable:
                 The name of the variable to add.
-            value:
+            replacement:
                 The substitution for the variable.
 
         Returns:
@@ -540,42 +562,50 @@ class Substitution(Dict[str, VariableReplacement]):
 
         Raises:
             ValueError:
-                if the variable cannnot be merged because if conflicts with the existing
+                if the variable cannnot be merged because it conflicts with the existing
                 substitution for the variable.
         """
-        new_subst = self.copy()
-        if variable not in new_subst:
-            new_subst[variable] = value
-        else:
-            existing_value = new_subst[variable]
-
-            if isinstance(existing_value, tuple):
-                if isinstance(value, set):
-                    if Multiset(existing_value) != Multiset(value):
-                        raise ValueError
-                elif value != existing_value:
-                    raise ValueError
-            elif isinstance(existing_value, Set):
-                compare_value = Multiset(isinstance(value, Expression) and [value] or value)
-                if existing_value == compare_value:
-                    if not isinstance(value, Set):
-                        new_subst[variable] = value
-                else:
-                    raise ValueError
-            elif value != existing_value:
-                raise ValueError
-
+        new_subst = Substitution(self)
+        new_subst._union_with_variable(variable, replacement)
         return new_subst
 
+    def union(self, *others: 'Substitution'):
+        """Try to merge the substitutions.
+
+        If a variable occurs in multiple substitutions, try to merge the replacements.
+        See :meth:`union_with_variable` to see how replacements are merged.
+
+        >>> subst1 = Substitution({'x': {'a', 'b'}})
+        >>> subst2 = Substitution({'x': ('a', 'b'), 'y': ('c', )})
+        >>> str(subst1.union(subst2))
+        'x ← (a, b), y ← (c)'
+
+        Parameters:
+            others:
+                The other substitutions to merge with this one.
+
+        Returns:
+            The new substitution with the other substitutions merged.
+
+        Raises:
+            ValueError:
+                if a variable occures in multiple substitutions but cannot be merged because the
+                substitutions conflict.
+        """
+        new_subst = Substitution(self)
+        for other in others:
+            for variable, replacement in other.items():
+                new_subst._union_with_variable(variable, replacement)
+        return new_subst
 
     @staticmethod
     def _match_value_repr_str(value: Union[List[Expression], Expression]) -> str: # pragma: no cover
-        if isinstance(value, list):
+        if isinstance(value, (list, tuple)):
             return '(%s)' % (', '.join(str(x) for x in value))
         return str(value)
 
     def __str__(self):
-        return ', '.join('%s ← %s' % (k, self._match_value_repr_str(v)) for k, v in self.items())
+        return ', '.join('%s ← %s' % (k, self._match_value_repr_str(v)) for k, v in sorted(self.items()))
 
 
 if __name__ == '__main__':

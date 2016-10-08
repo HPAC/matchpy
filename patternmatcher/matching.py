@@ -418,15 +418,10 @@ class CommutativeMatcher(object):
 
     @staticmethod
     def _unify_substitutions(*substs: Substitution) -> Substitution:
-        unified = Substitution(substs[0])
-        for subst in substs[1:]:
-            for variable, value in subst.items():
-                if variable in unified:
-                    if unified[variable] != value:
-                        return None
-                else:
-                    unified[variable] = value
-        return unified
+        try:
+            return substs[0].union(*substs[1:])
+        except ValueError:
+            return None
 
     @staticmethod
     def split_expressions(expressions: Multiset[Expression]) -> Tuple[Multiset[Expression], Multiset[Expression]]:

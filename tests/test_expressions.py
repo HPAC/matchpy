@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 import unittest
+import doctest
 
 from ddt import data, ddt, unpack
 
 from patternmatcher.expressions import Substitution, Symbol
+import patternmatcher.expressions as expressions
 
 a = Symbol('a')
 b = Symbol('b')
@@ -39,6 +41,10 @@ class SubstitutionTest(unittest.TestCase):
             result = subst.union_with_variable(var, value)
             self.assertEqual(result, expected_result)
 
+
+def load_tests(loader, tests, ignore):
+    tests.addTests(doctest.DocTestSuite(expressions))
+    return tests
 
 if __name__ == '__main__':
     unittest.main()

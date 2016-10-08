@@ -11,6 +11,12 @@ from patternmatcher.expressions import (Arity, Operation, Symbol, Variable,
 from patternmatcher.functions import match, replace, substitute
 from patternmatcher.utils import match_repr_str
 
+# from patternmatcher.matching import ManyToOneMatcher
+# def match(expression, pattern):
+#     matcher = ManyToOneMatcher(pattern)
+#     for _, subst in matcher.match(expression):
+#         yield subst
+
 f = Operation.new('f', Arity.variadic)
 f2 = Operation.new('f2', Arity.variadic)
 fc = Operation.new('fc', Arity.variadic, commutative=True)

@@ -302,7 +302,7 @@ class MultisetTest(unittest.TestCase):
         else:
             self.assertFalse(ms.isdisjoint(set2))
 
-    
+
     @unpack
     @data(
         ('aab',     ['abc'],                list('aabc')),
@@ -578,6 +578,17 @@ class MultisetTest(unittest.TestCase):
         self.assertFalse(set3 > set1)
         self.assertFalse(set3 > set2)
         self.assertFalse(set3 > set3)
+
+    def test_compare_with_set(self):
+        self.assertLessEqual(Multiset('ab'), set('ab'))
+        self.assertLessEqual(Multiset('b'), set('ab'))
+        self.assertGreaterEqual(Multiset('ab'), set('ab'))
+        self.assertGreaterEqual(Multiset('abb'), set('ab'))
+        self.assertLessEqual(set('ab'), Multiset('abb'))
+        self.assertLessEqual(set('b'), Multiset('aab'))
+        self.assertFalse(set('ab') >= Multiset('aab'))
+        self.assertLessEqual(set('ab'), Multiset('aab'))
+        self.assertGreaterEqual(set('ab'), Multiset('ab'))
 
     def test_copy(self):
         ms = Multiset('abc')
