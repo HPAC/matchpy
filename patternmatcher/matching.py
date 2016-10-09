@@ -3,8 +3,9 @@ import itertools
 import operator
 from typing import (Any, Dict, Generic,  # pylint: disable=unused-import
                     Iterable, Iterator, List, Mapping, Optional, Set, Tuple,
-                    Type, TypeVar, Union, cast)
+                    Type, TypeVar, Union, cast, NamedTuple)
 
+from patternmatcher.constraints import Constraint, MultiConstraint
 from patternmatcher.bipartite import (BipartiteGraph,
                                       enum_maximum_matchings_iter)
 from patternmatcher.expressions import (Arity, Expression, Operation, Symbol,
@@ -16,6 +17,8 @@ from patternmatcher.syntactic import DiscriminationNet
 from patternmatcher.utils import (commutative_sequence_variable_partition_iter,
                                   fixed_integer_vector_iter, iterator_chain,
                                   minimum_integer_vector_iter)
+
+VarInfo = NamedTuple('VarInfo', [('min_count', int), ('constraint', Constraint)])
 
 
 class CommutativePatternsParts(object):
@@ -39,24 +42,26 @@ class CommutativePatternsParts(object):
             The type of of the original pattern expression. Must be a subclass of
             :class:`.Operation`.
 
-        constant (Multiset):
+        constant (Multiset[Expression]):
             A :class:`~patternmatcher.multiset.Multiset` representing the constant operands of the pattern.
             An expression is constant, if it does not contain variables or wildcards.
-        syntactic (Multiset):
-            A :class:`~patternmatcher.multiset.Multiset` representing the syntactic operands of the pattern.
+        syntactic (Multiset[Operation]):
+            A :class:`.Multiset` representing the syntactic operands of the pattern.
             An expression is syntactic, if it does contain neither associative nor commutative operations
             nor sequence variables. Here, constant expressions and variables also get their own counters,
             so they are not included in this counter.
-        sequence_variables (Multiset):
-            A :class:`~patternmatcher.multiset.Multiset` representing the sequence variables of the pattern.
-            Here the key is a tuple of the form `(name, min_count)` where `name` is the name of the
-            sequence variable and `min_count` is the minimum length of the sequence variable.
-            For wildcards without variable, the name will be `None`.
-        fixed_variables (Multiset):
+        sequence_variables (Multiset[str]):
+            A :class:`.Multiset` representing the sequence variables of the pattern.
+            Variables are rerpesented by their name. Additional information is stored in
+            :var:`sequence_variable_infos`. For wildcards without variable, the name will be `None`.
+        sequence_variable_infos (Dict[str, VarInfo]):
+            A dictionary mapping variable names to more information about the variable, i.e. its
+            :var:`~Variable.min_count` and :var:`~Variable.constraint`.
+        fixed_variables (Multiset[VarInfo]):
             A :class:`~patternmatcher.multiset.Multiset` representing the fixed length variables of the pattern.
             Here the key is a tuple of the form `(name, length)` of the variable.
             For wildcards without variable, the name will be `None`.
-        rest (Multiset):
+        rest (Multiset[Expression]):
             A :class:`~patternmatcher.multiset.Multiset` representing the operands of the pattern that do not fall
             into one of the previous categories. That means it contains operation expressions, which
             are not syntactic.
@@ -71,12 +76,6 @@ class CommutativePatternsParts(object):
             The total combined length of all fixed length variables in the commutative
             operation pattern. This is the sum of the `min_count` attributes of the
             variables.
-        rest_length (int):
-            The total length of the `rest` part i.e. the sum of its counts.
-        constant_length (int):
-            The total length of the `constant` part i.e. the sum of its counts.
-        syntactic_length (int):
-            The total length of the `syntactic` part i.e. the sum of its counts.
     """
 
     def __init__(self, operation: Type[Operation], *expressions: Expression) -> None:
@@ -86,7 +85,9 @@ class CommutativePatternsParts(object):
         self.constant = Multiset() # type: Multiset[Expression]
         self.syntactic = Multiset() # type: Multiset[Expression]
         self.sequence_variables = Multiset() # type: Multiset[Tuple[str, int]]
+        self.sequence_variable_infos = dict()
         self.fixed_variables = Multiset() # type: Multiset[Tuple[str, int]]
+        self.fixed_variable_infos = dict()
         self.rest = Multiset() # type: Multiset[Expression]
 
         self.sequence_variable_min_length = 0
@@ -98,24 +99,35 @@ class CommutativePatternsParts(object):
             elif expression.head is None:
                 wc = cast(Wildcard, expression)
                 name = None # type: Optional[str]
+                constraint = wc.constraint
                 if isinstance(wc, Variable):
                     name = wc.name
                     wc = cast(Wildcard, wc.expression)
                 if wc.fixed_size:
-                    self.fixed_variables[(name, wc.min_count)] += 1
+                    self.fixed_variables[name] += 1
+                    self._update_var_info(self.fixed_variable_infos, name, wc.min_count, constraint)
                     self.fixed_variable_length += wc.min_count
                 else:
-                    self.sequence_variables[(name, wc.min_count)] += 1
+                    self.sequence_variables[name] += 1
+                    self._update_var_info(self.sequence_variable_infos, name, wc.min_count, constraint)
                     self.sequence_variable_min_length += wc.min_count
             elif expression.is_syntactic:
                 self.syntactic[expression] += 1
             else:
                 self.rest[expression] += 1
 
-        self.rest_length = sum(self.rest.values())
-        self.constant_length = sum(self.rest.values())
-        self.syntactic_length = sum(self.syntactic.values())
-
+    @staticmethod
+    def _update_var_info(infos, name, count, constraint):        
+        if name not in infos:
+            infos[name] = VarInfo(count, constraint)
+        else:
+            existing_info = infos[name]
+            assert existing_info.min_count == count
+            if constraint is not None:
+                assert name is not None
+                if existing_info.constraint is not None:
+                    constraint = MultiConstraint.create(existing_info.constraint, constraint)
+                infos[name] = VarInfo(count, constraint)
 
 
 class ManyToOneMatcher(object):
@@ -349,7 +361,8 @@ class CommutativeMatcher(object):
             for expr in expressions:
                 if expr.head == expression.head:
                     for subst in self.parent._match(expr, expression, substitution):
-                        yield expressions - Multiset({expr: 1}), subst
+                        if expression.constraint is None or expression.constraint(subst):
+                            yield expressions - Multiset({expr: 1}), subst
 
         return factory
 
@@ -357,9 +370,11 @@ class CommutativeMatcher(object):
     def _fixed_var_iter_factory(variable, length, count):
         def factory(expressions, substitution):
             if variable in substitution:
-                existing = Multiset(not isinstance(substitution[variable], list) and [substitution[variable]] or substitution[variable]) * count
+                value = isinstance(substitution[variable], Expression) and [substitution[variable]] or substitution[variable]
+                existing = Multiset(value) * count
                 if not (existing <= expressions):
                     return
+                # TODO: if expression.constraint is None or expression.constraint(subst):
                 yield expressions - existing, substitution
             else:
                 if length == 1:
@@ -402,11 +417,10 @@ class CommutativeMatcher(object):
     @staticmethod
     def _extract_substitution(expression: Expression, pattern: Expression, subst: Substitution) -> bool:
         if isinstance(pattern, Variable):
-            if pattern.name in subst:
-                if expression != subst[pattern.name]:
-                    return False
-            else:
-                subst[pattern.name] = expression
+            try:
+                subst.try_add_variable(pattern.name, expression)
+            except ValueError:
+                return False
             return CommutativeMatcher._extract_substitution(expression, pattern.expression, subst)
         elif isinstance(pattern, Operation):
             assert isinstance(expression, type(pattern))

@@ -518,7 +518,30 @@ class Substitution(Dict[str, VariableReplacement]):
     The key is a variable's name and the value the substitution for it.
     """
 
-    def _union_with_variable(self, variable: str, replacement: VariableReplacement):
+    def try_add_variable(self, variable: str, replacement: VariableReplacement):
+        """Try to add the variable with its replacement to the substitution.
+
+        This considers an existing replacement and will only succeed if the new replacement
+        can be merged with the old replacement. Merging can occur if either the two replacements
+        are equivalent. Replacements can also be merged if the old replacement for the variable was
+        unordered (i.e. a :class:`~typing.Set`) and the new one is an equivalant ordered version of it:
+
+        >>> subst = Substitution({'x': {'a', 'b'}})
+        >>> subst.try_add_variable('x', ('a', 'b'))
+        >>> subst
+        {'x': ('a', 'b')}
+
+        Parameters:
+            variable:
+                The name of the variable to add.
+            replacement:
+                The replacement for the variable.
+
+        Raises:
+            ValueError:
+                if the variable cannot be merged because it conflicts with the existing
+                substitution for the variable.
+        """
         if variable not in self:
             self[variable] = replacement
         else:
@@ -541,15 +564,10 @@ class Substitution(Dict[str, VariableReplacement]):
                 raise ValueError
 
     def union_with_variable(self, variable: str, replacement: VariableReplacement):
-        """Try to add the variable with its replacement to the substitution.
-
-        This considers an existing replacement and will only succeed if the new replacement
-        can be merged with the old replacement. Merging can occur if either the two replacements
-        are equivalent. Replacements can also be merged if the old replacement for the variable was
-        unordered (i.e. a :class:`~typing.Set`) and the new one is an equivalant ordered version of it:
-
-        >>> Substitution({'x': {'a', 'b'}}).union_with_variable('x', ('a', 'b'))
-        {'x': ('a', 'b')}
+        """Try to create a new substitution with the given variable added.
+        
+        See :meth:`try_add_variable` for a version of this method that modifies the substitution
+        in place.
 
         Parameters:
             variable:
@@ -562,11 +580,11 @@ class Substitution(Dict[str, VariableReplacement]):
 
         Raises:
             ValueError:
-                if the variable cannnot be merged because it conflicts with the existing
+                if the variable cannot be merged because it conflicts with the existing
                 substitution for the variable.
         """
         new_subst = Substitution(self)
-        new_subst._union_with_variable(variable, replacement)
+        new_subst.try_add_variable(variable, replacement)
         return new_subst
 
     def union(self, *others: 'Substitution'):
@@ -595,7 +613,7 @@ class Substitution(Dict[str, VariableReplacement]):
         new_subst = Substitution(self)
         for other in others:
             for variable, replacement in other.items():
-                new_subst._union_with_variable(variable, replacement)
+                new_subst.try_add_variable(variable, replacement)
         return new_subst
 
     @staticmethod

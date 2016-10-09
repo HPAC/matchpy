@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import inspect
-from typing import Callable, Dict, List, Union
+from typing import Callable, Dict, List, Union, Set
 
 from patternmatcher.expressions import Expression
 from patternmatcher.utils import get_lambda_source
@@ -13,9 +13,29 @@ class Constraint(object):
     def __call__(self, match: Match) -> bool:
         raise NotImplementedError()
 
+    def __eq__(self, other):
+        raise NotImplementedError()
+
+    def __hash__(self):
+        raise NotImplementedError()
+
 class MultiConstraint(Constraint):
-    def __init__(self, *constraints: Constraint) -> None:
-        self.constraints = list(constraints)
+    def __init__(self, constraints: Set[Constraint]) -> None:
+        self.constraints = constraints
+
+    @classmethod
+    def create(cls, *constraints: Constraint) -> Constraint:
+        flat_constraints = set()
+        for constraint in constraints:
+            if isinstance(constraint, MultiConstraint):
+                flat_constraints.update(constraint.constraints)
+            else:
+                flat_constraints.add(constraint)
+
+        if len(flat_constraints) == 1:
+            return flat_constraints.pop()        
+        
+        return cls(flat_constraints)
 
     def __call__(self, match: Match) -> bool:
         return all(c(match) for c in self.constraints)
@@ -23,9 +43,18 @@ class MultiConstraint(Constraint):
     def __str__(self):
         return '(%s)' % ' and '.join(map(str, self.constraints))
 
+    def __repr__(self):
+        return 'MultiConstraint(%s)' % ' and '.join(map(repr, self.constraints))
+
+    def __eq__(self, other):
+        return isinstance(other, MultiConstraint) and self.constraints == other.constraints
+
+    def __hash__(self):
+        return hash(self.constraints)
+
 class EqualVariablesConstraint(Constraint):
     def __init__(self, *variables: str) -> None:
-        self.variables = list(variables)
+        self.variables = set(variables)
 
     def _wrap_expr(self, expr):
         if not isinstance(expr, list):
@@ -33,11 +62,25 @@ class EqualVariablesConstraint(Constraint):
         return expr
 
     def __call__(self, match: Match) -> bool:
-        v1 = self._wrap_expr(match[self.variables[0]])
-        return all(v1 == self._wrap_expr(match[v2]) for v2 in self.variables[1:])
+        variables = self.variables.copy()
+        v1 = self._wrap_expr(match[variables.pop()])
+        while variables:
+            v2 = self._wrap_expr(match[variables.pop()])
+            if v2 != v1:
+                return False
+        return True
 
     def __str__(self):
         return '(%s)' % ' == '.join(self.variables)
+
+    def __repr__(self):
+        return 'EqualVariablesConstraint(%s)' % ' == '.join(self.variables)
+
+    def __eq__(self, other):
+        return isinstance(other, EqualVariablesConstraint) and self.variables == other.variables
+
+    def __hash__(self):
+        return hash(self.variables)
 
 class CustomConstraint(Constraint):
     def __init__(self, constraint: Callable[..., bool]) -> None:
@@ -64,6 +107,15 @@ class CustomConstraint(Constraint):
 
     def __str__(self):
         return '(%s)' % get_lambda_source(self.constraint)
+
+    def __repr__(self):
+        return 'CustomConstraint(%s)' % get_lambda_source(self.constraint)
+
+    def __eq__(self, other):
+        return isinstance(other, CustomConstraint) and self.constraint == other.constraint
+
+    def __hash__(self):
+        return hash(self.constraint)
 
 
 if __name__ == '__main__':
