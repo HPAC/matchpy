@@ -254,7 +254,11 @@ class Operation(Expression, metaclass=OperationMeta):
             operation.operands = new_operands
 
         if operation.one_identity and len(operation.operands) == 1:
-            return operation.operands[0]
+            expr = operation.operands[0]
+            if isinstance(expr, Variable):
+                expr = expr.expression
+            if not isinstance(expr, Wildcard) or (expr.min_count == 1 and expr.fixed_size):
+                return operation.operands[0]
 
         if operation.commutative:
             operation.operands.sort()
