@@ -5,6 +5,7 @@ from typing import (Callable, Dict, Iterator, List, NamedTuple, Optional,
                     Set, Tuple, TupleMeta, Type, Union)
 
 from patternmatcher.multiset import Multiset
+from patternmatcher.utils import cached_property
 
 
 # This class is needed so that Tuple and Enum play nicely with each other
@@ -230,7 +231,7 @@ class Operation(Expression, metaclass=OperationMeta):
         return False
 
     def __eq__(self, other):
-        return isinstance(other, self.__class__) and \
+        return isinstance(self, other.__class__) and \
                self.constraint == other.constraint and \
                len(self.operands) == len(other.operands) and \
                all(x == y for x,y in zip(self.operands, other.operands))
@@ -287,8 +288,8 @@ class Operation(Expression, metaclass=OperationMeta):
         for i, operand in enumerate(self.operands):
             yield from operand.preorder_iter(predicate, position + (i, ))
 
-    def __hash__(self):
-        return hash(tuple([type(self)] + self.operands))
+    def _compute_hash(self):
+        return hash((type(self), ) + tuple(self.operands))
 
 class Atom(Expression): # pylint: disable=abstract-method
     pass
@@ -317,9 +318,9 @@ class Symbol(Atom):
         return True
 
     def __eq__(self, other):
-        return isinstance(other, self.__class__) and self.name == other.name
+        return isinstance(self, other.__class__) and self.name == other.name
 
-    def __hash__(self):
+    def _compute_hash(self):
         return hash((type(self), self.name))
 
 class Variable(Expression):
@@ -428,7 +429,7 @@ class Variable(Expression):
             raise IndexError('Invalid position.')
         return self.expression[key[1:]]
 
-    def __hash__(self):
+    def _compute_hash(self):
         return hash((type(self), self.name, self.expression))
 
 
@@ -507,7 +508,7 @@ class Wildcard(Atom):
                other.min_count == self.min_count and \
                other.fixed_size == self.fixed_size
 
-    def __hash__(self):
+    def _compute_hash(self):
         return hash((type(self), self.min_count, self.fixed_size))
 
 VariableReplacement = Union[Tuple[Expression], Set[Expression], Expression]
@@ -625,6 +626,81 @@ class Substitution(Dict[str, VariableReplacement]):
     def __str__(self):
         return ', '.join('%s ← %s' % (k, self._match_value_repr_str(v)) for k, v in sorted(self.items()))
 
+
+class FrozenExpression(Expression):
+    def __new__(cls, expr: Expression):
+        self = Expression.__new__(cls)
+        object.__setattr__(self, '_frozen', False)
+        self.constraint = expr.constraint
+
+        if isinstance(expr, Operation):
+            self.operands = tuple(freeze(e) for e in expr.operands)
+            self.head = type(self)
+        elif isinstance(expr, Symbol):
+            self.name = expr.name
+            self.head = self
+        elif isinstance(expr, Variable):
+            self.name = expr.name
+            self.expression = freeze(expr.expression)
+            self.head = self.expression.head
+        elif isinstance(expr, Wildcard):
+            self.min_count = expr.min_count
+            self.fixed_size = expr.fixed_size
+            self.head = None
+
+        object.__setattr__(self, '_frozen', True)
+
+        return self
+
+    def __init__(self, expr): # pylint: disable=super-init-not-called
+        pass
+
+    def __setattr__(self, name, value):
+        if self._frozen: # pylint: disable=no-member
+            raise TypeError('Cannot modifiy a FrozenExpression')
+        else:
+            object.__setattr__(self, name, value)
+
+    @cached_property
+    def variables(self) -> Multiset:
+        return super().variables
+
+    @cached_property
+    def symbols(self) -> Multiset:
+        return super().symbols
+
+    @cached_property
+    def is_constant(self) -> Multiset:
+        return super().is_constant
+
+    @cached_property
+    def is_syntactic(self) -> Multiset:
+        return super().is_syntactic
+
+    @cached_property
+    def is_linear(self) -> Multiset:
+        return super().is_linear
+
+    def __hash__(self):
+        # pylint: disable=no-member
+        if not hasattr(self, '_hash'):
+            object.__setattr__(self, '_hash', self._compute_hash())
+        return self._hash
+
+
+_frozen_type_cache = {}
+
+def freeze(expr: Expression) -> FrozenExpression:
+    base = type(expr)
+    if base not in _frozen_type_cache:
+        _frozen_type_cache[base] = type('Frozen' + base.__name__, (FrozenExpression, base), {})
+    return _frozen_type_cache[base](expr)
+
+f = Operation.new('f', Arity.variadic)
+
+expr = f(Symbol('a'), Symbol('b'))
+
+print(expr == freeze(expr))
 
 if __name__ == '__main__':
     import doctest

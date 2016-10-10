@@ -421,6 +421,18 @@ def iterator_chain(initial_data: tuple, *factories: Callable[..., Iterator[tuple
                 break
 
 
+class cached_property(object):
+    def __init__(self, func):
+        self.__doc__ = getattr(func, '__doc__')
+        self.func = func
+
+    def __get__(self, obj, cls):
+        if obj is None:
+            return self
+        value = obj.__dict__[self.func.__name__] = self.func(obj)
+        return value
+
+
 if __name__ == '__main__': # pragma: no cover
     #for p in integer_vector_iter((5, 3), 2):
     #    print (p)

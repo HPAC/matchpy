@@ -4,7 +4,7 @@ import unittest
 from ddt import data, ddt, unpack
 
 from patternmatcher.constraints import CustomConstraint, MultiConstraint
-from patternmatcher.expressions import Operation, Symbol, Variable, Arity, Wildcard
+from patternmatcher.expressions import Operation, Symbol, Variable, Arity, Wildcard, freeze
 from patternmatcher.matching import CommutativePatternsParts
 
 f = Operation.new('f', Arity.variadic)
@@ -63,7 +63,7 @@ class CommutativePatternsPartsTest(unittest.TestCase):
         ([_],                         [],             [],             [],                   [(None, 1)],          []),
     )
     def test_parts(self, expressions, constant, syntactic, seq_vars, fixed_vars, rest):
-        parts = CommutativePatternsParts(None, *expressions)
+        parts = CommutativePatternsParts(None, *map(freeze, expressions))
 
         self.assertListEqual(constant, sorted(parts.constant))
         self.assertListEqual(syntactic, sorted(parts.syntactic))

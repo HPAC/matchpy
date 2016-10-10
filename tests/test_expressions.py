@@ -4,11 +4,11 @@ import doctest
 
 from ddt import data, ddt, unpack
 
-from patternmatcher.expressions import Substitution, Symbol
+from patternmatcher.expressions import Substitution, Symbol, freeze
 import patternmatcher.expressions as expressions
 
-a = Symbol('a')
-b = Symbol('b')
+a = freeze(Symbol('a'))
+b = freeze(Symbol('b'))
 
 @ddt
 class SubstitutionTest(unittest.TestCase):
