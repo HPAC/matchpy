@@ -16,7 +16,7 @@ from patternmatcher.multiset import SortedMultiset as Multiset
 from patternmatcher.syntactic import DiscriminationNet
 from patternmatcher.utils import (commutative_sequence_variable_partition_iter,
                                   fixed_integer_vector_iter, iterator_chain,
-                                  minimum_integer_vector_iter)
+                                  minimum_integer_vector_iter, VariableWithCount)
 
 VarInfo = NamedTuple('VarInfo', [('min_count', int), ('constraint', Constraint)])
 
@@ -53,14 +53,17 @@ class CommutativePatternsParts(object):
         sequence_variables (Multiset[str]):
             A :class:`.Multiset` representing the sequence variables of the pattern.
             Variables are rerpesented by their name. Additional information is stored in
-            :var:`sequence_variable_infos`. For wildcards without variable, the name will be `None`.
-        sequence_variable_infos (Dict[str, VarInfo]):
-            A dictionary mapping variable names to more information about the variable, i.e. its
-            :var:`~Variable.min_count` and :var:`~Variable.constraint`.
+            ``sequence_variable_infos``. For wildcards without variable, the name will be ``None``.
+        sequence_variable_infos (typing.Dict[str, VarInfo]):
+            A dictionary mapping sequence variable names to more information about the variable, i.e. its
+            ``min_count`` and ``constraint``.
         fixed_variables (Multiset[VarInfo]):
             A :class:`~patternmatcher.multiset.Multiset` representing the fixed length variables of the pattern.
             Here the key is a tuple of the form `(name, length)` of the variable.
             For wildcards without variable, the name will be `None`.
+        fixed_variable_infos (typing.Dict[str, VarInfo]):
+            A dictionary mapping fixed variable names to more information about the variable, i.e. its
+            ``min_count`` and ``constraint``.
         rest (Multiset[Expression]):
             A :class:`~patternmatcher.multiset.Multiset` representing the operands of the pattern that do not fall
             into one of the previous categories. That means it contains operation expressions, which
@@ -117,7 +120,7 @@ class CommutativePatternsParts(object):
                 self.rest[expression] += 1
 
     @staticmethod
-    def _update_var_info(infos, name, count, constraint):        
+    def _update_var_info(infos, name, count, constraint):
         if name not in infos:
             infos[name] = VarInfo(count, constraint)
         else:
@@ -154,7 +157,7 @@ class ManyToOneMatcher(object):
 
         for pattern in self.patterns:
             for match in self._match(expression, pattern, Substitution()):
-                yield pattern, match 
+                yield pattern, match
 
     def _match(self, expression, pattern, subst):
         if isinstance(expression, list):
@@ -163,7 +166,7 @@ class ManyToOneMatcher(object):
                 expression = expression[0]
             else:
                 expression = None
-        else:            
+        else:
             expressions = [expression]
 
         if isinstance(pattern, Variable):
@@ -270,10 +273,10 @@ class CommutativeMatcher(object):
                 remaining = rest + (syntactics - matched)
                 if subst is not None:
                     yield from self._matches_from_matching(subst, remaining, pattern)
-            for matching in match_iter:                
+            for matching in match_iter:
                 if self._is_canonical_matching(matching):
                     subst = self._unify_substitutions(*(subgraph[s] for s in matching.items()))
-                    matched = Multiset(e for e, _ in matching) 
+                    matched = Multiset(e for e, _ in matching)
                     remaining = rest + (syntactics - matched)
                     if subst is not None:
                         yield from self._matches_from_matching(subst, remaining, pattern)
@@ -309,51 +312,62 @@ class CommutativeMatcher(object):
                 return False
         return True
 
+    @staticmethod
+    def _variables_with_counts(variables, infos):
+        return tuple(VariableWithCount(name, count, infos[name].min_count) for name, count in variables.items())
+
     def _matches_from_matching(self, subst: Substitution, remaining: Multiset, pattern: CommutativePatternsParts) -> Iterator[Substitution]:
-        needed_length = pattern.sequence_variable_min_length + pattern.fixed_variable_length + pattern.rest_length
+        needed_length = len(pattern.sequence_variables) + len(pattern.fixed_variables) + len(pattern.rest)
 
         if sum(remaining.values()) < needed_length:
             return
 
-        fixed_vars = Multiset(pattern.fixed_variables) # type: Multiset[Tuple[str, int]]
-        for (name, length), count in pattern.fixed_variables.items():
+        fixed_vars = Multiset(pattern.fixed_variables) # type: Multiset[str]
+        for name, count in pattern.fixed_variables.items():
             if name in subst:
                 if pattern.operation.associative and isinstance(subst[name], pattern.operation):
                     needed_count = Multiset(cast(Operation, subst[name]).operands) # type: Multiset[Expression]
-                elif isinstance(subst[name], (list, tuple)):
-                    needed_count = Multiset(cast(Iterable[Expression], subst[name]))
-                else:
+                elif isinstance(subst[name], Expression):
                     needed_count = Multiset({subst[name]: 1})
+                else:
+                    needed_count = Multiset(cast(Iterable[Expression], subst[name]))
                 if count > 1:
-                    for k in needed_count:
-                        needed_count[k] = needed_count[k] * count
+                    needed_count *= count
                 if not (needed_count <= remaining):
                     return
                 remaining -= needed_count
-                del fixed_vars[(name, length)]
+                del fixed_vars[name]
 
         factories = [self._fixed_expr_factory(e) for e in pattern.rest]
-        
+
         if not pattern.operation.associative:
-            factories += [self._fixed_var_iter_factory(v, l, c) for (v, l), c in fixed_vars.items()]
+            for name, count in fixed_vars.items():
+                info = pattern.fixed_variable_infos[name]
+                factory = self._fixed_var_iter_factory(name, count, info.min_count, info.constraint)
+                factories.append(factory)
 
         expr_counter = Multiset(remaining) # type: Multiset[Expression]
 
         for rem_expr, subst in iterator_chain((expr_counter, subst), *factories):
-            sequence_vars = pattern.sequence_variables
+            sequence_vars = self._variables_with_counts(pattern.sequence_variables, pattern.sequence_variable_infos)
+            constraints = [pattern.sequence_variable_infos[name].constraint for name in pattern.sequence_variables]
             if pattern.operation.associative:
-                sequence_vars = sequence_vars + fixed_vars
+                sequence_vars += self._variables_with_counts(fixed_vars, pattern.fixed_variable_infos)
+                constraints += [pattern.fixed_variable_infos[name].constraint for name in fixed_vars]
+            combined_constraint = MultiConstraint.create(*constraints)
+
             for sequence_subst in commutative_sequence_variable_partition_iter(Multiset(rem_expr), sequence_vars):
                 s = Substitution((var, sorted(exprs)) for var, exprs in sequence_subst.items())
                 if pattern.operation.associative:
-                    for v, l in fixed_vars:
-                        value = cast(list, v)
+                    for v in fixed_vars:
+                        l = pattern.fixed_variable_infos[v].min_count
+                        value = cast(list, s[v])
                         if len(value) > l:
                             s[v] = pattern.operation(*value)
                         elif l == len(value) and l == 1:
                             s[v] = value[0]
                 result = self._unify_substitutions(subst, s)
-                if result is not None:
+                if result is not None and (combined_constraint is None or combined_constraint(result)):
                     yield result
 
     def _fixed_expr_factory(self, expression):
@@ -367,50 +381,32 @@ class CommutativeMatcher(object):
         return factory
 
     @staticmethod
-    def _fixed_var_iter_factory(variable, length, count):
+    def _fixed_var_iter_factory(variable, count, length, constraint=None):
         def factory(expressions, substitution):
             if variable in substitution:
                 value = isinstance(substitution[variable], Expression) and [substitution[variable]] or substitution[variable]
                 existing = Multiset(value) * count
                 if not (existing <= expressions):
                     return
-                # TODO: if expression.constraint is None or expression.constraint(subst):
-                yield expressions - existing, substitution
+                if constraint is None or constraint(substitution):
+                    yield expressions - existing, substitution
             else:
                 if length == 1:
-                    for expr, expr_count in expressions.most_common():
-                        if expr_count < count:
-                            break
-                        new_substitution = Substitution(substitution)
-                        new_substitution[variable] = expr
-                        yield expressions - Multiset({expr: count}), new_substitution
+                    for expr, expr_count in expressions:
+                        if expr_count >= count:
+                            new_substitution = Substitution(substitution)
+                            new_substitution[variable] = expr                            
+                            if constraint is None or constraint(new_substitution):
+                                yield expressions - Multiset({expr: count}), new_substitution
                 else:
                     exprs_with_counts = list(expressions.items())
                     counts = tuple(c // count for _, c in exprs_with_counts)
                     for subset in fixed_integer_vector_iter(counts, length):
                         sub_counter = Multiset(dict((exprs_with_counts[i][0], c * count) for i, c in enumerate(subset)))
                         new_substitution = Substitution(substitution)
-                        new_substitution[variable] = list(sub_counter)
-                        yield expressions - sub_counter, new_substitution
-
-        return factory
-
-    @staticmethod
-    def _sequence_var_iter_factory(variable, minimum):
-        def factory(expressions, substitution):
-            if variable in substitution:
-                existing = Multiset(substitution[variable])
-                if not (existing <= expressions):
-                    return
-                yield expressions - existing, substitution
-            else:
-                exprs_with_counts = list(expressions.items())
-                counts = tuple(c for _, c in exprs_with_counts)
-                for subset in minimum_integer_vector_iter(counts, minimum):
-                    sub_counter = Multiset(dict((exprs_with_counts[i][0], c) for i, c in enumerate(subset)))
-                    new_substitution = Substitution(substitution)
-                    new_substitution[variable] = list(sub_counter)
-                    yield expressions - sub_counter, new_substitution
+                        new_substitution[variable] = list(sub_counter)     
+                        if constraint is None or constraint(new_substitution):
+                            yield expressions - sub_counter, new_substitution
 
         return factory
 

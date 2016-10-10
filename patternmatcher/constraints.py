@@ -1,21 +1,25 @@
 # -*- coding: utf-8 -*-
 import inspect
-from typing import Callable, Dict, List, Union, Set
+from typing import Callable, Set, Optional
+from abc import ABCMeta, abstractmethod
 
-from patternmatcher.expressions import Expression
+from patternmatcher.expressions import Substitution
 from patternmatcher.utils import get_lambda_source
-
-Match = Dict[str, Union[Expression, List[Expression]]]
 
 # pylint: disable=too-few-public-methods
 
-class Constraint(object):
-    def __call__(self, match: Match) -> bool:
+class Constraint(object, metaclass=ABCMeta):
+    """Base for pattern constraints.
+    """
+    @abstractmethod
+    def __call__(self, match: Substitution) -> bool:
         raise NotImplementedError()
 
+    @abstractmethod
     def __eq__(self, other):
         raise NotImplementedError()
 
+    @abstractmethod
     def __hash__(self):
         raise NotImplementedError()
 
@@ -24,20 +28,22 @@ class MultiConstraint(Constraint):
         self.constraints = constraints
 
     @classmethod
-    def create(cls, *constraints: Constraint) -> Constraint:
+    def create(cls, *constraints: Optional[Constraint]) -> Optional[Constraint]:
         flat_constraints = set()
         for constraint in constraints:
             if isinstance(constraint, MultiConstraint):
                 flat_constraints.update(constraint.constraints)
-            else:
+            elif constraint is not None:
                 flat_constraints.add(constraint)
 
         if len(flat_constraints) == 1:
-            return flat_constraints.pop()        
-        
+            return flat_constraints.pop()
+        elif len(flat_constraints) == 0:
+            return None
+
         return cls(flat_constraints)
 
-    def __call__(self, match: Match) -> bool:
+    def __call__(self, match: Substitution) -> bool:
         return all(c(match) for c in self.constraints)
 
     def __str__(self):
@@ -56,12 +62,13 @@ class EqualVariablesConstraint(Constraint):
     def __init__(self, *variables: str) -> None:
         self.variables = set(variables)
 
-    def _wrap_expr(self, expr):
+    @staticmethod
+    def _wrap_expr(expr):
         if not isinstance(expr, list):
             return [expr]
         return expr
 
-    def __call__(self, match: Match) -> bool:
+    def __call__(self, match: Substitution) -> bool:
         variables = self.variables.copy()
         v1 = self._wrap_expr(match[variables.pop()])
         while variables:
@@ -98,7 +105,7 @@ class CustomConstraint(Constraint):
             elif param.kind == inspect.Parameter.POSITIONAL_ONLY:
                 raise ValueError('constraint cannot have positional-only arguments')
 
-    def __call__(self, match: Match) -> bool:
+    def __call__(self, match: Substitution) -> bool:
         if self.allow_any:
             return self.constraint(**match)
         args = dict((name, match[name]) for name in self.variables)
