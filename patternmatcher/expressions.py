@@ -34,7 +34,7 @@ class Arity(_ArityBase, Enum, metaclass=_ArityMeta, _root=True):
     binary      = (2, True)
     ternary     = (3, True)
     polyadic    = (2, False)
-    variadic    = (1, False)
+    variadic    = (0, False)
 
     def __repr__(self):
         return "%s.%s" % (self.__class__.__name__, self._name_)
@@ -104,6 +104,48 @@ class OperationMeta(type):
         return 'Operation[%r, arity=%r, associative=%r, commutative=%r, one_identity=%r]' % \
             (cls.name, cls.arity, cls.associative, cls.commutative, cls.one_identity)
 
+    def __call__(cls, *operands: Expression, constraint:Optional[Constraint]=None):
+        # __call__ is overriden, so that for one_identity operations with a single argument
+        # that argument can be returned instead
+        operands = list(operands)
+        if not cls._simplify(operands):
+            return operands[0]
+
+        operation = object.__new__(cls)
+        operation.__init__(*operands, constraint=constraint)
+
+        return operation
+
+    def _simplify(cls, operands: List[Expression]) -> bool:
+        """Flatten/sort the operands of associative/commutative operations.
+
+        Returns:
+            False iff ``one_identity`` is True and the operation contains a single
+            argument that is not a sequence wildcard.        
+        """
+
+        if cls.associative:
+            new_operands = [] # type: List[Expression]
+            for operand in operands:
+                if isinstance(operand, cls):
+                    new_operands.extend(operand.operands) # type: ignore
+                else:
+                    new_operands.append(operand)
+            operands.clear()
+            operands.extend(new_operands)
+
+        if cls.one_identity and len(operands) == 1:
+            expr = operands[0]
+            if isinstance(expr, Variable):
+                expr = expr.expression
+            if not isinstance(expr, Wildcard) or (expr.min_count == 1 and expr.fixed_size):
+                return False
+
+        if cls.commutative:
+            operands.sort()
+
+        return True
+
 
 class Operation(Expression, metaclass=OperationMeta):
     """Base class for all operations."""
@@ -140,7 +182,7 @@ class Operation(Expression, metaclass=OperationMeta):
     the expression `f(a)` if simplified to `a`.
     """
 
-    def __new__(cls, *operands: Expression, constraint:Optional[Constraint]=None):
+    def __init__(self, *operands: Expression, constraint: Optional[Constraint]=None) -> None:
         """Base class for all expressions.
 
         All expressions are immutable, i.e. their attributes should not be changed,
@@ -153,19 +195,19 @@ class Operation(Expression, metaclass=OperationMeta):
                 An optional constraint expression, which is checked for each match
                 to verify it.
         """
-        operation = object.__new__(cls)
-        Expression.__init__(operation, constraint)
+        super().__init__(constraint)
 
-        operation.operands = list(operands)
-        operation.head = cls
-        operation = cls._simplify(operation)
+        if len(operands) < self.arity.min_count:
+            raise ValueError("Operation %s got arity %s, but got %d operands." % (self.__class__.__name__, self.arity, len(operands)))
 
-        return operation
+        if self.arity.fixed_size and len(operands) > self.arity.min_count:
+            msg = "Operation %s got arity %s, but got %d operands." % (self.__class__.__name__, self.arity, len(operands))
+            if self.associative:
+                msg += " Associative operations should have a variadic/polyadic arity."
+            raise ValueError(msg)
 
-    def __init__(self, *operands: Expression, constraint: Optional[Constraint]=None) -> None: # pylint: disable=W0231
-        # Expression.__init__ is called in __new__()
-        # for mypy so that it knows there is a property `operands`
-        self.operands = self.operands # type: List[Expression]
+        self.operands = list(operands)
+        self.head = type(self)
 
     def __str__(self):
         if self.constraint:
@@ -241,29 +283,6 @@ class Operation(Expression, metaclass=OperationMeta):
             return self
         head, *remainder = key
         return self.operands[head][remainder]
-
-    @staticmethod
-    def _simplify(operation: 'Operation') -> Expression:
-        if operation.associative:
-            new_operands = [] # type: List[Expression]
-            for operand in operation.operands:
-                if isinstance(operand, operation.__class__):
-                    new_operands.extend(operand.operands) # type: ignore
-                else:
-                    new_operands.append(operand)
-            operation.operands = new_operands
-
-        if operation.one_identity and len(operation.operands) == 1:
-            expr = operation.operands[0]
-            if isinstance(expr, Variable):
-                expr = expr.expression
-            if not isinstance(expr, Wildcard) or (expr.min_count == 1 and expr.fixed_size):
-                return operation.operands[0]
-
-        if operation.commutative:
-            operation.operands.sort()
-
-        return operation
 
     @property
     def is_constant(self):
@@ -693,8 +712,13 @@ class Substitution(Dict[str, VariableReplacement]):
     def __str__(self):
         return ', '.join('%s ← %s' % (k, self._match_value_repr_str(v)) for k, v in sorted(self.items()))
 
+class FrozenMeta(type):
+    __call__ = type.__call__
 
-class FrozenExpression(Expression):
+class FrozenOperationMeta(FrozenMeta, OperationMeta):
+    pass
+
+class FrozenExpression(Expression, metaclass=FrozenMeta):
     def __new__(cls, expr: Expression):
         self = Expression.__new__(cls)
         object.__setattr__(self, '_frozen', False)
@@ -760,7 +784,8 @@ _frozen_type_cache = {}
 def freeze(expr: Expression) -> FrozenExpression:
     base = type(expr)
     if base not in _frozen_type_cache:
-        _frozen_type_cache[base] = type('Frozen' + base.__name__, (FrozenExpression, base), {})
+        meta = isinstance(base, OperationMeta) and FrozenOperationMeta or FrozenMeta
+        _frozen_type_cache[base] = meta('Frozen' + base.__name__, (FrozenExpression, base), {})
     return _frozen_type_cache[base](expr)
 
 f = Operation.new('f', Arity.variadic)
