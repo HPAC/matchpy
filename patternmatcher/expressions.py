@@ -96,10 +96,7 @@ class Expression(object):
             return self
         raise IndexError("Invalid position")
 
-    def __hash__(self):
-        raise NotImplementedError()
-
-class OperationMeta(type):
+class _OperationMeta(type):
     def __repr__(cls):
         return 'Operation[%r, arity=%r, associative=%r, commutative=%r, one_identity=%r]' % \
             (cls.name, cls.arity, cls.associative, cls.commutative, cls.one_identity)
@@ -147,7 +144,7 @@ class OperationMeta(type):
         return True
 
 
-class Operation(Expression, metaclass=OperationMeta):
+class Operation(Expression, metaclass=_OperationMeta):
     """Base class for all operations."""
 
     name = None # type: str
@@ -188,12 +185,15 @@ class Operation(Expression, metaclass=OperationMeta):
         All expressions are immutable, i.e. their attributes should not be changed,
         as several attributes are computed at instantiation and are not refreshed.
 
-        Arguments:
+        Args:
             operands
                 The operands for the operation expression.
             constraint
                 An optional constraint expression, which is checked for each match
                 to verify it.
+
+        Raises:
+            ValueError: if the operand count does not match the operation's arity.
         """
         super().__init__(constraint)
 
@@ -232,7 +232,7 @@ class Operation(Expression, metaclass=OperationMeta):
         >>> str(Times(Symbol('a'), Symbol('b')))
         '*(a, b)'
 
-        Arguments:
+        Args:
             name
                 Name or symbol for the operator. Will be used as name for the new class if
                 `class_name` is not specified.
@@ -244,6 +244,9 @@ class Operation(Expression, metaclass=OperationMeta):
             attributes
                 Attributes to set in the new class. For a list of possible attributes see the
                 docstring of :class:`Operation`.
+
+        Raises:
+            ValueError: if the class name of the operation is not a valid class identifier.
         """
         class_name = class_name or name
         if not class_name.isidentifier() or keyword.iskeyword(class_name):
@@ -314,7 +317,7 @@ class Operation(Expression, metaclass=OperationMeta):
     def _compute_hash(self):
         return hash((type(self), ) + tuple(self.operands))
 
-class Atom(Expression): # pylint: disable=abstract-method
+class Atom(Expression):
     pass
 
 class Symbol(Atom):
@@ -355,7 +358,7 @@ class Variable(Expression):
 
     def __init__(self, name: str, expression: Expression, constraint:Optional[Constraint]=None) -> None:
         """
-        Arguments:
+        Args:
             name
                 The name of the variable that is used to capture its value in the match.
                 Can be used to access its value in constraints or for replacement.
@@ -365,8 +368,15 @@ class Variable(Expression):
                 any expression.
             constraint
                 See :class:`Expression`.
+
+        Raises:
+            ValueError: if the expression contains a variable. Nested variables are not supported.
         """
         super().__init__(constraint)
+
+        if expression.variables:
+            raise ValueError("Cannot have nested variables in expression.")
+
         self.name = name
         self.expression = expression
         self.head = expression.head
@@ -396,9 +406,9 @@ class Variable(Expression):
 
     @staticmethod
     def symbol(name: str, symbol_type:Type[Symbol]=Symbol, constraint:Optional[Constraint]=None):
-        """Create a :class:`Variable` with a :class:`SymbolWildcard.
+        """Create a :class:`Variable` with a :class:`SymbolWildcard`.
 
-        Parameters:
+        Args:
             name:
                 The name of the variable.
             symbol_type:
@@ -483,7 +493,7 @@ class Wildcard(Atom):
 
     def __init__(self, min_count: int, fixed_size: bool, constraint: Optional[Constraint]=None) -> None:
         """
-        Arguments:
+        Args:
             min_count
                 The minimum number of expressions this wildcard will match. Must be a non-negative number.
             fixed_size
@@ -493,6 +503,9 @@ class Wildcard(Atom):
                 An optional constraint for expressions to be considered a match. If set, this
                 callback is invoked for every match and the return value is utilized to decide
                 whether the match is valid.
+
+        Raises:
+            ValueError: if ``min_count`` is negative or when trying to create a fixed zero-length wildcard.
         """
         if min_count < 0:
             raise ValueError("min_count cannot be negative")
@@ -522,7 +535,7 @@ class Wildcard(Atom):
     def symbol(symbol_type:Type[Symbol]=Symbol):
         """Create a :class:`SymbolWildcard` that matches a single :class:`Symbol` argument.
 
-        Parameters:
+        Args:
             symbol_type:
                 An optional subclass of :class:`Symbol` to further limit which kind of smybols are
                 matched by the wildcard.
@@ -572,7 +585,7 @@ class SymbolWildcard(Wildcard):
 
     def __init__(self, symbol_type:Type[Symbol]=Symbol, constraint: Optional[Constraint]=None) -> None:
         """
-        Arguments:
+        Args:
             symbol_type
                 An optional subclass of :class:`Symbol` to further constraint what the wildcard matches.
                 It will then only match symbols of that type.
@@ -618,7 +631,7 @@ class Substitution(Dict[str, VariableReplacement]):
         >>> subst
         {'x': ('a', 'b')}
 
-        Parameters:
+        Args:
             variable:
                 The name of the variable to add.
             replacement:
@@ -656,7 +669,7 @@ class Substitution(Dict[str, VariableReplacement]):
         See :meth:`try_add_variable` for a version of this method that modifies the substitution
         in place.
 
-        Parameters:
+        Args:
             variable:
                 The name of the variable to add.
             replacement:
@@ -685,7 +698,7 @@ class Substitution(Dict[str, VariableReplacement]):
         >>> str(subst1.union(subst2))
         'x ← (a, b), y ← (c)'
 
-        Parameters:
+        Args:
             others:
                 The other substitutions to merge with this one.
 
@@ -712,13 +725,13 @@ class Substitution(Dict[str, VariableReplacement]):
     def __str__(self):
         return ', '.join('%s ← %s' % (k, self._match_value_repr_str(v)) for k, v in sorted(self.items()))
 
-class FrozenMeta(type):
+class _FrozenMeta(type):
     __call__ = type.__call__
 
-class FrozenOperationMeta(FrozenMeta, OperationMeta):
+class _FrozenOperationMeta(_FrozenMeta, _OperationMeta):
     pass
 
-class FrozenExpression(Expression, metaclass=FrozenMeta):
+class FrozenExpression(Expression, metaclass=_FrozenMeta):
     def __new__(cls, expr: Expression):
         self = Expression.__new__(cls)
         object.__setattr__(self, '_frozen', False)
@@ -784,15 +797,13 @@ _frozen_type_cache = {}
 def freeze(expr: Expression) -> FrozenExpression:
     base = type(expr)
     if base not in _frozen_type_cache:
-        meta = isinstance(base, OperationMeta) and FrozenOperationMeta or FrozenMeta
+        meta = isinstance(base, _OperationMeta) and _FrozenOperationMeta or _FrozenMeta
         _frozen_type_cache[base] = meta('Frozen' + base.__name__, (FrozenExpression, base), {})
     return _frozen_type_cache[base](expr)
 
-f = Operation.new('f', Arity.variadic)
-
-expr = f(Symbol('a'), Symbol('b'))
-
-print(expr == freeze(expr))
+def unfreeze(expr: FrozenExpression) -> Expression:
+    # TODO
+    return expr
 
 if __name__ == '__main__':
     import doctest

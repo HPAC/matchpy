@@ -135,7 +135,6 @@ class MatchTest(unittest.TestCase):
         (f(f(a, b)),        f(x_),                               {'x': f(a, b)}),
         (f2(a, b),          f(x_, y_),                           None),
         (f(f(a, b)),        f(f(x_, y_)),                        {'x': a,       'y': b}),
-        (a,                 Variable('x', Variable('y', a)),     {'x': a,       'y': a})
     )
     def test_wildcard_dot_match(self, expr, pattern, expected_match):
         result = list(match(expr, pattern))
@@ -426,8 +425,6 @@ class SubstituteTest(unittest.TestCase):
         (x_,                                {'x': b},                b,                  True),
         (x_,                                {'x': [a, b]},           [a, b],             True),
         (y_,                                {'x': b},                y_,                 False),
-        (Variable('x', Variable('y', a)),   {'y': b},                Variable('x', b),   True),
-        (Variable('x', Variable('y', a)),   {'y': [b]},              Variable('x', b),   True),
         (f(x_),                             {'x': b},                f(b),               True),
         (f(x_),                             {'y': b},                f(x_),              False),
         (f(x_),                             {},                      f(x_),              False),
