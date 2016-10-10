@@ -5,11 +5,14 @@ import math
 import re
 from typing import (Callable, Dict, Generic,  # pylint: disable=unused-import
                     Iterator, List, Mapping, Optional, Sequence, Tuple,
-                    TypeVar, cast)
+                    TypeVar, cast, NamedTuple, Iterable)
 
 from patternmatcher.multiset import Multiset
 
 T = TypeVar('T')
+
+
+VariableWithCount = NamedTuple('VariableWithCount', [('name', str), ('count', int), ('minimum', int)])
 
 def partitions_with_limits(values: List[T], limits: List[Tuple[int, int]]) -> Iterator[Tuple[List[T], ...]]:
     limits = list(limits)
@@ -247,31 +250,27 @@ def commutative_partition_iter(values: Sequence[T], min_vect: Sequence[int], max
             if i < 0:
                 return
 
-def _make_iter_factory(value, total, var_names, var_counts):
+def _make_iter_factory(value, total, variables: List[VariableWithCount]):
+    var_counts = [v.count for v in variables]
     def factory(subst):
         for solution in solve_linear_diop(total, *var_counts):
-            for var, count in zip(var_names, solution):
-                subst[var][value] = count
+            for var, count in zip(variables, solution):
+                subst[var.name][value] = count
             yield (subst, )
 
     return factory
 
-def commutative_sequence_variable_partition_iter(values: Multiset, variables: Multiset) -> Iterator[Dict[str, Multiset]]:
-    sorted_vars = sorted(variables.items())
-    var_names = [name for (name, _), _ in sorted_vars]
-    var_counts = [count for _, count in sorted_vars]
-    var_minimums = dict(variables.keys())
-
+def commutative_sequence_variable_partition_iter(values: Multiset[T], variables: List[VariableWithCount]) -> Iterator[Dict[str, Multiset[T]]]:
     iterators = []
     for value, count in values.items():
-        iterators.append(_make_iter_factory(value, count, var_names, var_counts))
+        iterators.append(_make_iter_factory(value, count, variables))
 
-    initial = dict((var, Multiset()) for var in var_names) # type: Dict[str, Multiset]
+    initial = dict((var.name, Multiset()) for var in variables) # type: Dict[str, Multiset[T]]
 
     for (subst, ) in iterator_chain((initial, ), *iterators):
         valid = True
-        for var, counter in subst.items():
-            if sum(counter.values()) < var_minimums[var]:
+        for var in variables:
+            if len(subst[var.name]) < var.minimum:
                 valid = False
                 break
         if valid:

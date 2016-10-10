@@ -4,9 +4,15 @@ import math
 import unittest
 
 import hypothesis.strategies as st
+from ddt import data, ddt, unpack
 from hypothesis import given, example
 
-from patternmatcher.utils import extended_euclid, fixed_sum_vector_iter, base_solution_linear, solve_linear_diop
+from patternmatcher.multiset import Multiset
+from patternmatcher.utils import (base_solution_linear,
+                                  commutative_sequence_variable_partition_iter,
+                                  extended_euclid, fixed_sum_vector_iter,
+                                  solve_linear_diop, VariableWithCount)
+
 
 def is_unique_list(l):
     for i, v1 in enumerate(l):
@@ -123,6 +129,101 @@ class SolveLinearDiopTest(unittest.TestCase):
         solutions = list(solve_linear_diop(c, *coeffs))
         self.assertTrue(is_unique_list(solutions), 'Duplicate solution found')
 
+
+@st.composite
+def sequence_vars(draw):
+    num_vars = draw(st.integers(min_value=1, max_value=4))
+
+    variables = []
+    for i in range(num_vars):
+        name = 'var%d' % i
+        count = draw(st.integers(min_value=1, max_value=4))
+        minimum = draw(st.integers(min_value=0, max_value=2))
+
+        variables.append(VariableWithCount(name, count, minimum))
+
+    return variables
+
+
+@ddt
+class CommutativeSequenceVariablePartitionIterTest(unittest.TestCase):
+    @given(sequence_vars(), st.lists(st.integers(1, 4), min_size=1, max_size=10))
+    def test_correctness_randomized(self, variables, values):
+        values = Multiset(values)
+        for subst in commutative_sequence_variable_partition_iter(values, variables):
+            self.assertEqual(len(variables), len(subst))
+            result_union = Multiset()
+            for var in variables:
+                self.assertGreaterEqual(len(subst[var.name]), var.minimum)
+                result_union.update(subst[var.name] * var.count)
+            self.assertEqual(result_union, values)
+    
+    @unpack
+    @data(
+        # Variables             Values      Expected iter count
+        # Variables have the form (count, minimum length)
+        ([],                    'a',        0),
+        ([],                    '',         1),
+        ([(1, 0)],              '',         1),
+        ([(1, 0)],              'a',        1),
+        ([(1, 1)],              '',         0),
+        ([(1, 1)],              'a',        1),
+        ([(1, 2)],              'a',        0),
+        ([(2, 0)],              '',         1),
+        ([(2, 0)],              'a',        0),
+        ([(2, 1)],              '',         0),
+        ([(2, 1)],              'a',        0),
+        ([(2, 2)],              'a',        0),
+        ([(2, 0)],              'ab',       0),
+        ([(2, 1)],              'ab',       0),
+        ([(2, 2)],              'ab',       0),
+        ([(2, 0)],              'aa',       1),
+        ([(2, 1)],              'aa',       1),
+        ([(2, 2)],              'aa',       0),
+        ([(2, 0)],              'aaa',      0),
+        ([(2, 1)],              'aaa',      0),
+        ([(2, 2)],              'aaa',      0),
+        ([(2, 0)],              'aabb',     1),
+        ([(2, 1)],              'aabb',     1),
+        ([(2, 2)],              'aabb',     1),
+        ([(1, 0), (1, 0)],      '',         1),
+        ([(1, 0), (1, 0)],      'a',        2),
+        ([(1, 1), (1, 0)],      '',         0),
+        ([(1, 1), (1, 0)],      'a',        1),
+        ([(1, 0), (1, 0)],      'aa',       3),
+        ([(1, 1), (1, 0)],      'aa',       2),
+        ([(1, 0), (1, 0)],      'ab',       4),
+        ([(1, 1), (1, 0)],      'ab',       3),
+        ([(1, 0), (1, 0)],      'aaa',      4),
+        ([(1, 1), (1, 0)],      'aaa',      3),
+        ([(1, 0), (1, 0)],      'aab',      6),
+        ([(1, 1), (1, 0)],      'aab',      5),
+        ([(1, 0), (1, 0)],      'a',        2),
+        ([(1, 1), (1, 0)],      'a',        1),
+        ([(2, 0), (1, 0)],      '',         1),
+        ([(2, 0), (1, 0)],      'aa',       2),
+        ([(2, 1), (1, 0)],      '',         0),
+        ([(2, 1), (1, 0)],      'aa',       1),
+        ([(2, 0), (1, 0)],      'ab',       1),
+        ([(2, 1), (1, 0)],      'ab',       0),
+        ([(2, 0), (1, 0)],      'aaa',      2),
+        ([(2, 1), (1, 0)],      'aaa',      1),
+        ([(2, 0), (1, 0)],      'aab',      2),
+        ([(2, 1), (1, 0)],      'aab',      1),
+    )
+    def test_correctness(self, variables, values, expected_iter_count):
+        values = Multiset(values)
+        variables = [VariableWithCount('var%d' % i, c, m) for i, (c, m) in enumerate(variables)]
+        count = 0
+        for subst in commutative_sequence_variable_partition_iter(values, variables):
+            self.assertEqual(len(variables), len(subst), "Wrong number of variables in the substitution")
+            result_union = Multiset()
+            for var in variables:
+                self.assertGreaterEqual(len(subst[var.name]), var.minimum, "Variable did not get its minimum number of expressions")
+                result_union.update(subst[var.name] * var.count)
+            self.assertEqual(result_union, values, "Substitution is not a partition of the values")
+            count += 1
+        self.assertEqual(count, expected_iter_count, "Invalid number of substitution in the iterable")
 
 if __name__ == '__main__':
     unittest.main()
