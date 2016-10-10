@@ -368,8 +368,26 @@ class Variable(Expression):
 
     @staticmethod
     def dot(name: str, constraint:Optional[Constraint]=None):
-        """Creates a `Variable` with a :class:`Wildcard` that matches exactly one argument."""
+        """Create a :class:`Variable` with a :class:`Wildcard` that matches exactly one argument."""
         return Variable(name, Wildcard.dot(), constraint)
+
+    @staticmethod
+    def symbol(name: str, symbol_type:Type[Symbol]=Symbol, constraint:Optional[Constraint]=None):
+        """Create a :class:`Variable` with a :class:`SymbolWildcard.
+
+        Parameters:
+            name:
+                The name of the variable.
+            symbol_type:
+                An optional subclass of :class:`Symbol` to further limit which kind of smybols are
+                matched by the wildcard.
+            constraint:
+                An optional :class:`.Constraint` which can filter wwhat is matched by the variable.
+
+        Returns:
+            A :class:`Variable` that matches a :class:`Symbol` with type ``symbol_type``.
+        """
+        return Variable(name, Wildcard.symbol(symbol_type), constraint)
 
     @staticmethod
     def star(name: str, constraint:Optional[Constraint]=None):
@@ -478,6 +496,20 @@ class Wildcard(Atom):
         return Wildcard(min_count=length, fixed_size=True)
 
     @staticmethod
+    def symbol(symbol_type:Type[Symbol]=Symbol):
+        """Create a :class:`SymbolWildcard` that matches a single :class:`Symbol` argument.
+
+        Parameters:
+            symbol_type:
+                An optional subclass of :class:`Symbol` to further limit which kind of smybols are
+                matched by the wildcard.
+
+        Returns:
+            A :class:`SymbolWildcard` that matches the ``symbol_type``.
+        """
+        return SymbolWildcard(symbol_type)
+
+    @staticmethod
     def star():
         """Creates a :class:`Wildcard` that matches any number of arguments."""
         return Wildcard(min_count=0, fixed_size=False)
@@ -510,6 +542,37 @@ class Wildcard(Atom):
 
     def _compute_hash(self):
         return hash((type(self), self.min_count, self.fixed_size))
+
+
+class SymbolWildcard(Wildcard):
+    """A special :class:`Wildcard` that matches a :class:`Symbol`."""
+
+    def __init__(self, symbol_type:Type[Symbol]=Symbol, constraint: Optional[Constraint]=None) -> None:
+        """
+        Arguments:
+            symbol_type
+                An optional subclass of :class:`Symbol` to further constraint what the wildcard matches.
+                It will then only match symbols of that type.
+            constraint
+                An optional constraint for expressions to be considered a match. If set, this
+                callback is invoked for every match and the return value is utilized to decide
+                whether the match is valid.
+
+        Raises:
+            TypeError: if ``symbol_type`` is not a subclass of :class:`Symbol`.
+        """
+        super().__init__(1, True, constraint)
+
+        if not issubclass(symbol_type, Symbol):
+            raise TypeError("The type constraint must be a subclass of Symbol")
+        
+        self.symbol_type = symbol_type
+
+    def __repr__(self):
+        if self.constraint:
+            return '%s(%r, constraint=%r)' % (self.__class__.__name__, self.symbol_type, self.constraint)
+        return '%s(%r)' % (self.__class__.__name__, self.symbol_type)
+
 
 VariableReplacement = Union[Tuple[Expression], Set[Expression], Expression]
 

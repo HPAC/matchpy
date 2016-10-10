@@ -17,6 +17,9 @@ from patternmatcher.utils import match_repr_str
 #     for _, subst in matcher.match(expression):
 #         yield subst
 
+class SpecialSymbol(Symbol):
+    pass
+
 f = Operation.new('f', Arity.variadic)
 f2 = Operation.new('f2', Arity.variadic)
 fc = Operation.new('fc', Arity.variadic, commutative=True)
@@ -28,10 +31,13 @@ fac2 = Operation.new('fac2', Arity.variadic, associative=True, commutative=True)
 a = Symbol('a')
 b = Symbol('b')
 c = Symbol('c')
+s = SpecialSymbol('s')
 _ = Wildcard.dot()
 x_ = Variable.dot('x')
 y_ = Variable.dot('y')
 z_ = Variable.dot('z')
+s_ = Variable.symbol('s')
+ss_ = Variable.symbol('ss', SpecialSymbol)
 __ = Wildcard.plus()
 x__ = Variable.plus('x')
 y__ = Variable.plus('y')
@@ -295,6 +301,24 @@ class MatchTest(unittest.TestCase):
             self.assertIn(expected_match, result, 'Expression %s and %s did not yield the match %s but were supposed to' % (expr, pattern, match_repr_str(expected_match)))
         for result_match in result:
             self.assertIn(result_match, expected_matches, 'Expression %s and %s yielded the unexpected match %s' % (expr, pattern, match_repr_str(result_match)))
+
+
+    @unpack
+    @data(
+        (a,                   s_,       [{'s': a}]),
+        (s,                   s_,       [{'s': s}]),
+        (f(a),                s_,       []),
+        (a,                   ss_,      []),
+        (f(a),                ss_,      []),
+        (s,                   ss_,      [{'ss': s}])
+    )
+    def test_wildcard_symbol_match(self, expr, pattern, expected_matches):
+        result = list(match(expr, pattern))
+        for expected_match in expected_matches:
+            self.assertIn(expected_match, result, 'Expression %s and %s did not yield the match %s but were supposed to' % (expr, pattern, match_repr_str(expected_match)))
+        for result_match in result:
+            self.assertIn(result_match, expected_matches, 'Expression %s and %s yielded the unexpected match %s' % (expr, pattern, match_repr_str(result_match)))
+
 
     @unpack
     @data(

@@ -7,7 +7,7 @@ from patternmatcher.constraints import (Constraint, CustomConstraint,
                                         EqualVariablesConstraint,
                                         MultiConstraint)
 from patternmatcher.expressions import (Arity, Expression, Operation, Symbol,
-                                        Variable, Wildcard, Substitution)
+                                        Variable, Wildcard, Substitution, SymbolWildcard)
 from patternmatcher.utils import (commutative_partition_iter,
                                   partitions_with_limits)
 
@@ -136,6 +136,8 @@ def _match_variable(exprs: List[Expression], variable: Variable, subst: Substitu
 def _match_wildcard(exprs: List[Expression], wildcard: Wildcard, subst: Substitution) -> Iterator[Substitution]:
     if wildcard.fixed_size:
         if len(exprs) == wildcard.min_count:
+            if isinstance(wildcard, SymbolWildcard) and not isinstance(exprs[0], wildcard.symbol_type):
+                return
             if wildcard.constraint is None or wildcard.constraint(subst):
                 yield subst
     elif len(exprs) >= wildcard.min_count:
