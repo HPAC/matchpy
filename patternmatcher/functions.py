@@ -1,15 +1,21 @@
 # -*- coding: utf-8 -*-
-import math
 import itertools
-from typing import Dict, Iterator, List, Tuple, Union, cast, Sequence, NamedTuple, Callable
+import math
 
 from patternmatcher.constraints import (Constraint, CustomConstraint,
                                         EqualVariablesConstraint,
                                         MultiConstraint)
-from patternmatcher.expressions import (Arity, Expression, Operation, Symbol,
-                                        Variable, Wildcard, Substitution, SymbolWildcard)
+from patternmatcher.expressions import (Arity, Expression, Operation,
+                                        Substitution, Symbol, SymbolWildcard,
+                                        Variable, Wildcard)
 from patternmatcher.utils import (commutative_partition_iter,
                                   partitions_with_limits)
+
+try:
+    from backport.typing import (Dict, Iterator, List, Tuple, Union, cast, Sequence, NamedTuple, Callable)
+except ImportError:
+    from typing import (Dict, Iterator, List, Tuple, Union, cast, Sequence, NamedTuple, Callable)
+
 
 def linearize(expression, variables=None, constraints=None):
     if variables is None:

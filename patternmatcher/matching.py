@@ -1,22 +1,30 @@
 # -*- coding: utf-8 -*-
 import itertools
 import operator
-from typing import (Any, Dict, Generic,  # pylint: disable=unused-import
-                    Iterable, Iterator, List, Mapping, Optional, Set, Tuple,
-                    Type, TypeVar, Union, cast, NamedTuple)
 
-from patternmatcher.constraints import Constraint, MultiConstraint
 from patternmatcher.bipartite import (BipartiteGraph,
                                       enum_maximum_matchings_iter)
-from patternmatcher.expressions import (Arity, Expression, Operation, Symbol,
-                                        Variable, Wildcard, Substitution)
+from patternmatcher.constraints import Constraint, MultiConstraint
+from patternmatcher.expressions import (Arity, Expression, Operation,
+                                        Substitution, Symbol, Variable,
+                                        Wildcard)
 from patternmatcher.functions import (_match_operation, _match_variable,
                                       _match_wildcard)
 from patternmatcher.multiset import SortedMultiset as Multiset
 from patternmatcher.syntactic import DiscriminationNet
-from patternmatcher.utils import (commutative_sequence_variable_partition_iter,
-                                  fixed_integer_vector_iter, iterator_chain,
-                                  minimum_integer_vector_iter, VariableWithCount)
+from patternmatcher.utils import (VariableWithCount,
+                                  commutative_sequence_variable_partition_iter,
+                                  fixed_integer_vector_iter, iterator_chain)
+
+try:
+    from backport.typing import (Any, Dict, Generic,  # pylint: disable=unused-import
+                                 Iterable, Iterator, List, Mapping, Optional, Set, Tuple,
+                                 Type, TypeVar, Union, cast, NamedTuple)
+except ImportError:
+    from typing import (Any, Dict, Generic,  
+                        Iterable, Iterator, List, Mapping, Optional, Set, Tuple,
+                        Type, TypeVar, Union, cast, NamedTuple)
+
 
 VarInfo = NamedTuple('VarInfo', [('min_count', int), ('constraint', Constraint)])
 

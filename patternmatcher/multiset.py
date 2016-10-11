@@ -2,7 +2,10 @@
 """Contains the :class:`Multiset` class."""
 
 from collections.abc import MutableSet, Set
-from typing import Generic, Iterable, Mapping, Optional, TypeVar, Union
+try:
+    from backport.typing import (Generic, Iterable, Mapping, Optional, TypeVar, Union)
+except ImportError:
+    from typing import (Generic, Iterable, Mapping, Optional, TypeVar, Union)
 
 from sortedcontainers import SortedDict
 

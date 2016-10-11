@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 import inspect
-from typing import Callable, Set, Optional
+try:
+    from backport.typing import Callable, Set, Optional
+except ImportError:
+    from typing import Callable, Set, Optional
 from abc import ABCMeta, abstractmethod
 
 from patternmatcher.expressions import Substitution

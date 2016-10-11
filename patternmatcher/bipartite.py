@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 
-from typing import Dict, List, Set, Tuple, TypeVar, Union, Iterator, Generic, cast, Hashable
+try:
+    from backport.typing import (Dict, List, Set, Tuple, TypeVar, Union, Iterator, Generic, cast, Hashable)
+except ImportError:
+    from typing import (Dict, List, Set, Tuple, TypeVar, Union, Iterator, Generic, cast, Hashable)
 
 from graphviz import Digraph, Graph
 from hopcroftkarp import HopcroftKarp
