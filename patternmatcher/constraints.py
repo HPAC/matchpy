@@ -1,13 +1,11 @@
 # -*- coding: utf-8 -*-
 import inspect
-try:
-    from backport.typing import Callable, Set, Optional
-except ImportError:
-    from typing import Callable, Set, Optional
 from abc import ABCMeta, abstractmethod
+from typing import Callable, Optional, Set
 
 from patternmatcher.expressions import Substitution
 from patternmatcher.utils import get_lambda_source
+
 
 # pylint: disable=too-few-public-methods
 

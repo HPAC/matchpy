@@ -3,18 +3,10 @@ import inspect
 import itertools
 import math
 import re
+from typing import (Callable, Dict, Iterator,  # pylint: disable=unused-import
+                    List, NamedTuple, Optional, Sequence, Tuple, TypeVar, cast)
 
 from patternmatcher.multiset import Multiset
-
-try:
-    from backport.typing import (Callable, Dict, Generic,  # pylint: disable=unused-import
-                    Iterator, List, Mapping, Optional, Sequence, Tuple,
-                    TypeVar, cast, NamedTuple, Iterable)
-except ImportError:
-    from typing import (Callable, Dict, Generic,
-                    Iterator, List, Mapping, Optional, Sequence, Tuple,
-                    TypeVar, cast, NamedTuple, Iterable)
-
 
 T = TypeVar('T')
 

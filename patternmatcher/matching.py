@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 import itertools
 import operator
+from typing import (Any, Dict, Generic,  # pylint: disable=unused-import
+                    Iterable, Iterator, List, Mapping, NamedTuple, Optional,
+                    Set, Tuple, Type, TypeVar, Union, cast)
 
 from patternmatcher.bipartite import (BipartiteGraph,
                                       enum_maximum_matchings_iter)
@@ -15,16 +18,6 @@ from patternmatcher.syntactic import DiscriminationNet
 from patternmatcher.utils import (VariableWithCount,
                                   commutative_sequence_variable_partition_iter,
                                   fixed_integer_vector_iter, iterator_chain)
-
-try:
-    from backport.typing import (Any, Dict, Generic,  # pylint: disable=unused-import
-                                 Iterable, Iterator, List, Mapping, Optional, Set, Tuple,
-                                 Type, TypeVar, Union, cast, NamedTuple)
-except ImportError:
-    from typing import (Any, Dict, Generic,  
-                        Iterable, Iterator, List, Mapping, Optional, Set, Tuple,
-                        Type, TypeVar, Union, cast, NamedTuple)
-
 
 VarInfo = NamedTuple('VarInfo', [('min_count', int), ('constraint', Constraint)])
 
