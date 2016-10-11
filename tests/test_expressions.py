@@ -47,6 +47,9 @@ f_i = Operation.new('f_i', Arity.variadic, one_identity=True)
 f_a = Operation.new('f_a', Arity.variadic, associative=True)
 f_c = Operation.new('f_c', Arity.variadic, commutative=True)
 
+a = Symbol('a')
+b = Symbol('b')
+
 @ddt
 class ExpressionTest(unittest.TestCase):
     @unpack
@@ -69,6 +72,24 @@ class ExpressionTest(unittest.TestCase):
     )
     def test_operation_simplify(self, initial, simplified):
         self.assertEqual(initial, simplified)
+
+    @unpack
+    @data(
+        (Operation.new('f', Arity.unary),                       [],                                         ValueError),
+        (Operation.new('f', Arity.unary),                       [a, b],                                     ValueError),
+        (Operation.new('f', Arity.variadic),                    [],                                         None),
+        (Operation.new('f', Arity.variadic),                    [a],                                        None),
+        (Operation.new('f', Arity.variadic),                    [a, b],                                     None),
+        (Operation.new('f', Arity.binary, associative=True),    [a, a, b],                                  ValueError),
+        (Operation.new('f', Arity.binary),                      [Variable.dot('x'), Variable.star('x')],    ValueError),
+        (Operation.new('f', Arity.binary),                      [Variable.dot('x'), Variable.dot('x')],     None),
+    )
+    def test_operation_errors(self, operation, operands, error):
+        if error is not None:
+            with self.assertRaises(error):
+                _ = operation(*operands)
+        else:
+            _ = operation(*operands)
 
 
 def load_tests(loader, tests, ignore):

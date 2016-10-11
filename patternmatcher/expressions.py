@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import itertools
 import keyword
 from enum import Enum, EnumMeta
 from typing import (Callable, Dict, Iterator, List, NamedTuple, Optional,
@@ -205,6 +206,14 @@ class Operation(Expression, metaclass=_OperationMeta):
             if self.associative:
                 msg += " Associative operations should have a variadic/polyadic arity."
             raise ValueError(msg)
+
+        variables = dict()
+        for var, _ in itertools.chain.from_iterable(o.preorder_iter(lambda e: isinstance(e, Variable)) for o in operands):
+            if var.name in variables:
+                if variables[var.name] != var:
+                    raise ValueError("Conflicting versions of variable %s: %r vs %r" % (var.name, var, variables[var.name]))
+            else:
+                variables[var.name] = var
 
         self.operands = list(operands)
         self.head = type(self)

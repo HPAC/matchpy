@@ -36,7 +36,7 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         >>> ms = Multiset('abc')            # a new multiset from an iterable
         >>> ms = Multiset({'a': 4, 'b': 2}) # a new multiset from a mapping
 
-        Parameters:
+        Args:
             iterable: An optional :class:`~typing.Iterable`\[~T] or
                 :class:`~typing.Mapping`\[~T, :class:`int`] to initialize the multiset from.
         """
@@ -113,7 +113,7 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         For a variant of the operation which does not modify the multiset, but returns a new
         multiset instead see :meth:`combine`.
 
-        Parameters:
+        Args:
             others: The other sets to add to this multiset. Can also be any :class:`~typing.Iterable`\[~T]
                 or :class:`~typing.Mapping`\[~T, :class:`int`] which are then converted to :class:`Multiset`\[~T].
         """
@@ -144,7 +144,7 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         For a variant of the operation which does not modify the multiset, but returns a new
         multiset instead see :meth:`union`.
 
-        Parameters:
+        Args:
             others: The other sets to union this multiset with. Can also be any :class:`~typing.Iterable`\[~T]
                 or :class:`~typing.Mapping`\[~T, :class:`int`] which are then converted to :class:`Multiset`\[~T].
         """
@@ -178,7 +178,7 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         For a variant of the operation which does not modify the multiset, but returns a new
         multiset instead see :meth:`intersection`.
 
-        Parameters:
+        Args:
             others: The other sets to intersect this multiset with. Can also be any :class:`~typing.Iterable`\[~T]
                 or :class:`~typing.Mapping`\[~T, :class:`int`] which are then converted to :class:`Multiset`\[~T].
         """
@@ -213,7 +213,7 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         For a variant of the operation which does not modify the multiset, but returns a new
         multiset instead see :meth:`difference`.
 
-        Parameters:
+        Args:
             others: The other sets to remove from this multiset. Can also be any :class:`~typing.Iterable`\[~T]
                 or :class:`~typing.Mapping`\[~T, :class:`int`] which are then converted to :class:`Multiset`\[~T].
         """
@@ -246,7 +246,7 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         For a variant of the operation which does not modify the multiset, but returns a new
         multiset instead see :meth:`symmetric_difference`.
 
-        Parameters:
+        Args:
             other: The other set to take the symmetric difference with. Can also be any :class:`~typing.Iterable`\[~T]
                 or :class:`~typing.Mapping`\[~T, :class:`int`] which are then converted to :class:`Multiset`\[~T].
         """
@@ -281,7 +281,7 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         For a variant of the operation which does not modify the multiset, but returns a new
         multiset instead see :meth:`times`.
 
-        Parameters:
+        Args:
             factor: The factor to multiply each multiplicity with.
         """
         if factor <= 0:
@@ -310,7 +310,7 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
 
         This extends the :meth:`MutableSet.add` signature to allow specifying the multiplicity.
 
-        Parameters:
+        Args:
             element:
                 The element to add to the multiset.
             multiplicity:
@@ -338,7 +338,7 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
 
         This extends the :meth:`MutableSet.remove` signature to allow specifying the multiplicity.
 
-        Parameters:
+        Args:
             element:
                 The element to remove from the multiset.
             multiplicity:
@@ -389,7 +389,7 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         >>> sorted(ms)
         ['a']
 
-        Parameters:
+        Args:
             element:
                 The element to remove from the multiset.
             multiplicity:
@@ -427,7 +427,7 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         >>> ms.isdisjoint(Multiset('ccd'))
         True
 
-        Parameters:
+        Args:
             other: The other set to check disjointness. Can also be an :class:`~typing.Iterable`\[~T]
                 or :class:`~typing.Mapping`\[~T, :class:`int`] which are then converted to :class:`Multiset`\[~T].
         """
@@ -454,7 +454,7 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         For a variant of the operation which modifies the multiset in place see
         :meth:`difference_update`.
 
-        Parameters:
+        Args:
             others: The other sets to remove from the multiset. Can also be any :class:`~typing.Iterable`\[~T]
                 or :class:`~typing.Mapping`\[~T, :class:`int`] which are then converted to :class:`Multiset`\[~T].
 
@@ -487,7 +487,7 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         For a variant of the operation which modifies the multiset in place see
         :meth:`union`.
 
-        Parameters:
+        Args:
             others: The other sets to union the multiset with. Can also be any :class:`~typing.Iterable`\[~T]
                 or :class:`~typing.Mapping`\[~T, :class:`int`] which are then converted to :class:`Multiset`\[~T].
 
@@ -522,7 +522,7 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         For a variant of the operation which modifies the multiset in place see
         :meth:`update`.
 
-        Parameters:
+        Args:
             others: The other sets to add to the multiset. Can also be any :class:`~typing.Iterable`\[~T]
                 or :class:`~typing.Mapping`\[~T, :class:`int`] which are then converted to :class:`Multiset`\[~T].
 
@@ -557,7 +557,7 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         For a variant of the operation which modifies the multiset in place see
         :meth:`intersection_update`.
 
-        Parameters:
+        Args:
             others: The other sets intersect with the multiset. Can also be any :class:`~typing.Iterable`\[~T]
                 or :class:`~typing.Mapping`\[~T, :class:`int`] which are then converted to :class:`Multiset`\[~T].
 
@@ -592,7 +592,7 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         For a variant of the operation which modifies the multiset in place see
         :meth:`symmetric_difference_update`.
 
-        Parameters:
+        Args:
             other: The other set to take the symmetric difference with. Can also be any :class:`~typing.Iterable`\[~T]
                 or :class:`~typing.Mapping`\[~T, :class:`int`] which are then converted to :class:`Multiset`\[~T].
 
@@ -625,7 +625,7 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         For a variant of the operation which modifies the multiset in place see
         :meth:`times_update`.
 
-        Parameters:
+        Args:
             factor: The factor to multiply each multiplicity with.
         """
         result = type(self)(self)
@@ -677,7 +677,7 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         >>> Multiset('ab') < Multiset('ab')
         False
 
-        Parameters:
+        Args:
             other: The potential superset of the multiset to be checked.
 
         Returns:
@@ -726,7 +726,7 @@ class Multiset(dict, MutableSet, Mapping[T, int], Generic[T]):
         >>> Multiset('ab') > Multiset('ab')
         False
 
-        Parameters:
+        Args:
             other: The potential subset of the multiset to be checked.
 
         Returns:
