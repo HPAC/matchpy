@@ -1,3 +1,5 @@
+channels:
+  - conda-forge
 name: py35
 dependencies:
 - openssl=1.0.2g=0
@@ -20,3 +22,4 @@ dependencies:
   - hypothesis
   - hopcroftkarp
   - sortedcontainers
+  - typing
