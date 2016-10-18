@@ -181,6 +181,9 @@ class Operation(Expression, metaclass=_OperationMeta):
     the expression `f(a)` if simplified to `a`.
     """
 
+    infix = False
+    """True if the name of the operation should be used as an infix operator by str()."""
+
     def __init__(self, *operands: Expression, constraint: Optional[Constraint]=None) -> None:
         """Base class for all expressions.
 
@@ -219,10 +222,14 @@ class Operation(Expression, metaclass=_OperationMeta):
         self.operands = list(operands)
         self.head = type(self)
 
-    def __str__(self):
+    def __str__(self):        
+        if self.infix:
+            value = '(%s)' % (' %s ' % self.name).join(str(o) for o in self.operands)
+        else:
+            value = '%s(%s)' % (self.name, ', '.join(str(o) for o in self.operands))
         if self.constraint:
-            return '%s(%s) /; %s' % (self.name, ', '.join(str(o) for o in self.operands), str(self.constraint))
-        return '%s(%s)' % (self.name, ', '.join(str(o) for o in self.operands))
+            value += ' /; %s' % self.constraint
+        return value
 
     def __repr__(self):
         operand_str = ', '.join(map(repr, self.operands))
