@@ -24,7 +24,6 @@ goto :eof
 	coverage run -a --source patternmatcher/utils.py -m tests.test_utils
 	coverage run -a --source patternmatcher/bipartite.py -m tests.test_bipartite
 	coverage run -a --source patternmatcher/matching.py -m tests.test_matching
-	coverage run -a --source patternmatcher/multiset.py -m tests.test_multiset
 	coverage run -a --source patternmatcher/expressions.py -m tests.test_expressions
 	coverage html
 goto :eof

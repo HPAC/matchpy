@@ -6,7 +6,7 @@ import re
 from typing import (Callable, Dict, Iterator,  # pylint: disable=unused-import
                     List, NamedTuple, Optional, Sequence, Tuple, TypeVar, cast)
 
-from patternmatcher.multiset import Multiset
+from multiset import Multiset
 
 T = TypeVar('T')
 

@@ -5,13 +5,13 @@ import unittest
 
 import hypothesis.strategies as st
 from ddt import data, ddt, unpack
-from hypothesis import given, example
+from hypothesis import example, given
+from multiset import Multiset
 
-from patternmatcher.multiset import Multiset
-from patternmatcher.utils import (base_solution_linear,
+from patternmatcher.utils import (VariableWithCount, base_solution_linear,
                                   commutative_sequence_variable_partition_iter,
                                   extended_euclid, fixed_sum_vector_iter,
-                                  solve_linear_diop, VariableWithCount)
+                                  solve_linear_diop)
 
 
 def is_unique_list(l):

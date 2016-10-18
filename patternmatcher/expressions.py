@@ -5,7 +5,8 @@ from enum import Enum, EnumMeta
 from typing import (Callable, Dict, Iterator, List, NamedTuple, Optional, Set,
                     Tuple, TupleMeta, Type, Union)
 
-from patternmatcher.multiset import Multiset
+from multiset import Multiset
+
 from patternmatcher.utils import cached_property
 
 

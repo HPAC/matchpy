@@ -5,6 +5,8 @@ from typing import (Any, Dict, Generic,  # pylint: disable=unused-import
                     Iterable, Iterator, List, Mapping, NamedTuple, Optional,
                     Set, Tuple, Type, TypeVar, Union, cast)
 
+from multiset import Multiset
+
 from patternmatcher.bipartite import (BipartiteGraph,
                                       enum_maximum_matchings_iter)
 from patternmatcher.constraints import Constraint, MultiConstraint
@@ -13,7 +15,6 @@ from patternmatcher.expressions import (Arity, Expression, Operation,
                                         Wildcard)
 from patternmatcher.functions import (_match_operation, _match_variable,
                                       _match_wildcard)
-from patternmatcher.multiset import SortedMultiset as Multiset
 from patternmatcher.syntactic import DiscriminationNet
 from patternmatcher.utils import (VariableWithCount,
                                   commutative_sequence_variable_partition_iter,
