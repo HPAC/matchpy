@@ -779,6 +779,8 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):
             self.min_count = expr.min_count
             self.fixed_size = expr.fixed_size
             self.head = None
+            if isinstance(expr, SymbolWildcard):
+                self.symbol_type = expr.symbol_type
         else:
             raise AssertionError
 
@@ -825,6 +827,8 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):
 _frozen_type_cache = {}
 
 def freeze(expr: Expression) -> FrozenExpression:
+    if isinstance(expr, FrozenExpression):
+        return expr
     base = type(expr)
     if base not in _frozen_type_cache:
         meta = isinstance(base, _OperationMeta) and _FrozenOperationMeta or _FrozenMeta

@@ -119,12 +119,10 @@ def _match(exprs: List[Expression], pattern: Expression, subst: Substitution) ->
 
 def _match_variable(exprs: List[Expression], variable: Variable, subst: Substitution, matcher: Callable[[List[Expression], Expression, Substitution], Iterator[Substitution]]) -> Iterator[Substitution]:
     inner = variable.expression
-    while isinstance(inner, Variable):
-        inner = inner.expression
     if len(exprs) == 1 and (not isinstance(inner, Wildcard) or inner.fixed_size):
         expr = exprs[0] # type: Union[Expression,List[Expression]]
     else:
-        expr = exprs
+        expr = tuple(exprs)
     if variable.name in subst:
         if expr == subst[variable.name]:
             if variable.constraint is None or variable.constraint(subst):
@@ -160,7 +158,7 @@ def _associative_fix_operand_max(parts, maxs, operation):
         if len(part) > max_count:
             fixed = part[:max_count-1]
             variable = part[max_count-1:]
-            new_parts[i] = fixed + [operation(*variable)]
+            new_parts[i] = fixed + (operation.from_args(*variable), )
     return new_parts
 
 def _size(expr):

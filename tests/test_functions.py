@@ -7,7 +7,7 @@ from ddt import data, ddt, unpack
 from hypothesis import assume, given
 
 from patternmatcher.expressions import (Arity, Operation, Symbol, Variable,
-                                        Wildcard)
+                                        Wildcard, freeze)
 from patternmatcher.functions import match, replace, substitute
 from patternmatcher.utils import match_repr_str
 
@@ -51,6 +51,11 @@ mock_constraint_false = Mock(return_value=False)
 mock_constraint_true = Mock(return_value=True)
 
 
+def _convert_match_list_to_tuple(expected_match):
+    for var, val in expected_match.items():
+        if isinstance(val, list):
+            expected_match[var] = tuple(val)
+
 @ddt
 class MatchTest(unittest.TestCase):
     @unpack
@@ -78,6 +83,8 @@ class MatchTest(unittest.TestCase):
         (f(f(a, b)),        f(f(a, b)),     True)
     )
     def test_constant_match(self, expr, pattern, is_match):
+        expr = freeze(expr)
+        pattern = freeze(pattern)
         result = list(match(expr, pattern))
         if is_match:
             self.assertEqual(result, [dict()], 'Expression %s and %s did not match but were supposed to' % (expr, pattern))
@@ -100,6 +107,8 @@ class MatchTest(unittest.TestCase):
         (f2(c, fc(a, b)),   f2(fc(a, b), c),    False),
     )
     def test_commutative_match(self, expr, pattern, is_match):
+        expr = freeze(expr)
+        pattern = freeze(pattern)
         result = list(match(expr, pattern))
         if is_match:
             self.assertEqual(result, [dict()], 'Expression %s and %s did not match but were supposed to' % (expr, pattern))
@@ -137,6 +146,8 @@ class MatchTest(unittest.TestCase):
         (f(f(a, b)),        f(f(x_, y_)),                        {'x': a,       'y': b}),
     )
     def test_wildcard_dot_match(self, expr, pattern, expected_match):
+        expr = freeze(expr)
+        pattern = freeze(pattern)
         result = list(match(expr, pattern))
         if expected_match is not None:
             self.assertEqual(result, [expected_match], 'Expression %s and %s did not match as %s but were supposed to'
@@ -159,6 +170,8 @@ class MatchTest(unittest.TestCase):
                                                  {'x': fa(a, b),    'y': c}])
     )
     def test_associative_wildcard_dot_match(self, expr, pattern, expected_matches):
+        expr = freeze(expr)
+        pattern = freeze(pattern)
         result = list(match(expr, pattern))
         for expected_match in expected_matches:
             self.assertIn(expected_match, result, 'Expression %s and %s did not yield the match %s but were supposed to' % (expr, pattern, match_repr_str(expected_match)))
@@ -222,8 +235,11 @@ class MatchTest(unittest.TestCase):
                                                          {'x': [a],               'y': [a, b]}]),
     )
     def test_wildcard_star_match(self, expr, pattern, expected_matches):
+        expr = freeze(expr)
+        pattern = freeze(pattern)
         result = list(match(expr, pattern))
         for expected_match in expected_matches:
+            _convert_match_list_to_tuple(expected_match)
             self.assertIn(expected_match, result, 'Expression %s and %s did not yield the match %s but were supposed to' % (expr, pattern, match_repr_str(expected_match)))
         for result_match in result:
             self.assertIn(result_match, expected_matches, 'Expression %s and %s yielded the unexpected match %s' % (expr, pattern, match_repr_str(result_match)))
@@ -270,8 +286,11 @@ class MatchTest(unittest.TestCase):
         (f(a, b, a, b),             f(x__, b, y__),      [{'x': [a],          'y': [a, b]}]),
     )
     def test_wildcard_plus_match(self, expr, pattern, expected_matches):
+        expr = freeze(expr)
+        pattern = freeze(pattern)
         result = list(match(expr, pattern))
         for expected_match in expected_matches:
+            _convert_match_list_to_tuple(expected_match)
             self.assertIn(expected_match, result, 'Expression %s and %s did not yield the match %s but were supposed to' % (expr, pattern, match_repr_str(expected_match)))
         for result_match in result:
             self.assertIn(result_match, expected_matches, 'Expression %s and %s yielded the unexpected match %s' % (expr, pattern, match_repr_str(result_match)))
@@ -295,8 +314,11 @@ class MatchTest(unittest.TestCase):
                                                          {'x': [],          'y': a,        'z': [b, c]}]),
     )
     def test_wildcard_mixed_match(self, expr, pattern, expected_matches):
+        expr = freeze(expr)
+        pattern = freeze(pattern)
         result = list(match(expr, pattern))
         for expected_match in expected_matches:
+            _convert_match_list_to_tuple(expected_match)
             self.assertIn(expected_match, result, 'Expression %s and %s did not yield the match %s but were supposed to' % (expr, pattern, match_repr_str(expected_match)))
         for result_match in result:
             self.assertIn(result_match, expected_matches, 'Expression %s and %s yielded the unexpected match %s' % (expr, pattern, match_repr_str(result_match)))
@@ -312,6 +334,8 @@ class MatchTest(unittest.TestCase):
         (s,                   ss_,      [{'ss': s}])
     )
     def test_wildcard_symbol_match(self, expr, pattern, expected_matches):
+        expr = freeze(expr)
+        pattern = freeze(pattern)
         result = list(match(expr, pattern))
         for expected_match in expected_matches:
             self.assertIn(expected_match, result, 'Expression %s and %s did not yield the match %s but were supposed to' % (expr, pattern, match_repr_str(expected_match)))
@@ -345,6 +369,8 @@ class MatchTest(unittest.TestCase):
     def test_constraint_match(self, expr, pattern_factory, constraint_values, constraint_call_counts, match_count):
         constraints = [Mock(return_value=v) for v in constraint_values]
         pattern = pattern_factory(*constraints)
+        expr = freeze(expr)
+        pattern = freeze(pattern)
         result = list(match(expr, pattern))
 
         self.assertEqual(len(result), match_count, 'Wrong number of matched for %r and %r' % (expr, pattern))
@@ -356,9 +382,10 @@ class MatchTest(unittest.TestCase):
         constraint2 = Mock(return_value=True)
         constraint3 = Mock(return_value=True)
         constraint4 = Mock(return_value=True)
-        expr = f(a, b)
+        expr = freeze(f(a, b))
         pattern = f(Wildcard(0, False, constraint1), Variable('x', Wildcard.dot(), constraint2), Variable('y', Wildcard.dot(), constraint3), constraint=constraint4)
 
+        pattern = freeze(pattern)
         result = list(match(expr, pattern))
 
         self.assertEqual(result, [{'x': a, 'y': b}])
