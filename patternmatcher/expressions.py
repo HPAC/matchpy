@@ -90,7 +90,7 @@ class Expression(object):
 
     def preorder_iter(self, predicate:Optional[ExpressionPredicate]=None, position:Tuple[int,...]=()) -> Iterator[Tuple['Expression',Tuple[int,...]]]:
         """Iterates over all subexpressions that match the (optional) `predicate`."""
-        if filter is None or predicate(self):
+        if predicate is None or predicate(self):
             yield self, position
 
     def __getitem__(self, key):
@@ -435,7 +435,7 @@ class Variable(Expression):
                 An optional subclass of :class:`Symbol` to further limit which kind of smybols are
                 matched by the wildcard.
             constraint:
-                An optional :class:`.Constraint` which can filter wwhat is matched by the variable.
+                An optional :class:`.Constraint` which can filter what is matched by the variable.
 
         Returns:
             A :class:`Variable` that matches a :class:`Symbol` with type ``symbol_type``.

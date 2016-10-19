@@ -8,8 +8,10 @@ from hypothesis import assume, given
 
 from patternmatcher.expressions import (Arity, Operation, Symbol, Variable,
                                         Wildcard, freeze)
-from patternmatcher.functions import match, replace, substitute
+from patternmatcher.functions import (ReplacementRule, match, match_anywhere,
+                                      replace, replace_all, substitute)
 from patternmatcher.utils import match_repr_str
+
 
 # from patternmatcher.matching import ManyToOneMatcher
 # def match(expression, pattern):
@@ -518,6 +520,125 @@ class ReplaceTest(unittest.TestCase):
         with self.assertRaises(IndexError):
             replace(f(a, b), (2, ), b)
 
+@ddt
+class MatchAnywhereTest(unittest.TestCase):
+    @unpack
+    @data(
+        (f(a), f(x_),                                                   [({'x': a},        tuple())]),
+        (f(a), x_,                                                      [({'x': f(a)},     tuple()),
+                                                                         ({'x': a},        (0, ))]),
+        (f(a, f2(b), f2(f2(c), f2(a), f2(f2(b))), f2(c), c), f2(x_),    [({'x': b},        (1, )),
+                                                                         ({'x': c},        (2, 0)),
+                                                                         ({'x': a},        (2, 1)),
+                                                                         ({'x': f2(b)},    (2, 2)),
+                                                                         ({'x': b},        (2, 2, 0)),
+                                                                         ({'x': c},        (3, ))])
+    )
+    def test_correctness(self, expr, pattern, expected_results):
+        expr = freeze(expr)
+        pattern = freeze(pattern)
+        results = list(match_anywhere(expr, pattern))
+
+        self.assertEqual(len(results), len(expected_results), "Invalid number of results")
+
+        for result in expected_results:
+            self.assertIn(result, results, "Results differ from expected")
+
+
+@unittest.skip("Takes too long")
+class LogicReplaceTest(unittest.TestCase):
+    def test_simplify(self):
+        LAnd = Operation.new('and', Arity.variadic, 'LAnd', associative=True, one_identity=True, commutative=True)
+        LOr = Operation.new('or', Arity.variadic, 'LOr', associative=True, one_identity=True, commutative=True)
+        LXor = Operation.new('xor', Arity.variadic, 'LXor', associative=True, one_identity=True, commutative=True)
+        LNot = Operation.new('not', Arity.unary, 'LNot')
+        LImplies = Operation.new('implies', Arity.binary, 'LImplies')
+        Iff = Operation.new('iff', Arity.binary, 'Iff')
+
+        ___ = Wildcard.star()
+
+        a1 = Symbol('a1')
+        a2 = Symbol('a2')
+        a3 = Symbol('a3')
+        a4 = Symbol('a4')
+        a5 = Symbol('a5')
+        a6 = Symbol('a6')
+        a7 = Symbol('a7')
+        a8 = Symbol('a8')
+        a9 = Symbol('a9')
+        a10 = Symbol('a10')
+        a11 = Symbol('a11')
+
+        LBot = Symbol(u'⊥')
+        LTop = Symbol(u'⊤')
+
+        expr = LImplies(LAnd(Iff(Iff(LOr(a1, a2), LOr(LNot(a3), Iff(LXor(a4, a5), LNot(LNot(LNot(a6)))))),
+            LNot(LAnd(LAnd(a7, a8), LNot(LXor(LXor(LOr(a9, LAnd(a10, a11)), a2), LAnd(LAnd(a11, LXor(a2, Iff(
+            a5, a5))), LXor(LXor(a7, a7), Iff(a9, a4)))))))), LImplies(Iff(Iff(LOr(a1, a2), LOr(LNot(a3),
+            Iff(LXor(a4, a5), LNot(LNot(LNot(a6)))))), LNot(LAnd(LAnd(a7, a8), LNot(LXor(LXor(LOr(a9, LAnd(
+            a10, a11)), a2), LAnd(LAnd(a11, LXor(a2, Iff(a5, a5))), LXor(LXor(a7, a7), Iff(a9, a4)))))))),
+            LNot(LAnd(LImplies(LAnd(a1, a2), LNot(LXor(LOr(LOr(LXor(LImplies(LAnd(a3, a4), LImplies(a5, a6)),
+            LOr(a7, a8)), LXor(Iff(a9, a10), a11)), LXor(LXor(a2, a2), a7)), Iff(LOr(a4, a9), LXor(LNot(a6),
+            a6))))), LNot(Iff(LNot(a11), LNot(a9))))))), LNot(LAnd(LImplies(LAnd(a1, a2), LNot(LXor(LOr(LOr(
+            LXor(LImplies(LAnd(a3, a4), LImplies(a5, a6)), LOr(a7, a8)), LXor(Iff(a9, a10), a11)), LXor(
+            LXor(a2, a2), a7)), Iff(LOr(a4, a9), LXor(LNot(a6), a6))))), LNot(Iff(LNot(a11), LNot(a9))))))
+
+        rules = [
+            # xor(x,⊥) → x
+            ReplacementRule(
+                LXor(x__, LBot),
+                lambda x: LXor(*x)
+            ),
+            # xor(x, x) → ⊥
+            ReplacementRule(
+                LXor(x_, x_, ___),
+                lambda x: LBot
+            ),
+            # and(x,⊤) → x
+            ReplacementRule(
+                LAnd(x__, LTop),
+                lambda x: LAnd(*x)
+            ),
+            # and(x,⊥) → ⊥
+            ReplacementRule(
+                LAnd(___, LBot),
+                lambda: LBot
+            ),
+            # and(x, x) → x
+            ReplacementRule(
+                LAnd(x_, x_, y___),
+                lambda x, y: LAnd(x, *y)
+            ),
+            # and(x, xor(y, z)) → xor(and(x, y), and(x, z))
+            ReplacementRule(
+                LAnd(x_, LXor(y_, z_)),
+                lambda x, y, z: LXor(LAnd(x, y), LAnd(x, z))
+            ),
+            # implies(x, y) → not(xor(x, and(x, y)))
+            ReplacementRule(
+                LImplies(x_, y_),
+                lambda x, y: LNot(LXor(x, LAnd(x, y)))
+            ),
+            # not(x) → xor(x,⊤)
+            ReplacementRule(
+                LNot(x_),
+                lambda x: LXor(x, LTop)
+            ),
+            # or(x, y) → xor(and(x, y), xor(x, y))
+            ReplacementRule(
+                LOr(x_, y_),
+                lambda x, y: LXor(LAnd(x, y), LXor(x, y))
+            ),
+            # iff(x, y) → not(xor(x, y))
+            ReplacementRule(
+                Iff(x_, y_),
+                lambda x, y: LNot(LXor(x, y))
+            ),
+        ]
+
+        result = replace_all(expr, rules)
+
+        self.assertEqual(result, LBot)
 
 
 if __name__ == '__main__':

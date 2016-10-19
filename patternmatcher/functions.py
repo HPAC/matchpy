@@ -14,49 +14,6 @@ from patternmatcher.utils import (commutative_partition_iter,
                                   partitions_with_limits)
 
 
-def linearize(expression, variables=None, constraints=None):
-    if variables is None:
-        variables = {}
-        constraints = {}
-        names = set(expression.variables.keys())
-
-        for (name, count) in expression.variables.items():
-            variables[name] = [name]
-
-            i = 2
-            for _ in range(count - 1):
-                new_name = name + '_' + str(i)
-                while new_name in names:
-                    i += 1
-                    new_name = name + '_' + str(i)
-
-                variables[name].append(new_name)
-                names.add(new_name)
-                i += 1
-
-            if len(variables[name]) > 1:
-                constraints[name] = EqualVariablesConstraint(*variables[name])
-
-    # TODO: Make non-mutating
-    if isinstance(expression, Variable):
-        name = expression.name
-        expression.name = variables[name].pop(0)
-
-        if len(variables[name]) == 0 and name in constraints:
-            if expression.constraint:
-                if not isinstance(expression.constraint, Constraint):
-                    expression.constraint = CustomConstraint(expression.constraint)
-
-                expression.constraint = MultiConstraint(expression.constraint, constraints[name])
-            else:
-                expression.constraint = constraints[name]
-
-        linearize(expression.expression, variables, constraints)
-    elif isinstance(expression, Operation):
-        for operand in expression.operands:
-            linearize(operand, variables, constraints)
-
-
 def match(expression: Expression, pattern: Expression) -> Iterator[Substitution]:
     r"""Tries to match the given `pattern` to the given `expression`.
 
@@ -117,7 +74,9 @@ def _match(exprs: List[Expression], pattern: Expression, subst: Substitution) ->
             if pattern.constraint is None or pattern.constraint(result):
                 yield result
 
-def _match_variable(exprs: List[Expression], variable: Variable, subst: Substitution, matcher: Callable[[List[Expression], Expression, Substitution], Iterator[Substitution]]) -> Iterator[Substitution]:
+Matcher = Callable[[List[Expression], Expression, Substitution], Iterator[Substitution]]
+
+def _match_variable(exprs: List[Expression], variable: Variable, subst: Substitution, matcher: Matcher) -> Iterator[Substitution]:
     inner = variable.expression
     if len(exprs) == 1 and (not isinstance(inner, Wildcard) or inner.fixed_size):
         expr = exprs[0] # type: Union[Expression,List[Expression]]
@@ -158,7 +117,7 @@ def _associative_fix_operand_max(parts, maxs, operation):
         if len(part) > max_count:
             fixed = part[:max_count-1]
             variable = part[max_count-1:]
-            new_parts[i] = fixed + (operation.from_args(*variable), )
+            new_parts[i] = tuple(fixed) + (operation.from_args(*variable), )
     return new_parts
 
 def _size(expr):
@@ -218,8 +177,8 @@ def substitute(expression: Expression, substitution: Substitution) -> Tuple[Unio
     is a list of expressions. In other cases were a substitution is a list of expressions, the expressions will
     be integrated as operands in the surrounding operation:
 
-    >>> substitute(f(x, c), {'x': [a, b]}})
-    f(a, b, c), True
+    >>> substitute(f(x, c), {'x': [a, b]})
+    (f(Symbol('a'), Symbol('b'), Symbol('c')), True)
 
     :param expression: An expression in which variables are substituted.
     :param substitution: A substitution dictionary. The key is the name of the variable,
@@ -260,7 +219,7 @@ def replace(expression: Expression, position: Sequence[int], replacement: Union[
     is a list of expressions, it will be expanded into the list of operands of the respective operation:
 
     >>> replace(f(a), (0, ), [b, c])
-    f(b, c)
+    f(Symbol('b'), Symbol('c'))
 
     :param expression: An :class:`Expression` where a (sub)expression is to be replaced.
     :param position: A tuple of indices, e.g. the empty tuple refers to the `expression` itself,
@@ -290,13 +249,6 @@ def replace_all(expression: Expression, rules: Sequence[ReplacementRule]) -> Uni
     grouped = itertools.groupby(rules, lambda r: r.pattern.head)
     heads, tmp_groups = map(list, zip(*[(h, list(g)) for h, g in grouped]))
     groups = [list(g) for g in tmp_groups]
-    # any_rules = []
-    # for i, h in enumerate(heads):
-    #     if h is None:
-    #         any_rules = groups[i]
-    #         del heads[i]
-    #         del groups[i]
-    #         break
     replaced = True
     while replaced:
         replaced = False
@@ -321,128 +273,13 @@ def replace_all(expression: Expression, rules: Sequence[ReplacementRule]) -> Uni
 
     return expression
 
-if __name__ == '__main__': # pragma: no cover
-    def _main():
-        from patternmatcher.utils import match_repr_str
-        f = Operation.new('f', arity=Arity.binary)
-        g = Operation.new('g', arity=Arity.unary)
-        a = Symbol('a')
-        b = Symbol('b')
-        c = Symbol('c')
-        x = Variable.dot('x')
+if __name__ == '__main__':
+    import doctest
 
-        expr = f(a, g(b), g(g(c), g(a), g(g(b))), g(c), c)
-        pattern = g(x)
+    f = Operation.new('f', Arity.variadic)
+    a = Symbol('a')
+    b = Symbol('b')
+    c = Symbol('c')
+    x = Variable.dot('x')
 
-        for m, pos in match_anywhere(expr, pattern):
-            print('match at ', pos, ':')
-            print(expr[pos])
-            print(match_repr_str(m))
-
-    def _main2():
-        f = Operation.new('f', Arity.polyadic)
-        g = Operation.new('g', Arity.variadic)
-        expr = f(Variable.dot('x'), f(Variable.dot('y'), Variable.dot('x')), g(Variable.dot('y')))
-        linearize(expr)
-        print(expr)
-
-    def _main3():
-        # pylint: disable=invalid-name,bad-continuation
-        LAnd = Operation.new('and', Arity.variadic, 'LAnd', associative=True, one_identity=True, commutative=True)
-        LOr = Operation.new('or', Arity.variadic, 'LOr', associative=True, one_identity=True, commutative=True)
-        LXor = Operation.new('xor', Arity.variadic, 'LXor', associative=True, one_identity=True, commutative=True)
-        LNot = Operation.new('not', Arity.unary, 'LNot')
-        LImplies = Operation.new('implies', Arity.binary, 'LImplies')
-        Iff = Operation.new('iff', Arity.binary, 'Iff')
-
-        x_ = Variable.dot('x')
-        x__ = Variable.plus('x')
-        y_ = Variable.dot('y')
-        y___ = Variable.star('y')
-        z_ = Variable.dot('z')
-        ___ = Wildcard.star()
-
-        a1 = Symbol('a1')
-        a2 = Symbol('a2')
-        a3 = Symbol('a3')
-        a4 = Symbol('a4')
-        a5 = Symbol('a5')
-        a6 = Symbol('a6')
-        a7 = Symbol('a7')
-        a8 = Symbol('a8')
-        a9 = Symbol('a9')
-        a10 = Symbol('a10')
-        a11 = Symbol('a11')
-
-        LBot = Symbol(u'⊥')
-        LTop = Symbol(u'⊤')
-
-        expr = LImplies(LAnd(Iff(Iff(LOr(a1, a2), LOr(LNot(a3), Iff(LXor(a4, a5), LNot(LNot(LNot(a6)))))),
-        LNot(LAnd(LAnd(a7, a8), LNot(LXor(LXor(LOr(a9, LAnd(a10, a11)), a2), LAnd(LAnd(a11, LXor(a2, Iff(
-        a5, a5))), LXor(LXor(a7, a7), Iff(a9, a4)))))))), LImplies(Iff(Iff(LOr(a1, a2), LOr(LNot(a3),
-        Iff(LXor(a4, a5), LNot(LNot(LNot(a6)))))), LNot(LAnd(LAnd(a7, a8), LNot(LXor(LXor(LOr(a9, LAnd(
-        a10, a11)), a2), LAnd(LAnd(a11, LXor(a2, Iff(a5, a5))), LXor(LXor(a7, a7), Iff(a9, a4)))))))),
-        LNot(LAnd(LImplies(LAnd(a1, a2), LNot(LXor(LOr(LOr(LXor(LImplies(LAnd(a3, a4), LImplies(a5, a6)),
-        LOr(a7, a8)), LXor(Iff(a9, a10), a11)), LXor(LXor(a2, a2), a7)), Iff(LOr(a4, a9), LXor(LNot(a6),
-        a6))))), LNot(Iff(LNot(a11), LNot(a9))))))), LNot(LAnd(LImplies(LAnd(a1, a2), LNot(LXor(LOr(LOr(
-        LXor(LImplies(LAnd(a3, a4), LImplies(a5, a6)), LOr(a7, a8)), LXor(Iff(a9, a10), a11)), LXor(
-        LXor(a2, a2), a7)), Iff(LOr(a4, a9), LXor(LNot(a6), a6))))), LNot(Iff(LNot(a11), LNot(a9))))))
-
-        rules = [
-            # xor(x,⊥) → x
-            ReplacementRule(
-                LXor(x__, LBot),
-                lambda x: LXor(*x)
-            ),
-            # xor(x, x) → ⊥
-            ReplacementRule(
-                LXor(x_, x_, ___),
-                lambda x: LBot
-            ),
-            # and(x,⊤) → x
-            ReplacementRule(
-                LAnd(x__, LTop),
-                lambda x: LAnd(*x)
-            ),
-            # and(x,⊥) → ⊥
-            ReplacementRule(
-                LAnd(___, LBot),
-                lambda: LBot
-            ),
-            # and(x, x) → x
-            ReplacementRule(
-                LAnd(x_, x_, y___),
-                lambda x, y: LAnd(x, *y)
-            ),
-            # and(x, xor(y, z)) → xor(and(x, y), and(x, z))
-            ReplacementRule(
-                LAnd(x_, LXor(y_, z_)),
-                lambda x, y, z: LXor(LAnd(x, y), LAnd(x, z))
-            ),
-            # implies(x, y) → not(xor(x, and(x, y)))
-            ReplacementRule(
-                LImplies(x_, y_),
-                lambda x, y: LNot(LXor(x, LAnd(x, y)))
-            ),
-            # not(x) → xor(x,⊤)
-            ReplacementRule(
-                LNot(x_),
-                lambda x: LXor(x, LTop)
-            ),
-            # or(x, y) → xor(and(x, y), xor(x, y))
-            ReplacementRule(
-                LOr(x_, y_),
-                lambda x, y: LXor(LAnd(x, y), LXor(x, y))
-            ),
-            # iff(x, y) → not(xor(x, y))
-            ReplacementRule(
-                Iff(x_, y_),
-                lambda x, y: LNot(LXor(x, y))
-            ),
-        ]
-
-        result = replace_all(expr, rules)
-
-        print(result)
-
-    _main3()
+    doctest.testmod(exclude_empty=True)
