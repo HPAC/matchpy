@@ -120,7 +120,7 @@ class _OperationMeta(type):
 
         Returns:
             False iff ``one_identity`` is True and the operation contains a single
-            argument that is not a sequence wildcard.        
+            argument that is not a sequence wildcard.
         """
 
         if cls.associative:
@@ -144,6 +144,9 @@ class _OperationMeta(type):
             operands.sort()
 
         return True
+
+    def from_args(cls, *args, **kwargs):
+        return cls(*args, **kwargs)
 
 
 class Operation(Expression, metaclass=_OperationMeta):
@@ -222,7 +225,7 @@ class Operation(Expression, metaclass=_OperationMeta):
         self.operands = list(operands)
         self.head = type(self)
 
-    def __str__(self):        
+    def __str__(self):
         if self.infix:
             value = '(%s)' % (' %s ' % self.name).join(str(o) for o in self.operands)
         else:
@@ -332,7 +335,7 @@ class Operation(Expression, metaclass=_OperationMeta):
             yield from operand.preorder_iter(predicate, position + (i, ))
 
     def _compute_hash(self):
-        return hash((type(self), ) + tuple(self.operands))
+        return hash((self.name, ) + tuple(self.operands))
 
 class Atom(Expression):
     pass
@@ -361,10 +364,10 @@ class Symbol(Atom):
         return True
 
     def __eq__(self, other):
-        return isinstance(self, other.__class__) and self.name == other.name
+        return (isinstance(self, type(other)) or isinstance(other, type(self))) and self.name == other.name
 
     def _compute_hash(self):
-        return hash((type(self), self.name))
+        return hash((Symbol, self.name))
 
 class Variable(Expression):
     """A variable that is captured during a match.
@@ -498,7 +501,7 @@ class Variable(Expression):
         return self.expression[key[1:]]
 
     def _compute_hash(self):
-        return hash((type(self), self.name, self.expression))
+        return hash((Variable, self.name, self.expression))
 
 
 class Wildcard(Atom):
@@ -594,7 +597,7 @@ class Wildcard(Atom):
                other.fixed_size == self.fixed_size
 
     def _compute_hash(self):
-        return hash((type(self), self.min_count, self.fixed_size))
+        return hash((Wildcard, self.min_count, self.fixed_size))
 
 
 class SymbolWildcard(Wildcard):
@@ -618,7 +621,7 @@ class SymbolWildcard(Wildcard):
 
         if not issubclass(symbol_type, Symbol):
             raise TypeError("The type constraint must be a subclass of Symbol")
-        
+
         self.symbol_type = symbol_type
 
     def __repr__(self):
@@ -682,7 +685,7 @@ class Substitution(Dict[str, VariableReplacement]):
 
     def union_with_variable(self, variable: str, replacement: VariableReplacement):
         """Try to create a new substitution with the given variable added.
-        
+
         See :meth:`try_add_variable` for a version of this method that modifies the substitution
         in place.
 
@@ -746,7 +749,15 @@ class _FrozenMeta(type):
     __call__ = type.__call__
 
 class _FrozenOperationMeta(_FrozenMeta, _OperationMeta):
-    pass
+    def from_args(cls, *args, **kwargs):
+        for base in cls.__mro__:
+            if isinstance(base, _OperationMeta) and not isinstance(base, _FrozenMeta):
+                return cls(base(*args, **kwargs))
+        raise AssertionError
+
+    def __repr__(cls):
+        return 'FrozenOperation[%r, arity=%r, associative=%r, commutative=%r, one_identity=%r]' % \
+            (cls.name, cls.arity, cls.associative, cls.commutative, cls.one_identity)
 
 class FrozenExpression(Expression, metaclass=_FrozenMeta):
     def __new__(cls, expr: Expression):
@@ -768,6 +779,8 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):
             self.min_count = expr.min_count
             self.fixed_size = expr.fixed_size
             self.head = None
+        else:
+            raise AssertionError
 
         object.__setattr__(self, '_frozen', True)
 
@@ -821,6 +834,7 @@ def freeze(expr: Expression) -> FrozenExpression:
 def unfreeze(expr: FrozenExpression) -> Expression:
     # TODO
     return expr
+
 
 if __name__ == '__main__':
     import doctest

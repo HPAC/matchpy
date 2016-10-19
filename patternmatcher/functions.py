@@ -250,7 +250,7 @@ def substitute(expression: Expression, substitution: Substitution) -> Tuple[Unio
             else:
                 new_operands.append(result)
         if any_replaced:
-            return type(expression)(*new_operands), True
+            return type(expression).from_args(*new_operands), True
 
     return expression, False
 
@@ -281,10 +281,10 @@ def replace(expression: Expression, position: Sequence[int], replacement: Union[
     pos = position[0]
     subexpr = replace(expression.operands[pos], position[1:], replacement)
     if isinstance(subexpr, list):
-        return op_class(*(expression.operands[:pos] + subexpr + expression.operands[pos+1:]))
+        return op_class.from_args(*(expression.operands[:pos] + subexpr + expression.operands[pos+1:]))
     operands = expression.operands.copy()
     operands[pos] = subexpr
-    return op_class(*operands)
+    return op_class.from_args(*operands)
 
 ReplacementRule = NamedTuple('ReplacementRule', [('pattern', Expression), ('replacement', Callable[..., Expression])])
 

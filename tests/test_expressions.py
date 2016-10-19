@@ -91,6 +91,18 @@ class ExpressionTest(unittest.TestCase):
         else:
             _ = operation(*operands)
 
+    @data(
+        a,
+        b,
+        f(a, b),
+        Variable.dot('x'),
+        Wildcard.star(),
+        Variable('x', f(a))
+    )
+    def test_freeze_eq(self, expr):
+        frozen_expr = freeze(expr)
+        self.assertEqual(expr, frozen_expr)
+
 
 def load_tests(loader, tests, ignore):
     tests.addTests(doctest.DocTestSuite(expressions))
