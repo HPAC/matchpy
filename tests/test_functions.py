@@ -357,12 +357,12 @@ class MatchTest(unittest.TestCase):
         (f(a, b), lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)), [False, True],  [3, 0], 0),
         (f(a, b), lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)), [True, False],  [3, 3], 0),
         (f(a, b), lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)), [True, True],   [3, 3], 3),
-        (a,       lambda c: Variable('x', a, c),                                    [True],         [1],    1),
-        (a,       lambda c: Variable('x', a, c),                                    [False],        [1],    0),
-        (f(a, a), lambda c1, c2: f(Variable('x', a, c1), Variable('x', a, c2)),     [False, False], [1, 0], 0),
-        (f(a, a), lambda c1, c2: f(Variable('x', a, c1), Variable('x', a, c2)),     [True, False],  [1, 1], 0),
-        (f(a, a), lambda c1, c2: f(Variable('x', a, c1), Variable('x', a, c2)),     [False, True],  [1, 0], 0),
-        (f(a, a), lambda c1, c2: f(Variable('x', a, c1), Variable('x', a, c2)),     [True, True],   [1, 1], 1),
+        (a,       lambda c: Variable('x', _, c),                                    [True],         [1],    1),
+        (a,       lambda c: Variable('x', _, c),                                    [False],        [1],    0),
+        (f(a, a), lambda c1, c2: f(Variable('x', _, c1), Variable('x', _, c2)),     [False, False], [1, 0], 0),
+        (f(a, a), lambda c1, c2: f(Variable('x', _, c1), Variable('x', _, c2)),     [True, False],  [1, 1], 0),
+        (f(a, a), lambda c1, c2: f(Variable('x', _, c1), Variable('x', _, c2)),     [False, True],  [1, 0], 0),
+        (f(a, a), lambda c1, c2: f(Variable('x', _, c1), Variable('x', _, c2)),     [True, True],   [1, 1], 1),
         (a,       lambda c: Symbol('a', c),                                         [False],        [1],    0),
         (a,       lambda c: Symbol('a', c),                                         [True],         [1],    1),
         (f(a),    lambda c: f(a, constraint=c),                                     [False],        [1],    0),
@@ -385,7 +385,7 @@ class MatchTest(unittest.TestCase):
         constraint3 = Mock(return_value=True)
         constraint4 = Mock(return_value=True)
         expr = freeze(f(a, b))
-        pattern = f(Wildcard(0, False, constraint1), Variable('x', Wildcard.dot(), constraint2), Variable('y', Wildcard.dot(), constraint3), constraint=constraint4)
+        pattern = f(Wildcard(0, False, constraint1), Variable('x', _, constraint2), Variable('y', _, constraint3), constraint=constraint4)
 
         pattern = freeze(pattern)
         result = list(match(expr, pattern))

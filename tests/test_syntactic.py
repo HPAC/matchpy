@@ -26,22 +26,22 @@ class FlattermTest(unittest.TestCase):
 
     @unpack
     @data(
-        (a,                 [a]),
-        (w,                 [w]),
-        (x,                 [w]),
-        (Variable('v', a),  [a]),
-        (f(),               [f, OP_END]),
-        (f(a),              [f, a, OP_END]),
-        (g(b),              [g, b, OP_END]),
-        (f(a, b),           [f, a, b, OP_END]),
-        (f(x),              [f, w, OP_END]),
-        (f(y),              [f, y, OP_END]),
-        (f(g(a)),           [f, g, a, OP_END, OP_END]),
-        (f(g(a), b),        [f, g, a, OP_END, b, OP_END]),
-        (f(a, g(b)),        [f, a, g, b, OP_END, OP_END]),
-        (f(a, g(b), c),     [f, a, g, b, OP_END, c, OP_END]),
-        (f(g(b), g(c)),     [f, g, b, OP_END, g, c, OP_END, OP_END]),
-        (f(f(g(b)), g(c)),  [f, f, g, b, OP_END, OP_END, g, c, OP_END, OP_END])
+        (a,                     [a]),
+        (w,                     [w]),
+        (x,                     [w]),
+        (Variable('v', f(w)),   [f, w, OP_END]),
+        (f(),                   [f, OP_END]),
+        (f(a),                  [f, a, OP_END]),
+        (g(b),                  [g, b, OP_END]),
+        (f(a, b),               [f, a, b, OP_END]),
+        (f(x),                  [f, w, OP_END]),
+        (f(y),                  [f, y, OP_END]),
+        (f(g(a)),               [f, g, a, OP_END, OP_END]),
+        (f(g(a), b),            [f, g, a, OP_END, b, OP_END]),
+        (f(a, g(b)),            [f, a, g, b, OP_END, OP_END]),
+        (f(a, g(b), c),         [f, a, g, b, OP_END, c, OP_END]),
+        (f(g(b), g(c)),         [f, g, b, OP_END, g, c, OP_END, OP_END]),
+        (f(f(g(b)), g(c)),      [f, f, g, b, OP_END, OP_END, g, c, OP_END, OP_END])
     )
     def test_iter(self, expr, result):
         term = list(Flatterm._flatterm_iter(expr))

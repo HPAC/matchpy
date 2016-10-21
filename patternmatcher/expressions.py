@@ -62,12 +62,13 @@ class Expression(object):
         self.head = None # type: Union[type,Atom]
 
     @property
-    def variables(self) -> Multiset:
-        """"""
+    def variables(self) -> Multiset[str]:
+        """TODO"""
         return Multiset()
 
     @property
-    def symbols(self) -> Multiset:
+    def symbols(self) -> Multiset[str]:
+        """TODO"""
         return Multiset()
 
     @property
@@ -93,7 +94,7 @@ class Expression(object):
         if predicate is None or predicate(self):
             yield self, position
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Tuple[int, ...]) -> 'Expression':
         if len(key) == 0:
             return self
         raise IndexError("Invalid position")
@@ -301,31 +302,31 @@ class Operation(Expression, metaclass=_OperationMeta):
                len(self.operands) == len(other.operands) and \
                all(x == y for x,y in zip(self.operands, other.operands))
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Tuple[int, ...]) -> Expression:
         if len(key) == 0:
             return self
         head, *remainder = key
         return self.operands[head][remainder]
 
     @property
-    def is_constant(self):
+    def is_constant(self) -> bool:
         return all(x.is_constant for x in self.operands)
 
     @property
-    def is_syntactic(self):
+    def is_syntactic(self) -> bool:
         if self.associative or self.commutative:
             return False
         return all(o.is_syntactic for o in self.operands)
 
     @property
-    def variables(self):
+    def variables(self) -> Multiset[str]:
         return sum((x.variables for x in self.operands), Multiset())
 
     @property
-    def symbols(self):
+    def symbols(self) -> Multiset[str]:
         return sum((x.symbols for x in self.operands), Multiset([self.name]))
 
-    def _is_linear(self, variables):
+    def _is_linear(self, variables: Set[str]) -> bool:
         return all(o._is_linear(variables) for o in self.operands)
 
     def preorder_iter(self, predicate:Optional[ExpressionPredicate]=None, position:Tuple[int,...]=()) -> Iterator[Tuple['Expression',Tuple[int,...]]]:
@@ -397,35 +398,36 @@ class Variable(Expression):
         if expression.variables:
             raise ValueError("Cannot have nested variables in expression.")
 
+        if expression.is_constant:
+            raise ValueError("Cannot have constant expression for a variable.")
+
         self.name = name
         self.expression = expression
         self.head = expression.head
 
     @property
-    def is_constant(self):
+    def is_constant(self) -> bool:
         return self.expression.is_constant
 
     @property
-    def is_syntactic(self):
+    def is_syntactic(self) -> bool:
         return self.expression.is_syntactic
 
     @property
-    def variables(self):
-        variables = self.expression.variables
-        variables[self.name] += 1
-        return variables
+    def variables(self) -> Multiset[str]:
+        return Multiset([self.name])
 
     @property
-    def symbols(self):
+    def symbols(self) -> Multiset[str]:
         return self.expression.symbols
 
     @staticmethod
-    def dot(name: str, constraint:Optional[Constraint]=None):
+    def dot(name: str, constraint:Optional[Constraint]=None) -> 'Variable':
         """Create a :class:`Variable` with a :class:`Wildcard` that matches exactly one argument."""
         return Variable(name, Wildcard.dot(), constraint)
 
     @staticmethod
-    def symbol(name: str, symbol_type:Type[Symbol]=Symbol, constraint:Optional[Constraint]=None):
+    def symbol(name: str, symbol_type:Type[Symbol]=Symbol, constraint:Optional[Constraint]=None) -> 'Variable':
         """Create a :class:`Variable` with a :class:`SymbolWildcard`.
 
         Args:
@@ -443,17 +445,17 @@ class Variable(Expression):
         return Variable(name, Wildcard.symbol(symbol_type), constraint)
 
     @staticmethod
-    def star(name: str, constraint:Optional[Constraint]=None):
+    def star(name: str, constraint:Optional[Constraint]=None) -> 'Variable':
         """Creates a `Variable` with :class:`Wildcard` that matches any number of arguments."""
         return Variable(name, Wildcard.star(), constraint)
 
     @staticmethod
-    def plus(name: str, constraint:Optional[Constraint]=None):
+    def plus(name: str, constraint:Optional[Constraint]=None) -> 'Variable':
         """Creates a `Variable` with :class:`Wildcard` that matches at least one and up to any number of arguments."""
         return Variable(name, Wildcard.plus(), constraint)
 
     @staticmethod
-    def fixed(name: str, length: int, constraint:Optional[Constraint]=None):
+    def fixed(name: str, length: int, constraint:Optional[Constraint]=None) -> 'Variable':
         """Creates a `Variable` with :class:`Wildcard` that matches exactly `length` expressions."""
         return Variable(name, Wildcard.dot(length), constraint)
 
@@ -462,7 +464,7 @@ class Variable(Expression):
             yield self, position
         yield from self.expression.preorder_iter(predicate, position + (0, ))
 
-    def _is_linear(self, variables):
+    def _is_linear(self, variables: Set[str]) -> bool:
         if self.name in variables:
             return False
         variables.add(self.name)
@@ -493,7 +495,7 @@ class Variable(Expression):
             return self.name < other.name
         return type(self).__name__ < type(other).__name__
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Tuple[int, ...]) -> Expression:
         if len(key) == 0:
             return self
         if key[0] != 0:
@@ -537,22 +539,22 @@ class Wildcard(Atom):
         self.fixed_size = fixed_size
 
     @property
-    def is_constant(self):
+    def is_constant(self) -> bool:
         return False
 
     @property
-    def is_syntactic(self):
+    def is_syntactic(self) -> bool:
         return self.fixed_size
 
     @staticmethod
-    def dot(length:int=1):
+    def dot(length:int=1) -> 'Wildcard':
         """Creates a :class:`Wildcard` that matches a fixed number `length` of arguments.
 
         Defaults to matching only a single argument."""
         return Wildcard(min_count=length, fixed_size=True)
 
     @staticmethod
-    def symbol(symbol_type:Type[Symbol]=Symbol):
+    def symbol(symbol_type:Type[Symbol]=Symbol) -> 'SymbolWildcard':
         """Create a :class:`SymbolWildcard` that matches a single :class:`Symbol` argument.
 
         Args:
@@ -566,12 +568,12 @@ class Wildcard(Atom):
         return SymbolWildcard(symbol_type)
 
     @staticmethod
-    def star():
+    def star() -> 'Wildcard':
         """Creates a :class:`Wildcard` that matches any number of arguments."""
         return Wildcard(min_count=0, fixed_size=False)
 
     @staticmethod
-    def plus():
+    def plus() -> 'Wildcard':
         """Creates a :class:`Wildcard` that matches at least one and up to any number of arguments."""
         return Wildcard(min_count=1, fixed_size=False)
 
@@ -589,7 +591,7 @@ class Wildcard(Atom):
         return '%s(%r, %r)' % (self.__class__.__name__, self.min_count, self.fixed_size)
 
     def __lt__(self, other):
-        return isinstance(other, Wildcard)
+        return (not isinstance(other, Wildcard)) and type(self).__name__ < type(other).__name__
 
     def __eq__(self, other):
         return isinstance(other, Wildcard) and \
@@ -638,13 +640,13 @@ class Substitution(Dict[str, VariableReplacement]):
     The key is a variable's name and the value the substitution for it.
     """
 
-    def try_add_variable(self, variable: str, replacement: VariableReplacement):
+    def try_add_variable(self, variable: str, replacement: VariableReplacement) -> None:
         """Try to add the variable with its replacement to the substitution.
 
         This considers an existing replacement and will only succeed if the new replacement
         can be merged with the old replacement. Merging can occur if either the two replacements
         are equivalent. Replacements can also be merged if the old replacement for the variable was
-        unordered (i.e. a :class:`~typing.Set`) and the new one is an equivalant ordered version of it:
+        unordered (i.e. a :class:`~typing.Set`) and the new one is an equivalent ordered version of it:
 
         >>> subst = Substitution({'x': {'a', 'b'}})
         >>> subst.try_add_variable('x', ('a', 'b'))
@@ -683,7 +685,7 @@ class Substitution(Dict[str, VariableReplacement]):
             elif replacement != existing_value:
                 raise ValueError
 
-    def union_with_variable(self, variable: str, replacement: VariableReplacement):
+    def union_with_variable(self, variable: str, replacement: VariableReplacement) -> 'Substitution':
         """Try to create a new substitution with the given variable added.
 
         See :meth:`try_add_variable` for a version of this method that modifies the substitution
@@ -707,7 +709,7 @@ class Substitution(Dict[str, VariableReplacement]):
         new_subst.try_add_variable(variable, replacement)
         return new_subst
 
-    def union(self, *others: 'Substitution'):
+    def union(self, *others: 'Substitution') -> 'Substitution':
         """Try to merge the substitutions.
 
         If a variable occurs in multiple substitutions, try to merge the replacements.
@@ -767,7 +769,7 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):
 
         if isinstance(expr, Operation):
             self.operands = tuple(freeze(e) for e in expr.operands)
-            self.head = type(self)
+            self.head = expr.head
         elif isinstance(expr, Symbol):
             self.name = expr.name
             self.head = self
@@ -798,23 +800,23 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):
             object.__setattr__(self, name, value)
 
     @cached_property
-    def variables(self) -> Multiset:
+    def variables(self) -> Multiset[str]:
         return super().variables
 
     @cached_property
-    def symbols(self) -> Multiset:
+    def symbols(self) -> Multiset[str]:
         return super().symbols
 
     @cached_property
-    def is_constant(self) -> Multiset:
+    def is_constant(self) -> bool:
         return super().is_constant
 
     @cached_property
-    def is_syntactic(self) -> Multiset:
+    def is_syntactic(self) -> bool:
         return super().is_syntactic
 
     @cached_property
-    def is_linear(self) -> Multiset:
+    def is_linear(self) -> bool:
         return super().is_linear
 
     def __hash__(self):
@@ -832,12 +834,23 @@ def freeze(expr: Expression) -> FrozenExpression:
     base = type(expr)
     if base not in _frozen_type_cache:
         meta = isinstance(base, _OperationMeta) and _FrozenOperationMeta or _FrozenMeta
-        _frozen_type_cache[base] = meta('Frozen' + base.__name__, (FrozenExpression, base), {})
+        _frozen_type_cache[base] = meta('Frozen' + base.__name__, (FrozenExpression, base), {'_original_base': base})
     return _frozen_type_cache[base](expr)
 
 def unfreeze(expr: FrozenExpression) -> Expression:
-    # TODO
-    return expr
+    if not isinstance(expr, FrozenExpression):
+        return expr
+    if isinstance(expr, SymbolWildcard):
+        return SymbolWildcard(expr.symbol_type, expr.constraint)
+    if isinstance(expr, Wildcard):
+        return Wildcard(expr.min_count, expr.fixed_size, expr.constraint)
+    if isinstance(expr, Variable):
+        return Variable(expr.name, unfreeze(expr.expression), expr.constraint)
+    if isinstance(expr, Symbol):
+        return Symbol(expr.name, expr.constraint)
+    if isinstance(expr, Operation):
+        return expr._original_base.from_args(*map(unfreeze, expr.operands), constraint=expr.constraint)
+    raise AssertionError
 
 
 if __name__ == '__main__':
