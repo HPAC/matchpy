@@ -545,7 +545,6 @@ class MatchAnywhereTest(unittest.TestCase):
             self.assertIn(result, results, "Results differ from expected")
 
 
-@unittest.skip("Takes too long")
 class LogicReplaceTest(unittest.TestCase):
     def test_simplify(self):
         LAnd = Operation.new('and', Arity.variadic, 'LAnd', associative=True, one_identity=True, commutative=True)

@@ -188,13 +188,6 @@ def substitute(expression: Expression, substitution: Substitution) -> Tuple[Unio
     if isinstance(expression, Variable):
         if expression.name in substitution:
             return substitution[expression.name], True
-        result, replaced = substitute(expression.expression, substitution)
-        if replaced:
-            if isinstance(result, list):
-                if len(result) != 1:
-                    raise ValueError('Invalid substitution resulted in a variable with multiple expressions.')
-                result = result[0]
-            return Variable(expression.name, result), True
     elif isinstance(expression, Operation):
         any_replaced = False
         new_operands = []
