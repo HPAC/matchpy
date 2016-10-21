@@ -21,17 +21,17 @@ class BipartiteGraph(Dict[Tuple[TLeft, TRight], TEdge], Generic[TLeft, TRight, T
     dictionary. The value can either be `True` or any value that you want to associate with the edge.
     """
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: Tuple[TLeft, TRight], value: TEdge) -> None:
         if not isinstance(key, tuple) or len(key) != 2:
             raise TypeError('Key must a 2-tuple')
         super(BipartiteGraph, self).__setitem__(key, value)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Tuple[TLeft, TRight]) -> TEdge:
         if not isinstance(key, tuple) or len(key) != 2:
             raise TypeError('Key must a 2-tuple')
         return super(BipartiteGraph, self).__getitem__(key)
 
-    def __delitem__(self, key):
+    def __delitem__(self, key: Tuple[TLeft, TRight]) -> None:
         if not isinstance(key, tuple) or len(key) != 2:
             raise TypeError('Key must a 2-tuple')
         return super(BipartiteGraph, self).__delitem__(key)
@@ -59,14 +59,15 @@ class BipartiteGraph(Dict[Tuple[TLeft, TRight], TEdge], Generic[TLeft, TRight, T
 
         return graph
 
-    def find_matching(self) -> Dict[TLeft,TRight]:
+    def find_matching(self) -> Dict[TLeft, TRight]:
         """Finds a matching in the bipartite graph.
 
         This is done using the Hopcroft-Karp algorithm with an implementation from the
         `hopcroftkarp` package.
 
-        :returns: A dictionary where each edge of the matching is represeted by a key-value pair
-        with the key being from the left part of the graph and the value from te right part.
+        Returns:
+            A dictionary where each edge of the matching is represented by a key-value pair
+            with the key being from the left part of the graph and the value from te right part.
         """
         # The directed graph is represented as a dictionary of edges
         # The key is the tail of all edges which are represented by the value
@@ -74,7 +75,7 @@ class BipartiteGraph(Dict[Tuple[TLeft, TRight], TEdge], Generic[TLeft, TRight, T
         # In addition, the graph stores which part of the bipartite graph a node originated from
         # to avoid problems when a value exists in both halfs.
         # Only one direction of the undirected edge is needed for the HopcroftKarp class
-        directed_graph = {} # type: Dict[Tuple[int, TLeft],Set[Tuple[int,TRight]]]
+        directed_graph = {} # type: Dict[Tuple[int, TLeft], Set[Tuple[int, TRight]]]
 
         for (left, right) in self:
             tail = (LEFT, left)
@@ -102,8 +103,9 @@ class BipartiteGraph(Dict[Tuple[TLeft, TRight], TEdge], Generic[TLeft, TRight, T
         """Returns the induced subgraph where only the nodes from the given sets are included."""
         return BipartiteGraph(((n1, n2), v) for (n1, n2), v in self.items() if n1 in left and n2 in right)
 
+Node = Tuple[int, Union[TLeft, TRight]]
 
-class _DirectedMatchGraph(Dict[Tuple[int,Union[TLeft,TRight]],Set[Tuple[int,Union[TLeft,TRight]]]], Generic[TLeft, TRight]):
+class _DirectedMatchGraph(Dict[Node, Set[Node]], Generic[TLeft, TRight]):
     def __init__(self, graph: BipartiteGraph[TLeft, TRight, TEdge], matching: Dict[TLeft, TRight]) -> None:
         super(_DirectedMatchGraph, self).__init__()
         for (tail, head) in graph:
@@ -141,21 +143,21 @@ class _DirectedMatchGraph(Dict[Tuple[int,Union[TLeft,TRight]],Set[Tuple[int,Unio
             graph.edge(tail_node, head_node)
         return graph
 
-    def find_cycle(self) -> List[Tuple[int,Union[TLeft,TRight]]]:
-        visited = cast(Set[Tuple[int,Union[TLeft,TRight]]], set())
+    def find_cycle(self) -> List[Node]:
+        visited = cast(Set[Node], set())
         for n in self:
-            cycle = self._find_cycle(n, cast(List[Tuple[int,Union[TLeft,TRight]]], []), visited)
+            cycle = self._find_cycle(n, cast(List[Node], []), visited)
             if cycle:
                 return cycle
         return cast(List[Tuple[int,Union[TLeft,TRight]]], [])
 
-    def _find_cycle(self, node:Tuple[int,Union[TLeft,TRight]], path:List[Tuple[int,Union[TLeft,TRight]]], visited:Set[Tuple[int,Union[TLeft,TRight]]]) -> List[Tuple[int,Union[TLeft,TRight]]]:
+    def _find_cycle(self, node: Node, path: List[Node], visited: Set[Node]) -> List[Node]:
         if node in visited:
             try:
                 index = path.index(node)
                 return path[index:]
             except ValueError:
-                return cast(List[Tuple[int,Union[TLeft,TRight]]], [])
+                return cast(List[Node], [])
 
         visited.add(node)
 
@@ -285,46 +287,6 @@ def _enum_maximum_matchings_iter(graph: BipartiteGraph[TLeft, TRight, TEdge], ma
         yield from _enum_maximum_matchings_iter(graph_minus, matching, _DirectedMatchGraph(graph_minus, matching))
 
 
-if __name__ == '__main__': # pragma: no cover
-    def _main():
-        from patternmatcher.expressions import (Arity, Operation, Symbol, Variable)
-
-        f = Operation.new('f', Arity.variadic, 'f')
-        g = Operation.new('g', Arity.variadic, 'g')
-
-        a = Symbol('a')
-        b = Symbol('b')
-        x_ = Variable.dot('x')
-        y_ = Variable.dot('y')
-
-        G = BipartiteGraph()
-        G[f(a),x_] = True
-        G[f(b),x_] = True
-        G[a,x_] = True
-        G[b,x_] = True
-        G[g(a),x_] = True
-        G[f(a),y_] = True
-        G[f(b),y_] = True
-        G[a,y_] = True
-        G[b,y_] = True
-        G[g(a),y_] = True
-        G[f(a),f(x_)] = True
-        G[f(b),f(x_)] = True
-        G[g(a),g(x_)] = True
-
-        G.as_graph().render('G')
-
-        m = G.find_matching()
-
-        for k, v in m.items():
-            print('%s: %s' % (k, v))
-
-        DGM = _DirectedMatchGraph(G, m)
-        DGM.as_graph().render('DGM')
-
-        for m in _enum_maximum_matchings_iter(G, m, DGM):
-            print('matching!')
-            for kv in m.items():
-                print('\t%s: %s' % kv)
-
-    _main()
+if __name__ == '__main__':
+    import doctest
+    doctest.testmod(exclude_empty=True)

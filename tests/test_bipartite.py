@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import doctest
 import itertools
 import math
 import unittest
@@ -7,6 +8,7 @@ from ddt import data, ddt, unpack
 import hypothesis.strategies as st
 from hypothesis import given
 
+import patternmatcher.bipartite as bipartite
 from patternmatcher.bipartite import (BipartiteGraph, _DirectedMatchGraph,
                                       enum_maximum_matchings_iter)
 
@@ -140,6 +142,11 @@ class BipartiteGraphTest(unittest.TestCase):
         self.assertEqual(graph.limited_to({1}, {1}), {(1, 1): True})
         self.assertEqual(graph.limited_to({1}, {0, 1}), {(1, 0): True, (1, 1): True})
         self.assertEqual(graph.limited_to({0, 1}, {0, 1}), graph)
+
+
+def load_tests(loader, tests, ignore):
+    tests.addTests(doctest.DocTestSuite(bipartite))
+    return tests
 
 if __name__ == '__main__':
     unittest.main()

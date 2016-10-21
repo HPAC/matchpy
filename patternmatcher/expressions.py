@@ -39,11 +39,13 @@ class Arity(_ArityBase, Enum, metaclass=_ArityMeta, _root=True):
     variadic    = (0, False)
 
     def __repr__(self):
-        return "%s.%s" % (self.__class__.__name__, self._name_)
+        return "%s.%s" % (type(self).__name__, self._name_)
 
 Match = Dict[str, Union['Expression', List['Expression']]]
 Constraint = Callable[[Match], bool]
-ExpressionPredicate = Callable[['Expression'], bool]
+ExprPredicate = Optional[Callable[['Expression'], bool]]
+ExpressionsWithPos = Iterator[Tuple['Expression', Tuple[int, ...]]]
+
 
 class Expression(object):
     """Base class for all expressions.
@@ -59,7 +61,7 @@ class Expression(object):
 
     def __init__(self, constraint: Optional[Constraint] = None) -> None:
         self.constraint = constraint
-        self.head = None # type: Union[type,Atom]
+        self.head = None  # type: Union[type,Atom]
 
     @property
     def variables(self) -> Multiset[str]:
@@ -89,7 +91,7 @@ class Expression(object):
     def _is_linear(self, variables: Set[str]) -> bool:
         return True
 
-    def preorder_iter(self, predicate:Optional[ExpressionPredicate]=None, position:Tuple[int,...]=()) -> Iterator[Tuple['Expression',Tuple[int,...]]]:
+    def preorder_iter(self, predicate: ExprPredicate=None, position: Tuple[int, ...]=()) -> ExpressionsWithPos:
         """Iterates over all subexpressions that match the (optional) `predicate`."""
         if predicate is None or predicate(self):
             yield self, position
@@ -99,12 +101,13 @@ class Expression(object):
             return self
         raise IndexError("Invalid position")
 
+
 class _OperationMeta(type):
     def __repr__(cls):
         return 'Operation[%r, arity=%r, associative=%r, commutative=%r, one_identity=%r]' % \
             (cls.name, cls.arity, cls.associative, cls.commutative, cls.one_identity)
 
-    def __call__(cls, *operands: Expression, constraint:Optional[Constraint]=None):
+    def __call__(cls, *operands: Expression, constraint: Optional[Constraint]=None):
         # __call__ is overriden, so that for one_identity operations with a single argument
         # that argument can be returned instead
         operands = list(operands)
@@ -125,10 +128,10 @@ class _OperationMeta(type):
         """
 
         if cls.associative:
-            new_operands = [] # type: List[Expression]
+            new_operands = []  # type: List[Expression]
             for operand in operands:
                 if isinstance(operand, cls):
-                    new_operands.extend(operand.operands) # type: ignore
+                    new_operands.extend(operand.operands)  # type: ignore
                 else:
                     new_operands.append(operand)
             operands.clear()
@@ -153,10 +156,10 @@ class _OperationMeta(type):
 class Operation(Expression, metaclass=_OperationMeta):
     """Base class for all operations."""
 
-    name = None # type: str
+    name = None  # type: str
     """Name or symbol for the operator."""
 
-    arity = Arity.variadic # type: Arity
+    arity = Arity.variadic  # type: Arity
     """The arity of the operator as (`int`, `int`) tuple.
 
     The first component represents
@@ -207,19 +210,23 @@ class Operation(Expression, metaclass=_OperationMeta):
         super().__init__(constraint)
 
         if len(operands) < self.arity.min_count:
-            raise ValueError("Operation %s got arity %s, but got %d operands." % (self.__class__.__name__, self.arity, len(operands)))
+            raise ValueError("Operation %s got arity %s, but got %d operands."
+                             % (type(self).__name__, self.arity, len(operands)))
 
         if self.arity.fixed_size and len(operands) > self.arity.min_count:
-            msg = "Operation %s got arity %s, but got %d operands." % (self.__class__.__name__, self.arity, len(operands))
+            msg = "Operation %s got arity %s, but got %d operands." \
+                % (type(self).__name__, self.arity, len(operands))
             if self.associative:
                 msg += " Associative operations should have a variadic/polyadic arity."
             raise ValueError(msg)
 
         variables = dict()
-        for var, _ in itertools.chain.from_iterable(o.preorder_iter(lambda e: isinstance(e, Variable)) for o in operands):
+        var_iters = [o.preorder_iter(lambda e: isinstance(e, Variable)) for o in operands]
+        for var, _ in itertools.chain.from_iterable(var_iters):
             if var.name in variables:
                 if variables[var.name] != var:
-                    raise ValueError("Conflicting versions of variable %s: %r vs %r" % (var.name, var, variables[var.name]))
+                    raise ValueError("Conflicting versions of variable %s: %r vs %r"
+                                     % (var.name, var, variables[var.name]))
             else:
                 variables[var.name] = var
 
@@ -238,11 +245,11 @@ class Operation(Expression, metaclass=_OperationMeta):
     def __repr__(self):
         operand_str = ', '.join(map(repr, self.operands))
         if self.constraint:
-            return '%s(%s, constraint=%r)' % (self.__class__.__name__, operand_str, self.constraint)
-        return '%s(%s)' % (self.__class__.__name__, operand_str)
+            return '%s(%s, constraint=%r)' % (type(self).__name__, operand_str, self.constraint)
+        return '%s(%s)' % (type(self).__name__, operand_str)
 
     @staticmethod
-    def new(name : str, arity : Arity, class_name : str = None, **attributes) -> Type['Operation']:
+    def new(name: str, arity: Arity, class_name: str = None, **attributes) -> Type['Operation']:
         """Utility method to create a new operation type.
 
         Example:
@@ -282,7 +289,7 @@ class Operation(Expression, metaclass=_OperationMeta):
         if isinstance(other, Symbol):
             return False
 
-        if not isinstance(other, self.__class__):
+        if not isinstance(other, type(self)):
             return type(self).__name__ < type(other).__name__
 
         if len(self.operands) != len(other.operands):
@@ -300,7 +307,7 @@ class Operation(Expression, metaclass=_OperationMeta):
         return isinstance(self, other.__class__) and \
                self.constraint == other.constraint and \
                len(self.operands) == len(other.operands) and \
-               all(x == y for x,y in zip(self.operands, other.operands))
+               all(x == y for x, y in zip(self.operands, other.operands))
 
     def __getitem__(self, key: Tuple[int, ...]) -> Expression:
         if len(key) == 0:
@@ -329,7 +336,7 @@ class Operation(Expression, metaclass=_OperationMeta):
     def _is_linear(self, variables: Set[str]) -> bool:
         return all(o._is_linear(variables) for o in self.operands)
 
-    def preorder_iter(self, predicate:Optional[ExpressionPredicate]=None, position:Tuple[int,...]=()) -> Iterator[Tuple['Expression',Tuple[int,...]]]:
+    def preorder_iter(self, predicate: ExprPredicate=None, position: Tuple[int, ...]=()) -> ExpressionsWithPos:
         if predicate is None or predicate(self):
             yield self, position
         for i, operand in enumerate(self.operands):
@@ -338,11 +345,13 @@ class Operation(Expression, metaclass=_OperationMeta):
     def _compute_hash(self):
         return hash((self.name, ) + tuple(self.operands))
 
+
 class Atom(Expression):
     pass
 
+
 class Symbol(Atom):
-    def __init__(self, name: str, constraint:Optional[Constraint]=None) -> None:
+    def __init__(self, name: str, constraint: Optional[Constraint]=None) -> None:
         super().__init__(constraint)
         self.name = name
         self.head = self
@@ -352,8 +361,8 @@ class Symbol(Atom):
 
     def __repr__(self):
         if self.constraint:
-            return '%s(%r, constraint=%r)' % (self.__class__.__name__, self.name, self.constraint)
-        return '%s(%r)' % (self.__class__.__name__, self.name)
+            return '%s(%r, constraint=%r)' % (type(self).__name__, self.name, self.constraint)
+        return '%s(%r)' % (type(self).__name__, self.name)
 
     @property
     def symbols(self):
@@ -370,6 +379,7 @@ class Symbol(Atom):
     def _compute_hash(self):
         return hash((Symbol, self.name))
 
+
 class Variable(Expression):
     """A variable that is captured during a match.
 
@@ -377,7 +387,7 @@ class Variable(Expression):
     value is captured for the variable.
     """
 
-    def __init__(self, name: str, expression: Expression, constraint:Optional[Constraint]=None) -> None:
+    def __init__(self, name: str, expression: Expression, constraint: Optional[Constraint]=None) -> None:
         """
         Args:
             name
@@ -422,12 +432,12 @@ class Variable(Expression):
         return self.expression.symbols
 
     @staticmethod
-    def dot(name: str, constraint:Optional[Constraint]=None) -> 'Variable':
+    def dot(name: str, constraint: Optional[Constraint]=None) -> 'Variable':
         """Create a :class:`Variable` with a :class:`Wildcard` that matches exactly one argument."""
         return Variable(name, Wildcard.dot(), constraint)
 
     @staticmethod
-    def symbol(name: str, symbol_type:Type[Symbol]=Symbol, constraint:Optional[Constraint]=None) -> 'Variable':
+    def symbol(name: str, symbol_type: Type[Symbol]=Symbol, constraint: Optional[Constraint]=None) -> 'Variable':
         """Create a :class:`Variable` with a :class:`SymbolWildcard`.
 
         Args:
@@ -445,21 +455,21 @@ class Variable(Expression):
         return Variable(name, Wildcard.symbol(symbol_type), constraint)
 
     @staticmethod
-    def star(name: str, constraint:Optional[Constraint]=None) -> 'Variable':
+    def star(name: str, constraint: Optional[Constraint]=None) -> 'Variable':
         """Creates a `Variable` with :class:`Wildcard` that matches any number of arguments."""
         return Variable(name, Wildcard.star(), constraint)
 
     @staticmethod
-    def plus(name: str, constraint:Optional[Constraint]=None) -> 'Variable':
+    def plus(name: str, constraint: Optional[Constraint]=None) -> 'Variable':
         """Creates a `Variable` with :class:`Wildcard` that matches at least one and up to any number of arguments."""
         return Variable(name, Wildcard.plus(), constraint)
 
     @staticmethod
-    def fixed(name: str, length: int, constraint:Optional[Constraint]=None) -> 'Variable':
+    def fixed(name: str, length: int, constraint: Optional[Constraint]=None) -> 'Variable':
         """Creates a `Variable` with :class:`Wildcard` that matches exactly `length` expressions."""
         return Variable(name, Wildcard.dot(length), constraint)
 
-    def preorder_iter(self, predicate:Optional[ExpressionPredicate]=None, position:Tuple[int,...]=()) -> Iterator[Tuple['Expression',Tuple[int,...]]]:
+    def preorder_iter(self, predicate: ExprPredicate=None, position: Tuple[int, ...]=()) -> ExpressionsWithPos:
         if predicate is None or predicate(self):
             yield self, position
         yield from self.expression.preorder_iter(predicate, position + (0, ))
@@ -482,8 +492,8 @@ class Variable(Expression):
 
     def __repr__(self):
         if self.constraint:
-            return '%s(%r, %r, constraint=%r)' % (self.__class__.__name__, self.name, self.expression, self.constraint)
-        return '%s(%r, %r)' % (self.__class__.__name__, self.name, self.expression)
+            return '%s(%r, %r, constraint=%r)' % (type(self).__name__, self.name, self.expression, self.constraint)
+        return '%s(%r, %r)' % (type(self).__name__, self.name, self.expression)
 
     def __eq__(self, other):
         return isinstance(other, Variable) and self.name == other.name and self.expression == other.expression
@@ -547,14 +557,14 @@ class Wildcard(Atom):
         return self.fixed_size
 
     @staticmethod
-    def dot(length:int=1) -> 'Wildcard':
+    def dot(length: int=1) -> 'Wildcard':
         """Creates a :class:`Wildcard` that matches a fixed number `length` of arguments.
 
         Defaults to matching only a single argument."""
         return Wildcard(min_count=length, fixed_size=True)
 
     @staticmethod
-    def symbol(symbol_type:Type[Symbol]=Symbol) -> 'SymbolWildcard':
+    def symbol(symbol_type: Type[Symbol]=Symbol) -> 'SymbolWildcard':
         """Create a :class:`SymbolWildcard` that matches a single :class:`Symbol` argument.
 
         Args:
@@ -587,8 +597,8 @@ class Wildcard(Atom):
 
     def __repr__(self):
         if self.constraint:
-            return '%s(%r, %r, constraint=%r)' % (self.__class__.__name__, self.min_count, self.fixed_size, self.constraint)
-        return '%s(%r, %r)' % (self.__class__.__name__, self.min_count, self.fixed_size)
+            return '%s(%r, %r, constraint=%r)' % (type(self).__name__, self.min_count, self.fixed_size, self.constraint)
+        return '%s(%r, %r)' % (type(self).__name__, self.min_count, self.fixed_size)
 
     def __lt__(self, other):
         return (not isinstance(other, Wildcard)) and type(self).__name__ < type(other).__name__
@@ -605,7 +615,7 @@ class Wildcard(Atom):
 class SymbolWildcard(Wildcard):
     """A special :class:`Wildcard` that matches a :class:`Symbol`."""
 
-    def __init__(self, symbol_type:Type[Symbol]=Symbol, constraint: Optional[Constraint]=None) -> None:
+    def __init__(self, symbol_type: Type[Symbol]=Symbol, constraint: Optional[Constraint]=None) -> None:
         """
         Args:
             symbol_type
@@ -628,11 +638,11 @@ class SymbolWildcard(Wildcard):
 
     def __repr__(self):
         if self.constraint:
-            return '%s(%r, constraint=%r)' % (self.__class__.__name__, self.symbol_type, self.constraint)
-        return '%s(%r)' % (self.__class__.__name__, self.symbol_type)
-
+            return '%s(%r, constraint=%r)' % (type(self).__name__, self.symbol_type, self.constraint)
+        return '%s(%r)' % (type(self).__name__, self.symbol_type)
 
 VariableReplacement = Union[Tuple[Expression], Set[Expression], Expression]
+
 
 class Substitution(Dict[str, VariableReplacement]):
     """Special :class:`dict` for substitutions with nicer formatting.
@@ -739,7 +749,7 @@ class Substitution(Dict[str, VariableReplacement]):
         return new_subst
 
     @staticmethod
-    def _match_value_repr_str(value: Union[List[Expression], Expression]) -> str: # pragma: no cover
+    def _match_value_repr_str(value: Union[List[Expression], Expression]) -> str:  # pragma: no cover
         if isinstance(value, (list, tuple)):
             return '(%s)' % (', '.join(str(x) for x in value))
         return str(value)
@@ -747,8 +757,10 @@ class Substitution(Dict[str, VariableReplacement]):
     def __str__(self):
         return ', '.join('%s ← %s' % (k, self._match_value_repr_str(v)) for k, v in sorted(self.items()))
 
+
 class _FrozenMeta(type):
     __call__ = type.__call__
+
 
 class _FrozenOperationMeta(_FrozenMeta, _OperationMeta):
     def from_args(cls, *args, **kwargs):
@@ -760,6 +772,7 @@ class _FrozenOperationMeta(_FrozenMeta, _OperationMeta):
     def __repr__(cls):
         return 'FrozenOperation[%r, arity=%r, associative=%r, commutative=%r, one_identity=%r]' % \
             (cls.name, cls.arity, cls.associative, cls.commutative, cls.one_identity)
+
 
 class FrozenExpression(Expression, metaclass=_FrozenMeta):
     def __new__(cls, expr: Expression):
@@ -790,11 +803,11 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):
 
         return self
 
-    def __init__(self, expr): # pylint: disable=super-init-not-called
+    def __init__(self, expr):  # pylint: disable=super-init-not-called
         pass
 
     def __setattr__(self, name, value):
-        if self._frozen: # pylint: disable=no-member
+        if self._frozen:  # pylint: disable=no-member
             raise TypeError('Cannot modifiy a FrozenExpression')
         else:
             object.__setattr__(self, name, value)
@@ -825,8 +838,8 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):
             object.__setattr__(self, '_hash', self._compute_hash())
         return self._hash
 
-
 _frozen_type_cache = {}
+
 
 def freeze(expr: Expression) -> FrozenExpression:
     if isinstance(expr, FrozenExpression):
@@ -836,6 +849,7 @@ def freeze(expr: Expression) -> FrozenExpression:
         meta = isinstance(base, _OperationMeta) and _FrozenOperationMeta or _FrozenMeta
         _frozen_type_cache[base] = meta('Frozen' + base.__name__, (FrozenExpression, base), {'_original_base': base})
     return _frozen_type_cache[base](expr)
+
 
 def unfreeze(expr: FrozenExpression) -> Expression:
     if not isinstance(expr, FrozenExpression):
