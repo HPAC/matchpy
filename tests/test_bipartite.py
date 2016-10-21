@@ -3,12 +3,12 @@ import itertools
 import math
 import unittest
 
-import hypothesis.strategies as st
 from ddt import data, ddt, unpack
+import hypothesis.strategies as st
 from hypothesis import given
 
-from patternmatcher.bipartite import (BipartiteGraph,
-                                     enum_maximum_matchings_iter, _DirectedMatchGraph)
+from patternmatcher.bipartite import (BipartiteGraph, _DirectedMatchGraph,
+                                      enum_maximum_matchings_iter)
 
 
 @st.composite
@@ -86,13 +86,13 @@ class BipartiteGraphTest(unittest.TestCase):
         graph[0,1] = True
 
         with self.assertRaises(TypeError):
-            graph[0] = True 
+            graph[0] = True
 
         with self.assertRaises(TypeError):
-            graph[0,] = True 
+            graph[0,] = True
 
         with self.assertRaises(TypeError):
-            graph[0,1,2] = True 
+            graph[0,1,2] = True
 
     def test_getitem(self):
         graph = BipartiteGraph({(0,0): True})
@@ -131,6 +131,15 @@ class BipartiteGraphTest(unittest.TestCase):
 
         with self.assertRaises(KeyError):
             del graph[0,1]
+
+    def test_limited_to(self):
+        graph = BipartiteGraph({(0, 0): True, (1, 0): True, (1, 1): True, (0, 1): True})
+
+        self.assertEqual(graph.limited_to({0}, {0}), {(0, 0): True})
+        self.assertEqual(graph.limited_to({0, 1}, {1}), {(0, 1): True, (1, 1): True})
+        self.assertEqual(graph.limited_to({1}, {1}), {(1, 1): True})
+        self.assertEqual(graph.limited_to({1}, {0, 1}), {(1, 0): True, (1, 1): True})
+        self.assertEqual(graph.limited_to({0, 1}, {0, 1}), graph)
 
 if __name__ == '__main__':
     unittest.main()
