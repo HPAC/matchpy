@@ -4,9 +4,6 @@ import math
 from typing import (Callable, Iterator, List, NamedTuple, Sequence, Tuple,
                     Union, cast)
 
-from patternmatcher.constraints import (Constraint, CustomConstraint,
-                                        EqualVariablesConstraint,
-                                        MultiConstraint)
 from patternmatcher.expressions import (Arity, Expression, Operation,
                                         Substitution, Symbol, SymbolWildcard,
                                         Variable, Wildcard)
@@ -20,10 +17,14 @@ def match(expression: Expression, pattern: Expression) -> Iterator[Substitution]
     Yields each match in form of a substitution that when applied to `pattern` results in the original
     `expression`.
 
-    :param expression: An expression to match.
-    :param pattern: The pattern to match.
+    Parameters:
+        expression:
+            An expression to match.
+        pattern:
+            The pattern to match.
 
-    :returns: Yields all possible substitutions as dictionaries where each key is the name of the variable
+    Yields:
+        All possible substitutions as dictionaries where each key is the name of the variable
         and the corresponding value is the variables substitution. Applying the substitution to the pattern
         results in the original expression (except for :class:`Wildcard`\s)
     """
@@ -41,10 +42,14 @@ def match_anywhere(expression: Expression, pattern: Expression) -> Iterator[Tupl
     `(0, )` refers to the first child (operand) of the expression, `(0, 0)` to the first child of
     the first child etc.
 
-    :param expression: An expression to match.
-    :param pattern: The pattern to match.
+    Parameters:
+        expression:
+            An expression to match.
+        pattern:
+            The pattern to match.
 
-    :returns: Yields all possible substitution and position pairs.
+    Yields:
+        All possible substitution and position pairs.
     """
     predicate = None
     if pattern.head is not None:
@@ -52,6 +57,7 @@ def match_anywhere(expression: Expression, pattern: Expression) -> Iterator[Tupl
     for child, pos in expression.preorder_iter(predicate):
         for subst in _match([child], pattern, {}):
             yield subst, pos
+
 
 def _match(exprs: List[Expression], pattern: Expression, subst: Substitution) -> Iterator[Substitution]:
     if isinstance(pattern, Variable):
@@ -76,10 +82,11 @@ def _match(exprs: List[Expression], pattern: Expression, subst: Substitution) ->
 
 Matcher = Callable[[List[Expression], Expression, Substitution], Iterator[Substitution]]
 
+
 def _match_variable(exprs: List[Expression], variable: Variable, subst: Substitution, matcher: Matcher) -> Iterator[Substitution]:
     inner = variable.expression
     if len(exprs) == 1 and (not isinstance(inner, Wildcard) or inner.fixed_size):
-        expr = exprs[0] # type: Union[Expression,List[Expression]]
+        expr = exprs[0]  # type: Union[Expression,List[Expression]]
     else:
         expr = tuple(exprs)
     if variable.name in subst:
@@ -93,6 +100,7 @@ def _match_variable(exprs: List[Expression], variable: Variable, subst: Substitu
         if variable.constraint is None or variable.constraint(new_subst):
             yield new_subst
 
+
 def _match_wildcard(exprs: List[Expression], wildcard: Wildcard, subst: Substitution) -> Iterator[Substitution]:
     if wildcard.fixed_size:
         if len(exprs) == wildcard.min_count:
@@ -104,12 +112,14 @@ def _match_wildcard(exprs: List[Expression], wildcard: Wildcard, subst: Substitu
         if wildcard.constraint is None or wildcard.constraint(subst):
             yield subst
 
+
 def _associative_operand_max(operand):
     while isinstance(operand, Variable):
         operand = operand.expression
     if isinstance(operand, Wildcard):
         return math.inf
     return 1
+
 
 def _associative_fix_operand_max(parts, maxs, operation):
     new_parts = list(parts)
@@ -120,12 +130,14 @@ def _associative_fix_operand_max(parts, maxs, operation):
             new_parts[i] = tuple(fixed) + (operation.from_args(*variable), )
     return new_parts
 
+
 def _size(expr):
     while isinstance(expr, Variable):
         expr = expr.expression
     if isinstance(expr, Wildcard):
         return (expr.min_count, (not expr.fixed_size) and math.inf or expr.min_count)
     return (1, 1)
+
 
 def _match_operation(exprs, operation, subst, matcher):
     if len(operation.operands) == 0:
@@ -168,6 +180,7 @@ def _match_operation(exprs, operation, subst, matcher):
                 if i < 0:
                     break
 
+
 def substitute(expression: Expression, substitution: Substitution) -> Tuple[Union[Expression, List[Expression]], bool]:
     """Replaces variables in the given `expression` by the given `substitution`.
 
@@ -180,10 +193,16 @@ def substitute(expression: Expression, substitution: Substitution) -> Tuple[Unio
     >>> substitute(f(x, c), {'x': [a, b]})
     (f(Symbol('a'), Symbol('b'), Symbol('c')), True)
 
-    :param expression: An expression in which variables are substituted.
-    :param substitution: A substitution dictionary. The key is the name of the variable,
-        the value either an expression or a list of expression to use as a replacement for
-        the variable.
+    Parameters:
+        expression:
+            An expression in which variables are substituted.
+        substitution:
+            A substitution dictionary. The key is the name of the variable,
+            the value either an expression or a list of expression to use as a replacement for
+            the variable.
+
+    Returns:
+        The expression resulting from applying the substitution.
     """
     if isinstance(expression, Variable):
         if expression.name in substitution:
@@ -214,12 +233,19 @@ def replace(expression: Expression, position: Sequence[int], replacement: Union[
     >>> replace(f(a), (0, ), [b, c])
     f(Symbol('b'), Symbol('c'))
 
-    :param expression: An :class:`Expression` where a (sub)expression is to be replaced.
-    :param position: A tuple of indices, e.g. the empty tuple refers to the `expression` itself,
-        `(0, )` refers to the first child (operand) of the `expression`, `(0, 0)` to the first
-        child of the first child etc.
-    :param replacement: Either an :class:`Expression` or a list of :class:`Expression`\s to be
-        inserted into the `expression` instead of the original expression at that `position`.
+    Parameters:
+        expression:
+            An :class:`Expression` where a (sub)expression is to be replaced.
+        position:
+            A tuple of indices, e.g. the empty tuple refers to the `expression` itself,
+            `(0, )` refers to the first child (operand) of the `expression`, `(0, 0)` to the first
+            child of the first child etc.
+        replacement:
+            Either an :class:`Expression` or a list of :class:`Expression`\s to be
+            inserted into the `expression` instead of the original expression at that `position`.
+
+    Returns:
+        The resulting expression from the replacement.
     """
     if position == ():
         return replacement
@@ -237,6 +263,7 @@ def replace(expression: Expression, position: Sequence[int], replacement: Union[
     return op_class.from_args(*operands)
 
 ReplacementRule = NamedTuple('ReplacementRule', [('pattern', Expression), ('replacement', Callable[..., Expression])])
+
 
 def replace_all(expression: Expression, rules: Sequence[ReplacementRule]) -> Union[Expression, List[Expression]]:
     grouped = itertools.groupby(rules, lambda r: r.pattern.head)

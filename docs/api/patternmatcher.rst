@@ -11,7 +11,6 @@ Submodules
    patternmatcher.expressions
    patternmatcher.functions
    patternmatcher.matching
-   patternmatcher.multiset
    patternmatcher.syntactic
    patternmatcher.utils
 
