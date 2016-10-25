@@ -11,7 +11,7 @@ from multiset import Multiset
 from patternmatcher.utils import (VariableWithCount, base_solution_linear,
                                   commutative_sequence_variable_partition_iter,
                                   extended_euclid, fixed_sum_vector_iter,
-                                  solve_linear_diop)
+                                  solve_linear_diop, partitions_with_count)
 
 
 def is_unique_list(l):
@@ -69,6 +69,16 @@ class FixedSumVectorIteratorTest(unittest.TestCase):
                         for vect in fixed_sum_vector_iter(minVect, maxVect, n):
                             self.assertGreaterEqual(vect, last_vect, 'Vectors are not in lexical order')
                             last_vect = vect
+
+
+@ddt
+class PartitionsWithCountTest(unittest.TestCase):
+    @unpack
+    @data(*((n, m) for n, m in itertools.product(range(1, 8), range(1, 3)) if n >= m))
+    def test_correctness(self, n, m):
+        for part in partitions_with_count(n, m):
+            self.assertEqual(len(part), m)
+            self.assertEqual(sum(part), n)
 
 
 class ExtendedEuclidTest(unittest.TestCase):
@@ -157,7 +167,7 @@ class CommutativeSequenceVariablePartitionIterTest(unittest.TestCase):
                 self.assertGreaterEqual(len(subst[var.name]), var.minimum)
                 result_union.update(subst[var.name] * var.count)
             self.assertEqual(result_union, values)
-    
+
     @unpack
     @data(
         # Variables             Values      Expected iter count

@@ -38,6 +38,20 @@ def partitions_with_limits(values: List[T], limits: List[Tuple[int, int]]) -> It
         yield tuple(v)
 
 def partitions_with_count(n, m):
+    """
+    Implementation of the Algorithm H from the book "The Art of Computer Programming, Volume 4, Fascicle 3: Generating
+    All Combinations and Partitions" by Donald E. Knuth (2005).
+    """
+    if m < 1:
+        raise ValueError('m < 1')
+
+    if m == 1:
+        yield [n]
+        return
+
+    if m > n:
+        return
+
     # H1: Initialize
     a = [1] * m
     a.append(-1)
@@ -48,7 +62,7 @@ def partitions_with_count(n, m):
             # H2: Visit
             yield a[:-1]
 
-            if a[1] > a[0] - 1:
+            if a[1] >= a[0] - 1:
                 break
 
             # H3: Tweak a[0] and a[1]
@@ -128,6 +142,25 @@ def minimum_integer_vector_iter(maxVect: Tuple[int, ...], minSum:int=0) -> Itera
             newmin = max(0, minSum - j)
             for vec in minimum_integer_vector_iter(maxVect[1:], newmin):
                 yield (j, ) + vec
+
+
+def integer_partition_vector_iter(n: int, m: int) -> Iterator[List[int]]:
+    """
+
+    """
+    if m < 0:
+        return
+    if m == 0:
+        if n == 0:
+            yield tuple()
+        return
+    if m == 1:
+        yield (n, )
+        return
+
+    for i in range(0, n + 1):
+        for vec in integer_partition_vector_iter(n - i, m - 1):
+            yield (i, ) + vec
 
 def fixed_sum_vector_iter(min_vect: Sequence[int], max_vect: Sequence[int], total: int) -> Iterator[List[int]]:
     assert len(min_vect) == len(max_vect), 'len(min_vect) != len(max_vect)'
@@ -432,7 +465,9 @@ class cached_property(object):
         return value
 
 
-if __name__ == '__main__': # pragma: no cover
+if __name__ == '__main__':
+    for p in integer_partition_vector_iter(5, 2):
+        print(p)
     #for p in integer_vector_iter((5, 3), 2):
     #    print (p)
     values = Multiset('aaabbc')

@@ -32,7 +32,7 @@ class CommutativePatternsParts(object):
     All parts are represented by a :class:`~patternmatcher.multiset.Multiset`. This is essentially
     equivalent to a multiset. It is used, because the order of operands does not matter
     in a commutative operation. The count (value) represents how many times the expression (key)
-    occured in the operation.
+    occurred in the operation.
 
     In addition, some lengths are precalculated during the initialization of this data structure
     so that they do not have to be recalculated later.
@@ -54,7 +54,7 @@ class CommutativePatternsParts(object):
             so they are not included in this counter.
         sequence_variables (Multiset[str]):
             A :class:`.Multiset` representing the sequence variables of the pattern.
-            Variables are rerpesented by their name. Additional information is stored in
+            Variables are represented by their name. Additional information is stored in
             ``sequence_variable_infos``. For wildcards without variable, the name will be ``None``.
         sequence_variable_infos (typing.Dict[str, VarInfo]):
             A dictionary mapping sequence variable names to more information about the variable, i.e. its
