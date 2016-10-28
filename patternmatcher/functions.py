@@ -9,7 +9,7 @@ from patternmatcher.expressions import (Arity, Expression, Operation,
                                         Variable, Wildcard)
 from patternmatcher.utils import (commutative_partition_iter,
                                   integer_partition_vector_iter,
-                                  iterator_chain, partitions_with_limits)
+                                  iterator_chain)
 
 
 def match(expression: Expression, pattern: Expression) -> Iterator[Substitution]:
@@ -226,10 +226,7 @@ def _match_operation(expressions, operation, subst, matcher):
     if len(expressions) < sum(mins) or len(expressions) > sum(fake_maxs):
         return
     limits = list(zip(mins, fake_maxs))
-    if operation.commutative:
-        parts = commutative_partition_iter(expressions, mins, fake_maxs)
-    else:
-        parts = partitions_with_limits(expressions, limits)
+    parts = commutative_partition_iter(expressions, mins, fake_maxs)
 
     for part in parts:
         if operation.associative:
