@@ -2,7 +2,7 @@
 from graphviz import Digraph
 
 from patternmatcher.expressions import (Arity, Atom, Operation, Symbol,
-                                        Variable, Wildcard)
+                                        Variable, Wildcard, SymbolWildcard, freeze)
 
 
 class _OperationEnd(object):
@@ -13,6 +13,9 @@ OPERATION_END = _OperationEnd()
 
 def is_operation(term):
     return isinstance(term, type) and issubclass(term, Operation)
+
+def is_symbol_wildcard(term):
+    return isinstance(term, type) and issubclass(term, Symbol)
 
 class Flatterm(list):
     def __init__(self, expression):
@@ -41,7 +44,7 @@ class Flatterm(list):
         """Combines consecutive wildcards in a flatterm into a single one"""
         last_wildcard = None
         for term in flatterm:
-            if isinstance(term, Wildcard):
+            if isinstance(term, Wildcard) and not isinstance(term, SymbolWildcard):
                 if last_wildcard is not None:
                     last_wildcard = Wildcard(last_wildcard.min_count + term.min_count, last_wildcard.fixed_size and term.fixed_size)
                 else:
@@ -50,13 +53,18 @@ class Flatterm(list):
                 if last_wildcard is not None:
                     yield last_wildcard
                     last_wildcard = None
-                yield term
+                if isinstance(term, SymbolWildcard):
+                    yield term.symbol_type
+                else:
+                    yield term
         if last_wildcard is not None:
             yield last_wildcard
 
     def _term_str(self, term):
         if is_operation(term):
             return term.name + '('
+        elif is_symbol_wildcard(term):
+            return '*%s' % term
         elif isinstance(term, Wildcard):
             return '*%s%s' % (term.min_count, (not term.fixed_size) and '+' or '')
         else:
@@ -117,6 +125,8 @@ class _Node(dict):
     def _term_str(self, term):
         if is_operation(term):
             return term.name + '('
+        elif is_symbol_wildcard(term):
+            return '*%s' % term
         elif term == Wildcard:
             return '*'
         else:
@@ -246,6 +256,12 @@ class DiscriminationNet(object):
                     except KeyError:
                         if key == OPERATION_END:
                             return None, False
+                        if isinstance(key, Symbol):
+                            try:
+                                symbol_wildcard_key = next(t for t in node.keys() if is_symbol_wildcard(t) and isinstance(key, t))
+                                return node[symbol_wildcard_key], False 
+                            except StopIteration:
+                                pass
                         return node[Wildcard], True
                 except KeyError:
                     return None, False
@@ -334,7 +350,14 @@ class DiscriminationNet(object):
                             depth = 1
                         elif term == OPERATION_END:
                             return []
-                        node = node[Wildcard]
+                        elif isinstance(term, Symbol):
+                            try:
+                                symbol_wildcard_key = next(t for t in node.keys() if is_symbol_wildcard(t) and isinstance(term, t))
+                                node =  node[symbol_wildcard_key] 
+                            except StopIteration:
+                                node = node[Wildcard]
+                        else:
+                            node = node[Wildcard]
                 except KeyError:
                     return []
 
@@ -347,6 +370,8 @@ class DiscriminationNet(object):
     def _term_str(self, term):
         if is_operation(term):
             return term.name + '('
+        elif is_symbol_wildcard(term):
+            return '*%s' % term.__name__
         elif term == Wildcard:
             return '*'
         else:
@@ -436,11 +461,24 @@ def _test_times_with_types(): # pragma: no cover
     InverseTranspose = Operation.new('InvT', Arity.unary, 'InverseTranspose')
     Transpose = Operation.new('T', Arity.unary, 'Transpose')
 
-    scalar = Symbol('Scalar')
-    vector = Symbol('Vector')
-    matrix = Symbol('Matrix')
+    #scalar = Symbol('Scalar')
+    #vector = Symbol('Vector')
+    #matrix = Symbol('Matrix')
 
-    patterns = {
+    class Scalar(Symbol):
+        pass
+
+    class Matrix(Symbol):
+        pass
+
+    class Vector(Symbol):
+        pass
+
+    scalar = Wildcard.symbol(Scalar)
+    vector = Wildcard.symbol(Vector)
+    matrix = Wildcard.symbol(Matrix)
+
+    patterns = [
         Times(scalar, scalar),
         Times(Transpose(vector), vector),
         Times(scalar, vector),
@@ -483,10 +521,11 @@ def _test_times_with_types(): # pragma: no cover
         Times(Inverse(scalar), matrix),
         Times(scalar, matrix),
         Times(Inverse(scalar), matrix)
-    }
+    ]
+
     net = DiscriminationNet()
     for pattern in patterns:
-        net.add(pattern)
+        net.add(freeze(pattern))
 
     net.as_graph().render()
 

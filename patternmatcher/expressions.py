@@ -641,6 +641,9 @@ class SymbolWildcard(Wildcard):
             return '%s(%r, constraint=%r)' % (type(self).__name__, self.symbol_type, self.constraint)
         return '%s(%r)' % (type(self).__name__, self.symbol_type)
 
+    def __str__(self):
+        return '_[%s]' % self.symbol_type.__name__
+
 VariableReplacement = Union[Tuple[Expression], Set[Expression], Expression]
 
 
