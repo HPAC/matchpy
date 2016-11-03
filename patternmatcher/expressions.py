@@ -107,6 +107,9 @@ class _OperationMeta(type):
         return 'Operation[%r, arity=%r, associative=%r, commutative=%r, one_identity=%r]' % \
             (cls.name, cls.arity, cls.associative, cls.commutative, cls.one_identity)
 
+    def __str__(cls):
+        return cls.name
+
     def __call__(cls, *operands: Expression, constraint: Optional[Constraint]=None):
         # __call__ is overriden, so that for one_identity operations with a single argument
         # that argument can be returned instead
@@ -593,7 +596,10 @@ class Wildcard(Atom):
                 return '___'
             elif self.min_count == 1:
                 return '__'
-        return '_'
+        if self.min_count == 1:
+            return '_'
+        else:
+            return '_[%d%s]' % (self.min_count, '' if self.fixed_size else '+')
 
     def __repr__(self):
         if self.constraint:
@@ -604,8 +610,9 @@ class Wildcard(Atom):
         return (not isinstance(other, Wildcard)) and type(self).__name__ < type(other).__name__
 
     def __eq__(self, other):
-        return isinstance(other, Wildcard) and \
-               other.min_count == self.min_count and \
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return other.min_count == self.min_count and \
                other.fixed_size == self.fixed_size
 
     def _compute_hash(self):
@@ -635,6 +642,12 @@ class SymbolWildcard(Wildcard):
             raise TypeError("The type constraint must be a subclass of Symbol")
 
         self.symbol_type = symbol_type
+
+    def __eq__(self, other):
+        return isinstance(other, SymbolWildcard) and self.symbol_type == other.symbol_type
+
+    def _compute_hash(self):
+        return hash((SymbolWildcard, self.symbol_type))
 
     def __repr__(self):
         if self.constraint:
