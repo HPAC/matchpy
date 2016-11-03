@@ -358,9 +358,9 @@ class FrozenExpressionTest(unittest.TestCase):
         frozen = freeze(expr)
         other = freeze(other)
         if expr != other:
-            self.assertNotEqual(hash(frozen), hash(other))
+            self.assertNotEqual(hash(frozen), hash(other), 'hash(%s) == hash(%s)' % (frozen, other))
         else:
-            self.assertEqual(hash(frozen), hash(other))
+            self.assertEqual(hash(frozen), hash(other), 'hash(%s) != hash(%s)' % (frozen, other))
 
     def test_change_error(self):
         frozen = freeze(f(a))
