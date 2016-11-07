@@ -657,7 +657,7 @@ class SymbolWildcard(Wildcard):
     def __str__(self):
         return '_[%s]' % self.symbol_type.__name__
 
-VariableReplacement = Union[Tuple[Expression], Set[Expression], Expression]
+VariableReplacement = Union[Tuple[Expression, ...], Set[Expression], Expression]
 
 
 class Substitution(Dict[str, VariableReplacement]):

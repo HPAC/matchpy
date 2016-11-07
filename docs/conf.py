@@ -33,9 +33,9 @@ sys.path.insert(0, os.path.abspath(os.path.join('..')))
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.mathjax',
-    'sphinx_autodoc_typehints',
     'sphinx.ext.intersphinx',
-    'sphinx.ext.napoleon'
+    'sphinx.ext.napoleon',
+    'sphinx_autodoc_napoleon_typehints',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -340,4 +340,6 @@ texinfo_documents = [
 
 intersphinx_mapping = {'python': ('https://docs.python.org/3.5', None)}
 
-napoleon_use_ivar = True
+napoleon_use_ivar = False
+napoleon_google_docstring = True
+napoleon_numpy_docstring = False
