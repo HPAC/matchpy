@@ -179,8 +179,6 @@ def test_generate_net_and_match(pattern, expr, is_match):
     net._net = DiscriminationNet._generate_net(freeze(pattern))
     result = net.match(freeze(expr))
 
-    net.as_graph().render('tmp/%s' % pattern)
-
     if is_match:
         assert result == [pattern], 'Matching failed for %s and %s' % (pattern, expr)
     else:
@@ -220,8 +218,6 @@ def test_randomized_product_net(patterns):
         exprs.append(flatterm)
 
     net_id = hash(frozenset(patterns))
-
-    net.as_graph().render('tmp/random%s' % net_id)
 
     for pattern, expr in zip(patterns, exprs):
         result = net.match(expr)
