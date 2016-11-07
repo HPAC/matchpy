@@ -17,7 +17,7 @@ RIGHT = 1
 class BipartiteGraph(Dict[Tuple[TLeft, TRight], TEdge], Generic[TLeft, TRight, TEdge]):
     """A bipartite graph representation.
 
-    This class is a specilized dictionary, where each edge is represented by a 2-tuple that is used as a key in the
+    This class is a specialized dictionary, where each edge is represented by a 2-tuple that is used as a key in the
     dictionary. The value can either be `True` or any value that you want to associate with the edge.
     """
 

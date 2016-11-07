@@ -2,7 +2,7 @@ init:
 	pip install -r requirements.txt
 
 test:
-	py.test tests/
+	py.test tests/ --doctest-modules patternmatcher/
 
 check:
 	pylint patternmatcher

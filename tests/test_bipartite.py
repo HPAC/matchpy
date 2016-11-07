@@ -1,14 +1,11 @@
 # -*- coding: utf-8 -*-
-import doctest
 import itertools
 import math
-import unittest
 
-from ddt import data, ddt, unpack
 import hypothesis.strategies as st
 from hypothesis import given
+import pytest
 
-import patternmatcher.bipartite as bipartite
 from patternmatcher.bipartite import (BipartiteGraph, _DirectedMatchGraph,
                                       enum_maximum_matchings_iter)
 
@@ -27,126 +24,118 @@ def bipartite_graph(draw):
 
     return graph
 
-@ddt
-class EnumMaximumMatchingsIterTest(unittest.TestCase):
-    @given(bipartite_graph())
-    def test_correctness(self, graph):
-        size = None
-        matchings = set()
-        for matching in enum_maximum_matchings_iter(graph):
-            if size is None:
-                size = len(matching)
-            self.assertEqual(len(matching), size, 'Matching has a different size than the first one')
-            for kv in matching.items():
-                self.assertIn(kv, graph, 'Matching contains an edge that was not in the graph')
-            frozen_matching = frozenset(matching.items())
-            self.assertNotIn(frozen_matching, matchings, "Matching was duplicate")
-            matchings.add(frozen_matching)
 
-    @unpack
-    @data(*filter(lambda x: x[0] >= x[1], itertools.product(range(1, 6), range(0, 4))))
-    def test_completeness(self, n, m):
-        graph = BipartiteGraph(map(lambda x: (x, True), itertools.product(range(n), range(m))))
-        count = sum(1 for _ in enum_maximum_matchings_iter(graph))
-        expected_count = m > 0 and math.factorial(n) / math.factorial(n - m) or 0
-        self.assertEqual(count, expected_count)
+@given(bipartite_graph())
+def test_enum_maximum_matchings_iter_correctness(graph):
+    size = None
+    matchings = set()
+    for matching in enum_maximum_matchings_iter(graph):
+        if size is None:
+            size = len(matching)
+        assert len(matching) == size, 'Matching has a different size than the first one'
+        for edge in matching.items():
+            assert edge in graph, 'Matching contains an edge that was not in the graph'
+        frozen_matching = frozenset(matching.items())
+        assert frozen_matching not in matchings, "Matching was duplicate"
+        matchings.add(frozen_matching)
 
 
-
-@ddt
-class DirectedMatchGraphFindCycleTest(unittest.TestCase):
-    @unpack
-    @data(
-        ({},                        []),
-        ({0: {1}},                  []),
-        ({0: {1}, 1: {2}},          []),
-        ({0: {1}, 1: {0}},          [0, 1]),
-        ({0: {1}, 1: {0}},          [1, 0]),
-        ({0: {1}, 1: {0, 2}},       [0, 1]),
-        ({0: {1, 2}, 1: {0, 2}},    [0, 1]),
-        ({0: {1, 2}, 1: {0}},       [0, 1]),
-        ({0: {1}, 1: {2}, 2: {0}},  [0, 1, 2]),
-        ({0: {2}, 1: {2}},          []),
-        ({0: {2}, 1: {2}, 2: {0}},  [0, 2]),
-        ({0: {2}, 1: {2}, 2: {1}},  [1, 2]),
-    )
-    def test_find_cycle(self, graph, expected_cycle):
-        dmg = _DirectedMatchGraph({}, {})
-        dmg.update(graph)
-        cycle = dmg.find_cycle()
-        if len(expected_cycle) > 0:
-            self.assertIn(expected_cycle[0], cycle)
-            start = cycle.index(expected_cycle[0])
-            cycle = cycle[start:] + cycle[:start]
-        self.assertListEqual(cycle, expected_cycle)
+@pytest.mark.parametrize('n,m', filter(lambda x: x[0] >= x[1], itertools.product(range(1, 6), range(0, 4))))
+def test_completeness(n, m):
+    graph = BipartiteGraph(map(lambda x: (x, True), itertools.product(range(n), range(m))))
+    count = sum(1 for _ in enum_maximum_matchings_iter(graph))
+    expected_count = m > 0 and math.factorial(n) / math.factorial(n - m) or 0
+    assert count == expected_count
 
 
-class BipartiteGraphTest(unittest.TestCase):
+@pytest.mark.parametrize('graph,expected_cycle', [
+    ({},                        []),
+    ({0: {1}},                  []),
+    ({0: {1}, 1: {2}},          []),
+    ({0: {1}, 1: {0}},          [0, 1]),
+    ({0: {1}, 1: {0}},          [1, 0]),
+    ({0: {1}, 1: {0, 2}},       [0, 1]),
+    ({0: {1, 2}, 1: {0, 2}},    [0, 1]),
+    ({0: {1, 2}, 1: {0}},       [0, 1]),
+    ({0: {1}, 1: {2}, 2: {0}},  [0, 1, 2]),
+    ({0: {2}, 1: {2}},          []),
+    ({0: {2}, 1: {2}, 2: {0}},  [0, 2]),
+    ({0: {2}, 1: {2}, 2: {1}},  [1, 2]),
+])
+def test_directed_graph_find_cycle(graph, expected_cycle):
+    dmg = _DirectedMatchGraph({}, {})
+    dmg.update(graph)
+    cycle = dmg.find_cycle()
+    if len(expected_cycle) > 0:
+        assert expected_cycle[0] in cycle
+        start = cycle.index(expected_cycle[0])
+        cycle = cycle[start:] + cycle[:start]
+    assert cycle == expected_cycle
+
+
+class TestBipartiteGraphTest:
     def test_setitem(self):
         graph = BipartiteGraph()
 
         graph[0,1] = True
 
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             graph[0] = True
 
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             graph[0,] = True
 
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             graph[0,1,2] = True
 
     def test_getitem(self):
         graph = BipartiteGraph({(0,0): True})
 
-        self.assertEqual(graph[0,0], True)
+        assert graph[0,0] == True
 
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             _ = graph[0]
 
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             _ = graph[0,]
 
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             _ = graph[0,1,2]
 
-        with self.assertRaises(KeyError):
+        with pytest.raises(KeyError):
             _ = graph[0,1]
 
     def test_delitem(self):
         graph = BipartiteGraph({(0,0): True})
 
-        self.assertIn((0,0), graph)
+        assert (0,0) in graph
 
         del graph[0,0]
 
-        self.assertNotIn((0,0), graph)
+        assert (0,0) not in graph
 
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             del graph[0]
 
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             del graph[0,]
 
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             del graph[0,1,2]
 
-        with self.assertRaises(KeyError):
+        with pytest.raises(KeyError):
             del graph[0,1]
 
     def test_limited_to(self):
         graph = BipartiteGraph({(0, 0): True, (1, 0): True, (1, 1): True, (0, 1): True})
 
-        self.assertEqual(graph.limited_to({0}, {0}), {(0, 0): True})
-        self.assertEqual(graph.limited_to({0, 1}, {1}), {(0, 1): True, (1, 1): True})
-        self.assertEqual(graph.limited_to({1}, {1}), {(1, 1): True})
-        self.assertEqual(graph.limited_to({1}, {0, 1}), {(1, 0): True, (1, 1): True})
-        self.assertEqual(graph.limited_to({0, 1}, {0, 1}), graph)
+        assert graph.limited_to({0}, {0}) == {(0, 0): True}
+        assert graph.limited_to({0, 1}, {1}) == {(0, 1): True, (1, 1): True}
+        assert graph.limited_to({1}, {1}) == {(1, 1): True}
+        assert graph.limited_to({1}, {0, 1}) == {(1, 0): True, (1, 1): True}
+        assert graph.limited_to({0, 1}, {0, 1}) == graph
 
-
-def load_tests(loader, tests, ignore):
-    tests.addTests(doctest.DocTestSuite(bipartite))
-    return tests
 
 if __name__ == '__main__':
-    unittest.main()
+    import patternmatcher.bipartite as tested_module
+    pytest.main(['--doctest-modules', __file__, tested_module.__file__])

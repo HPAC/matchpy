@@ -230,4 +230,5 @@ def test_randomized_product_net(patterns):
 
 
 if __name__ == '__main__':
-    pytest.main([__file__])
+    import patternmatcher.syntactic as tested_module
+    pytest.main(['--doctest-modules', __file__, tested_module.__file__])

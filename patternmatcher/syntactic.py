@@ -77,8 +77,8 @@ class FlatTerm(List[TermAtom]):
 
     >>> class SpecialSymbol(Symbol):
     ...     pass
-    >>> FlatTerm(Wildcard.symbol(SpecialSymbol))
-    [<class '__main__.SpecialSymbol'>]
+    >>> FlatTerm(Wildcard.symbol(SpecialSymbol)) == [SpecialSymbol]
+    True
 
     Symbol wildcards are also not merged like regular wildcards, because they can never be sequence wildcards.
     """

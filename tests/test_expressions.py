@@ -1,13 +1,10 @@
 # -*- coding: utf-8 -*-
-import doctest
 import inspect
 import itertools
-import unittest
 
-from ddt import data, ddt, unpack
+import pytest
 from multiset import Multiset
 
-import patternmatcher.expressions as expressions
 from patternmatcher.expressions import (Arity, FrozenExpression, Operation,
                                         Substitution, Symbol, SymbolWildcard,
                                         Variable, Wildcard, freeze, unfreeze)
@@ -15,36 +12,37 @@ from patternmatcher.expressions import (Arity, FrozenExpression, Operation,
 a = freeze(Symbol('a'))
 b = freeze(Symbol('b'))
 
-@ddt
-class SubstitutionTest(unittest.TestCase):
-    @unpack
-    @data(
-        ({},                            'x', a,                     {'x': a}),
-        ({'x': a},                      'x', a,                     {'x': a}),
-        ({'x': a},                      'x', b,                     ValueError),
-        ({'x': a},                      'x', (a, b),                ValueError),
-        ({'x': (a, b)},                 'x', (a, b),                {'x': (a, b)}),
-        ({'x': (a, b)},                 'x', (a, a),                ValueError),
-        ({'x': (a, b)},                 'x', {a, b},                {'x': (a, b)}),
-        ({'x': (a, b)},                 'x', {a},                   ValueError),
-        ({'x': {a, b}},                 'x', {a, b},                {'x': {a, b}}),
-        ({'x': {a, b}},                 'x', {a},                   ValueError),
-        ({'x': {a, b}},                 'x', (a, b),                {'x': (a, b)}),
-        ({'x': {a, b}},                 'x', (a, a),                ValueError),
-        ({'x': {a}},                    'x', (a,),                  {'x': (a,)}),
-        ({'x': {a}},                    'x', (b,),                  ValueError),
-        ({'x': {a}},                    'x', a,                     {'x': a}),
-        ({'x': {a}},                    'x', b,                     ValueError),
+class TestSubstitution:
+    @pytest.mark.parametrize(
+        '   substitution,                   variable,   value,                 expected_result',
+        [
+            ({},                            'x',        a,                     {'x': a}),
+            ({'x': a},                      'x',        a,                     {'x': a}),
+            ({'x': a},                      'x',        b,                     ValueError),
+            ({'x': a},                      'x',        (a, b),                ValueError),
+            ({'x': (a, b)},                 'x',        (a, b),                {'x': (a, b)}),
+            ({'x': (a, b)},                 'x',        (a, a),                ValueError),
+            ({'x': (a, b)},                 'x',        {a, b},                {'x': (a, b)}),
+            ({'x': (a, b)},                 'x',        {a},                   ValueError),
+            ({'x': {a, b}},                 'x',        {a, b},                {'x': {a, b}}),
+            ({'x': {a, b}},                 'x',        {a},                   ValueError),
+            ({'x': {a, b}},                 'x',        (a, b),                {'x': (a, b)}),
+            ({'x': {a, b}},                 'x',        (a, a),                ValueError),
+            ({'x': {a}},                    'x',        (a,),                  {'x': (a,)}),
+            ({'x': {a}},                    'x',        (b,),                  ValueError),
+            ({'x': {a}},                    'x',        a,                     {'x': a}),
+            ({'x': {a}},                    'x',        b,                     ValueError),
+        ]
     )
-    def test_union_with_var(self, subst, var, value, expected_result):
-        subst = Substitution(subst)
+    def test_union_with_var(self, substitution, variable, value, expected_result):
+        substitution = Substitution(substitution)
 
         if expected_result is ValueError:
-            with self.assertRaises(ValueError):
-                _ = subst.union_with_variable(var, value)
+            with pytest.raises(ValueError):
+                _ = substitution.union_with_variable(variable, value)
         else:
-            result = subst.union_with_variable(var, value)
-            self.assertEqual(result, expected_result)
+            result = substitution.union_with_variable(variable, value)
+            assert result == expected_result
 
 f = Operation.new('f', Arity.variadic)
 f_i = Operation.new('f_i', Arity.variadic, one_identity=True)
@@ -71,238 +69,254 @@ y___ = Variable.star('y')
 z___ = Variable.star('z')
 
 
-@ddt
-class ExpressionTest(unittest.TestCase):
-    @unpack
-    @data(
-        (f_i(a),                        a),
-        (f_i(a, b),                     f_i(a, b)),
-        (f_i(_),                        _),
-        (f_i(___),                      f_i(___)),
-        (f_i(__),                       f_i(__)),
-        (f_i(x_),                       x_),
-        (f_i(x___),                     f_i(x___)),
-        (f_i(x__),                      f_i(x__)),
-        (f_a(f_a(a)),                   f_a(a)),
-        (f_a(f_a(a, b)),                f_a(a, b)),
-        (f_a(a, f_a(b)),                f_a(a, b)),
-        (f_a(f_a(a), b),                f_a(a, b)),
-        (f_a(f(a)),                     f_a(f(a))),
-        (f_c(a, b),                     f_c(a, b)),
-        (f_c(b, a),                     f_c(a, b)),
+class TestExpression:
+    @pytest.mark.parametrize(
+        '   expression,                     simplified',
+        [
+            (f_i(a),                        a),
+            (f_i(a, b),                     f_i(a, b)),
+            (f_i(_),                        _),
+            (f_i(___),                      f_i(___)),
+            (f_i(__),                       f_i(__)),
+            (f_i(x_),                       x_),
+            (f_i(x___),                     f_i(x___)),
+            (f_i(x__),                      f_i(x__)),
+            (f_a(f_a(a)),                   f_a(a)),
+            (f_a(f_a(a, b)),                f_a(a, b)),
+            (f_a(a, f_a(b)),                f_a(a, b)),
+            (f_a(f_a(a), b),                f_a(a, b)),
+            (f_a(f(a)),                     f_a(f(a))),
+            (f_c(a, b),                     f_c(a, b)),
+            (f_c(b, a),                     f_c(a, b)),
+        ]
     )
-    def test_operation_simplify(self, initial, simplified):
-        self.assertEqual(initial, simplified)
+    def test_operation_simplify(self, expression, simplified):
+        assert expression == simplified
 
-    @unpack
-    @data(
-        (Operation.new('f', Arity.unary),                       [],         ValueError),
-        (Operation.new('f', Arity.unary),                       [a, b],     ValueError),
-        (Operation.new('f', Arity.variadic),                    [],         None),
-        (Operation.new('f', Arity.variadic),                    [a],        None),
-        (Operation.new('f', Arity.variadic),                    [a, b],     None),
-        (Operation.new('f', Arity.binary, associative=True),    [a, a, b],  ValueError),
-        (Operation.new('f', Arity.binary),                      [x_, x___], ValueError),
-        (Operation.new('f', Arity.binary),                      [x_, x_],   None),
+    @pytest.mark.parametrize(
+        '   operation,                                              operands,   expected_error',
+        [
+            (Operation.new('f', Arity.unary),                       [],         ValueError),
+            (Operation.new('f', Arity.unary),                       [a, b],     ValueError),
+            (Operation.new('f', Arity.variadic),                    [],         None),
+            (Operation.new('f', Arity.variadic),                    [a],        None),
+            (Operation.new('f', Arity.variadic),                    [a, b],     None),
+            (Operation.new('f', Arity.binary, associative=True),    [a, a, b],  ValueError),
+            (Operation.new('f', Arity.binary),                      [x_, x___], ValueError),
+            (Operation.new('f', Arity.binary),                      [x_, x_],   None),
+        ]
     )
-    def test_operation_errors(self, operation, operands, error):
-        if error is not None:
-            with self.assertRaises(error):
-                _ = operation(*operands)
+    def test_operation_errors(self, operation, operands, expected_error):
+        if expected_error is not None:
+            with pytest.raises(expected_error):
+                operation(*operands)
         else:
             _ = operation(*operands)
 
-    @unpack
-    @data(
-        (a,         True),
-        (x_,        False),
-        (_,         False),
-        (f(a),      True),
-        (f(a, b),   True),
-        (f(x_),     False),
+    @pytest.mark.parametrize(
+        '   expression,     is_constant',
+        [
+            (a,             True),
+            (x_,            False),
+            (_,             False),
+            (f(a),          True),
+            (f(a, b),       True),
+            (f(x_),         False),
+        ]
     )
-    def test_is_constant(self, expr, expected):
-        self.assertEqual(expr.is_constant, expected)
+    def test_is_constant(self, expression, is_constant):
+        assert expression.is_constant == is_constant
 
-    @unpack
-    @data(
-        (a,             True),
-        (x_,            True),
-        (_,             True),
-        (x___,          False),
-        (___,           False),
-        (x__,           False),
-        (__,            False),
-        (f(a),          True),
-        (f(a, b),       True),
-        (f(x_),         True),
-        (f(x__),        False),
-        (f_a(a),        False),
-        (f_a(a, b),     False),
-        (f_a(x_),       False),
-        (f_a(x__),      False),
-        (f_c(a),        False),
-        (f_c(a, b),     False),
-        (f_c(x_),       False),
-        (f_c(x__),      False),
-        (f_ac(a),       False),
-        (f_ac(a, b),    False),
-        (f_ac(x_),      False),
-        (f_ac(x__),     False),
+    @pytest.mark.parametrize(
+        '   expression,     is_syntactic',
+        [
+            (a,             True),
+            (x_,            True),
+            (_,             True),
+            (x___,          False),
+            (___,           False),
+            (x__,           False),
+            (__,            False),
+            (f(a),          True),
+            (f(a, b),       True),
+            (f(x_),         True),
+            (f(x__),        False),
+            (f_a(a),        False),
+            (f_a(a, b),     False),
+            (f_a(x_),       False),
+            (f_a(x__),      False),
+            (f_c(a),        False),
+            (f_c(a, b),     False),
+            (f_c(x_),       False),
+            (f_c(x__),      False),
+            (f_ac(a),       False),
+            (f_ac(a, b),    False),
+            (f_ac(x_),      False),
+            (f_ac(x__),     False),
+        ]
     )
-    def test_is_syntactic(self, expr, expected):
-        self.assertEqual(expr.is_syntactic, expected)
+    def test_is_syntactic(self, expression, is_syntactic):
+        assert expression.is_syntactic == is_syntactic
 
-    @unpack
-    @data(
-        (a,                 True),
-        (x_,                True),
-        (_,                 True),
-        (f(a),              True),
-        (f(a, b),           True),
-        (f(x_),             True),
-        (f(x_, x_),         False),
-        (f(x_, y_),         True),
-        (f(x_, _),          True),
-        (f(_, _),           True),
-        (f(x_, f(x_)),      False),
-        (f(x_, a, f(x_)),   False),
+    @pytest.mark.parametrize(
+        '   expression,         is_linear',
+        [
+            (a,                 True),
+            (x_,                True),
+            (_,                 True),
+            (f(a),              True),
+            (f(a, b),           True),
+            (f(x_),             True),
+            (f(x_, x_),         False),
+            (f(x_, y_),         True),
+            (f(x_, _),          True),
+            (f(_, _),           True),
+            (f(x_, f(x_)),      False),
+            (f(x_, a, f(x_)),   False),
+        ]
     )
-    def test_is_linear(self, expr, expected):
-        self.assertEqual(expr.is_linear, expected)
+    def test_is_linear(self, expression, is_linear):
+        assert expression.is_linear == is_linear
 
-    @unpack
-    @data(
-        (a,                 ['a']),
-        (x_,                []),
-        (_,                 []),
-        (f(a),              ['a', 'f']),
-        (f(a, b),           ['a', 'b', 'f']),
-        (f(x_),             ['f']),
-        (f(a, a),           ['a', 'a', 'f']),
-        (f(f(a), f(b, c)),  ['a', 'b', 'c', 'f', 'f', 'f']),
+    @pytest.mark.parametrize(
+        '   expression,         symbols',
+        [
+            (a,                 ['a']),
+            (x_,                []),
+            (_,                 []),
+            (f(a),              ['a', 'f']),
+            (f(a, b),           ['a', 'b', 'f']),
+            (f(x_),             ['f']),
+            (f(a, a),           ['a', 'a', 'f']),
+            (f(f(a), f(b, c)),  ['a', 'b', 'c', 'f', 'f', 'f']),
+        ]
     )
-    def test_symbols(self, expr, expected):
-        self.assertEqual(expr.symbols, Multiset(expected))
+    def test_symbols(self, expression, symbols):
+        assert expression.symbols == Multiset(symbols)
 
-    @unpack
-    @data(
-        (a,                     []),
-        (x_,                    ['x']),
-        (_,                     []),
-        (f(a),                  []),
-        (f(x_),                 ['x']),
-        (f(x_, x_),             ['x', 'x']),
-        (f(x_, a),              ['x']),
-        (f(x_, a, y_),          ['x', 'y']),
-        (f(f(x_), f(b, x_)),    ['x', 'x']),
+    @pytest.mark.parametrize(
+        '   expression,             variables',
+        [
+            (a,                     []),
+            (x_,                    ['x']),
+            (_,                     []),
+            (f(a),                  []),
+            (f(x_),                 ['x']),
+            (f(x_, x_),             ['x', 'x']),
+            (f(x_, a),              ['x']),
+            (f(x_, a, y_),          ['x', 'y']),
+            (f(f(x_), f(b, x_)),    ['x', 'x']),
+        ]
     )
-    def test_variables(self, expr, expected):
-        self.assertEqual(expr.variables, Multiset(expected))
+    def test_variables(self, expression, variables):
+        assert expression.variables == Multiset(variables)
 
-    @unpack
-    @data(
-        (f(a, x_),      None,                       [(f(a, x_),     tuple()),
-                                                     (a,            (0, )),
-                                                     (x_,           (1, )),
-                                                     (_,            (1, 0))]),
-        (f(a, f(x_)),   lambda e: e.head is None,   [(x_,           (1, 0)),
-                                                     (_,            (1, 0, 0))]),
-        (f(a, f(x_)),   lambda e: e.head == f,      [(f(a, f(x_)),  tuple()),
-                                                     (f(x_),        (1, ))])
-    )
-    def test_preorder_iter(self, expr, predicate, expected_result):
-        result = list(expr.preorder_iter(predicate))
-        self.assertListEqual(result, expected_result)
+    @pytest.mark.parametrize(
+        '   expression,     predicate,                  preorder_list',
+        [                                               # expression        position
+            (f(a, x_),      None,                       [(f(a, x_),         ()),
+                                                         (a,                (0, )),
+                                                         (x_,               (1, )),
+                                                         (_,                (1, 0))]),
+            (f(a, f(x_)),   lambda e: e.head is None,   [(x_,               (1, 0)),
+                                                         (_,                (1, 0, 0))]),
+            (f(a, f(x_)),   lambda e: e.head == f,      [(f(a, f(x_)),      ()),
+                                                         (f(x_),            (1, ))])
+        ])
+    def test_preorder_iter(self, expression, predicate, preorder_list):
+        result = list(expression.preorder_iter(predicate))
+        assert result == preorder_list
 
-    GETITEM_EXPR = f(a, f(x_, b), _)
+    GETITEM_TEST_EXPRESSION = f(a, f(x_, b), _)
 
-    @unpack
-    @data(
-        (tuple(),       GETITEM_EXPR),
-        ((0, ),         a),
-        ((0, 0),        IndexError),
-        ((1, ),         f(x_, b)),
-        ((1, 0),        x_),
-        ((1, 0, 0),     _),
-        ((1, 0, 1),     IndexError),
-        ((1, 1),        b),
-        ((1, 1, 0),     IndexError),
-        ((1, 2),        IndexError),
-        ((2, ),         _),
-        ((3, ),         IndexError),
-    )
-    def test_getitem(self, pos, expected_result):
+    @pytest.mark.parametrize(
+        '   position,       expected_result',
+        [
+            ((),            GETITEM_TEST_EXPRESSION),
+            ((0, ),         a),
+            ((0, 0),        IndexError),
+            ((1, ),         f(x_, b)),
+            ((1, 0),        x_),
+            ((1, 0, 0),     _),
+            ((1, 0, 1),     IndexError),
+            ((1, 1),        b),
+            ((1, 1, 0),     IndexError),
+            ((1, 2),        IndexError),
+            ((2, ),         _),
+            ((3, ),         IndexError),
+        ])
+    def test_getitem(self, position, expected_result):
         if inspect.isclass(expected_result) and issubclass(expected_result, Exception):
-            with self.assertRaises(expected_result):
-                _ = self.GETITEM_EXPR[pos]
+            with pytest.raises(expected_result):
+                _ = self.GETITEM_TEST_EXPRESSION[position]
         else:
-            result = self.GETITEM_EXPR[pos]
-            self.assertEqual(result, expected_result)
+            result = self.GETITEM_TEST_EXPRESSION[position]
+            assert result == expected_result
 
-    @unpack
-    @data(
-        (a,         b,          True),
-        (a,         a,          False),
-        (a,         x_,         True),
-        (x_,        y_,         True),
-        (x_,        x_,         False),
-        (x__,       x_,         False),
-        (x_,        x__,        False),
-        (f(a),      f(b),       True),
-        (f(a),      f(a),       False),
-        (f(b),      f(a, a),    True),
-        (f(a),      f(a, a),    True),
-        (f(a, a),   f(a, b),    True),
-        (f(a, a),   f(a, a),    False),
-        (a,         f(a),       True),
-        (x_,        f(a),       True),
-        (_,         f(a),       True),
-        (x_,        _,          True),
-        (a,         _,          True),
+    @pytest.mark.parametrize(
+        '   expression1,    expression2,    first_is_bigger_than_second',
+        [
+            (a,             b,              True),
+            (a,             a,              False),
+            (a,             x_,             True),
+            (x_,            y_,             True),
+            (x_,            x_,             False),
+            (x__,           x_,             False),
+            (x_,            x__,            False),
+            (f(a),          f(b),           True),
+            (f(a),          f(a),           False),
+            (f(b),          f(a, a),        True),
+            (f(a),          f(a, a),        True),
+            (f(a, a),       f(a, b),        True),
+            (f(a, a),       f(a, a),        False),
+            (a,             f(a),           True),
+            (x_,            f(a),           True),
+            (_,             f(a),           True),
+            (x_,            _,              True),
+            (a,             _,              True),
+        ]
     )
-    def test_lt(self, expr1, expr2, is_bigger):
-        if is_bigger:
-            self.assertTrue(expr1 < expr2, '%s < %s did not hold' % (expr1, expr2))
-            self.assertFalse(expr2 < expr1, '%s < %s but should not be' % (expr2, expr1))
+    def test_lt(self, expression1, expression2, first_is_bigger_than_second):
+        if first_is_bigger_than_second:
+            assert expression1 < expression2, '%s < %s did not hold' % (expression1, expression2)
+            assert not (expression2 < expression1), '%s < %s but should not be' % (expression2, expression1)
         else:
-            self.assertFalse(expr1 < expr2, '%s < %s but should not be' % (expr1, expr2))
+            assert not (expression1 < expression2), '%s < %s but should not be' % (expression1, expression2)
 
     def test_from_args(self):
-        expr = f.from_args(a, b)
-        self.assertEqual(expr, f(a, b))
+        expression = f.from_args(a, b)
+        assert expression == f(a, b)
 
     def test_operation_new_error(self):
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             _ = Operation.new('if', Arity.variadic)
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             _ = Operation.new('+', Arity.variadic)
 
     def test_variable_error(self):
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             _ = Variable('x', Variable.fixed('y', 2))
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             _ = Variable('x', a)
 
     def test_wildcard_error(self):
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             _ = Wildcard(-1, False)
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             _ = Wildcard(0, True)
 
     def test_symbol_wildcard_error(self):
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             _ = SymbolWildcard(object)
 
 
-@ddt
-class FrozenExpressionTest(unittest.TestCase):
+class TestFrozenExpression:
     BUILTIN_PROPERTIES = ['is_constant', 'is_syntactic', 'is_linear', 'symbols', 'variables']
 
-    @data(
+    SIMPLE_EXPRESSIONS = [
         a,
         b,
         f(a, b),
@@ -310,71 +324,55 @@ class FrozenExpressionTest(unittest.TestCase):
         ___,
         Variable('x', f(_)),
         xs_
-    )
-    def test_freeze_eq(self, expr):
-        frozen_expr = freeze(expr)
-        self.assertEqual(expr, frozen_expr)
-        for attr in itertools.chain(vars(expr), self.BUILTIN_PROPERTIES):
+    ]
+
+    @pytest.mark.parametrize('expression', SIMPLE_EXPRESSIONS)
+    def test_freeze_equivalent(self, expression):
+        frozen_expr = freeze(expression)
+        assert expression == frozen_expr
+        for attr in itertools.chain(vars(expression), self.BUILTIN_PROPERTIES):
             if attr == 'operands':
-                self.assertEqual(getattr(frozen_expr, attr), tuple(getattr(expr, attr)), "Operands of frozen instance differs")
+                assert getattr(frozen_expr, attr) == tuple(getattr(expression, attr)), "Operands of frozen instance differs"
             else:
-                self.assertEqual(getattr(frozen_expr, attr), getattr(expr, attr), "Attribute %s of frozen instance differs" % attr)
+                assert getattr(frozen_expr, attr) == getattr(expression, attr), "Attribute %s of frozen instance differs" % attr
 
+    @pytest.mark.parametrize('expression', SIMPLE_EXPRESSIONS)
+    def test_refreeze(self, expression):
+        frozen_expr = freeze(expression)
         refrozen = freeze(frozen_expr)
-        self.assertIs(refrozen, frozen_expr)
+        assert refrozen is frozen_expr
 
-    @data(
-        a,
-        b,
-        f(a, b),
-        x_,
-        ___,
-        Variable('x', f(_)),
-        xs_
-    )
-    def test_unfreeze(self, expr):
-        unfrozen = unfreeze(freeze(expr))
-        self.assertEqual(unfrozen, expr)
-
-        self.assertIs(expr, unfreeze(expr))
+    @pytest.mark.parametrize('expression', SIMPLE_EXPRESSIONS)
+    def test_unfreeze(self, expression):
+        unfrozen = unfreeze(freeze(expression))
+        assert unfrozen == expression
+        assert expression is unfreeze(expression)
 
     def test_from_args(self):
         frozen = freeze(f(a))
-        expr = type(frozen).from_args(a, b)
-        self.assertEqual(expr, f(a, b))
-        self.assertIsInstance(expr, FrozenExpression)
+        expression = type(frozen).from_args(a, b)
+        assert expression == f(a, b)
+        assert isinstance(expression, FrozenExpression)
 
-    @unpack
-    @data(*itertools.product([
-        a,
-        b,
-        f(a, b),
-        x_,
-        ___,
-        Variable('x', f(_)),
-        xs_
-    ], repeat=2))
-    def test_hash(self, expr, other):
-        frozen = freeze(expr)
+    @pytest.mark.parametrize('expression', SIMPLE_EXPRESSIONS)
+    @pytest.mark.parametrize('other', SIMPLE_EXPRESSIONS)
+    def test_hash(self, expression, other):
+        frozen = freeze(expression)
         other = freeze(other)
-        if expr != other:
-            self.assertNotEqual(hash(frozen), hash(other), 'hash(%s) == hash(%s)' % (frozen, other))
+        if expression != other:
+            assert hash(frozen) != hash(other), 'hash(%s) == hash(%s)' % (frozen, other)
         else:
-            self.assertEqual(hash(frozen), hash(other), 'hash(%s) != hash(%s)' % (frozen, other))
+            assert hash(frozen) == hash(other), 'hash(%s) != hash(%s)' % (frozen, other)
 
-    def test_change_error(self):
+    def test_immutability(self):
         frozen = freeze(f(a))
 
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             frozen.operands[0] = b
 
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             frozen.operands = [a, b]
 
-
-def load_tests(loader, tests, ignore):
-    tests.addTests(doctest.DocTestSuite(expressions))
-    return tests
-
 if __name__ == '__main__':
-    unittest.main()
+    import patternmatcher.expressions as tested_module
+    pytest.main(['--doctest-modules', __file__, tested_module.__file__])

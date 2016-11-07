@@ -11,7 +11,7 @@ goto :eof
 goto :eof
 
 :test
-	py.test tests\
+	py.test tests\ --doctest-modules patternmatcher\
 goto :eof
 
 :check

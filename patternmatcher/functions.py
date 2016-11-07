@@ -260,7 +260,7 @@ def substitute(expression: Expression, substitution: Substitution) -> Tuple[Unio
     is a list of expressions. In other cases were a substitution is a list of expressions, the expressions will
     be integrated as operands in the surrounding operation:
 
-    >>> substitute(f(x, c), {'x': [a, b]})
+    >>> substitute(f(x_, c), {'x': [a, b]})
     (f(Symbol('a'), Symbol('b'), Symbol('c')), True)
 
     Parameters:
@@ -370,6 +370,6 @@ if __name__ == '__main__':
     a = Symbol('a')
     b = Symbol('b')
     c = Symbol('c')
-    x = Variable.dot('x')
+    x_ = Variable.dot('x')
 
     doctest.testmod(exclude_empty=True)
