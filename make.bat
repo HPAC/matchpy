@@ -11,7 +11,7 @@ goto :eof
 goto :eof
 
 :test
-	python -m unittest discover tests
+	py.test tests\
 goto :eof
 
 :check
@@ -19,5 +19,5 @@ goto :eof
 goto :eof
 
 :coverage
-	pytest --cov=patternmatcher --cov-report html --cov-report term tests\
+	py.test --cov=patternmatcher --cov-report html --cov-report term tests\
 goto :eof

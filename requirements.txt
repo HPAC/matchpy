@@ -1,12 +1,10 @@
 Sphinx
 pylint
-ddt
 graphviz
 coverage
-sphinx-autodoc-typehints
+sphinx-autodoc-napoleon-typehints
 hypothesis
 hopcroftkarp
-sortedcontainers
 multiset
 pytest
 pytest-cov

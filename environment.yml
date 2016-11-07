@@ -12,11 +12,7 @@ dependencies:
 - zlib
 - pip:
   - Sphinx
-  - pylint
-  - ddt
   - graphviz
-  - coverage
-  - sphinx-autodoc-typehints
-  - hypothesis
+  - sphinx-autodoc-napoleon-typehints
   - hopcroftkarp
-  - sortedcontainers
+  - multiset
