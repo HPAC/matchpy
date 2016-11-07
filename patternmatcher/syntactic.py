@@ -38,7 +38,7 @@ def is_symbol_wildcard(term: Any) -> bool:
     return isinstance(term, type) and issubclass(term, Symbol)
 
 
-def get_symbol_wildcard_label(state: '_State', symbol_type: Type[Symbol]) -> Type[Symbol]:
+def _get_symbol_wildcard_label(state: '_State', symbol_type: Type[Symbol]) -> Type[Symbol]:
     """Return the transition target for the given symbol type from the the given state or None if it does not exist."""
     return next((t for t in state.keys() if is_symbol_wildcard(t) and isinstance(symbol_type, t)), None)
 
@@ -310,11 +310,6 @@ class DiscriminationNet(object):
                     wc_state.last_wildcard = state
                     wc_state.symbol_after = None
                     wc_state.all_same = True
-                # Add backtracking edge for ')' if there was an unbounded wildcard on a higher level
-                if any(s.last_wildcard is not None for s in wildcard_states[:-1]):
-                    if flatterm[j+1] != OPERATION_END:
-                        last_state = wildcard_states[-2]
-                        state[OPERATION_END] = last_state.last_wildcard or last_state.fail_state or _State()
             else:
                 state[term] = _State()
                 state = state[term]
@@ -326,43 +321,44 @@ class DiscriminationNet(object):
                     wildcard_states.append(_WildcardState())
                 if term == OPERATION_END:
                     wildcard_states.pop()
-
                 wc_state = wildcard_states[-1]
-                try:
-                    next_term = flatterm[j+1]
-                except IndexError:
-                    next_term = None
 
-                # Potentially, backtracking wildcard edges have to be added
-                if next_term is not None and not isinstance(next_term, Wildcard):
-                    # If there was an unbounded wildcard inside the current operation,
-                    # add a backtracking wildcard edge to it
-                    if wc_state.last_wildcard is not None:
-                        state[Wildcard] = wc_state.last_wildcard
-                        # Also add an edge for the symbol directly after the wildcard to
-                        # its respective state (or as a self loop if all symbols are the same)
-                        if next_term != wc_state.symbol_after:
-                            should_loop = wc_state.all_same and \
-                                          next_term == OPERATION_END and \
-                                          not is_operation(wc_state.symbol_after)
-                            if should_loop:
-                                state[wc_state.symbol_after] = state
-                            else:
-                                state[wc_state.symbol_after] = wc_state.last_wildcard[wc_state.symbol_after]
-                    # If there was an unbounded wildcard inside a parent operation of the current one,
-                    # an additional fail state is needed, that eventually backtracks to the wildcard
-                    # Every level of operation nesting gets its own fail state until the level of the
-                    # wildcard is reached
-                    elif any(s.last_wildcard is not None for s in wildcard_states):
-                        if wc_state.fail_state is None:
-                            fail_state = _State()
-                            fail_state[Wildcard] = fail_state
-                            last_state = wildcard_states[-2]
-                            fail_state[OPERATION_END] = last_state.last_wildcard or last_state.fail_state or _State()
-                            wc_state.fail_state = fail_state
+            try:
+                next_term = flatterm[j+1]
+            except IndexError:
+                next_term = None
+
+            # Potentially, backtracking wildcard edges have to be added
+            if next_term is not None and not isinstance(next_term, Wildcard) :
+                # If there was an unbounded wildcard inside the current operation,
+                # add a backtracking wildcard edge to it
+                if wc_state.last_wildcard is not None and Wildcard not in state:
+                    state[Wildcard] = wc_state.last_wildcard
+                    # Also add an edge for the symbol directly after the wildcard to
+                    # its respective state (or as a self loop if all symbols are the same)
+                    if next_term != wc_state.symbol_after:
+                        should_loop = wc_state.all_same and \
+                                        next_term == OPERATION_END and \
+                                        not is_operation(wc_state.symbol_after)
+                        if should_loop:
+                            state[wc_state.symbol_after] = state
+                        else:
+                            state[wc_state.symbol_after] = wc_state.last_wildcard[wc_state.symbol_after]
+                # If there was an unbounded wildcard inside a parent operation of the current one,
+                # an additional fail state is needed, that eventually backtracks to the wildcard
+                # Every level of operation nesting gets its own fail state until the level of the
+                # wildcard is reached
+                if len(wildcard_states) > 1 and wildcard_states[-2].last_wildcard is not None:
+                    if wc_state.fail_state is None:
+                        fail_state = _State()
+                        fail_state[Wildcard] = fail_state
+                        last_state = wildcard_states[-2]
+                        fail_state[OPERATION_END] = last_state.last_wildcard or last_state.fail_state or _State()
+                        wc_state.fail_state = fail_state
+                    if Wildcard not in state:
                         state[Wildcard] = wc_state.fail_state
-                        if next_term != OPERATION_END:
-                            state[OPERATION_END] = wc_state.fail_state[OPERATION_END]
+                    if next_term != OPERATION_END:
+                        state[OPERATION_END] = wc_state.fail_state[OPERATION_END]
 
         last_state[last_term] = [pattern]
 
@@ -381,9 +377,9 @@ class DiscriminationNet(object):
                         if key == OPERATION_END:
                             return None, False
                         if isinstance(key, Symbol):
-                            symbol_wildcard_key = get_symbol_wildcard_label(state, key)
+                            symbol_wildcard_key = _get_symbol_wildcard_label(state, key)
                             if symbol_wildcard_key is not None:
-                                return state[get_symbol_wildcard_label(state, key)], False
+                                return state[_get_symbol_wildcard_label(state, key)], False
                         return state[Wildcard], True
                 except KeyError:
                     return None, False
@@ -455,9 +451,10 @@ class DiscriminationNet(object):
         return root
 
     def match(self, expression: Expression) -> List[Expression]:
+        flatterm = FlatTerm(expression) if isinstance(expression, Expression) else expression
         state = self._net
         depth = 0
-        for term in FlatTerm(expression):
+        for term in flatterm:
             if depth > 0:
                 if is_operation(term):
                     depth += 1
@@ -474,7 +471,7 @@ class DiscriminationNet(object):
                         elif term == OPERATION_END:
                             return []
                         elif isinstance(term, Symbol):
-                            symbol_wildcard_key = get_symbol_wildcard_label(state, term)
+                            symbol_wildcard_key = _get_symbol_wildcard_label(state, term)
                             state = state[symbol_wildcard_key or Wildcard]
                         else:
                             raise TypeError('Expression contains non-terminal atom: %s' % expression)

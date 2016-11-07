@@ -5,7 +5,6 @@ install:
   - pip install -r requirements.txt
   - pip install coveralls
 script:
-  - make test
   - make coverage
 after_success:
   coveralls

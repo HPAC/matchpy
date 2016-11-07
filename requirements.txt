@@ -8,3 +8,5 @@ hypothesis
 hopcroftkarp
 sortedcontainers
 multiset
+pytest
+pytest-cov
