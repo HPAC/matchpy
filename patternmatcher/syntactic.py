@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from typing import Any, Dict, Iterator, List, Set, Type, Union, Tuple
+from reprlib import recursive_repr
 
 from graphviz import Digraph
 
@@ -27,6 +28,13 @@ This is a singleton object that has *)* as representation.
 Is is also used by the :class:`DiscriminationNet`.
 """
 
+class _Epsilon(object):
+    def __str__(self):
+        return 'ε'
+
+    __repr__ = __str__
+
+EPSILON = _Epsilon()
 
 def is_operation(term: Any) -> bool:
     """Return True iff the given term is a subclass of :class:`.Operation`."""
@@ -169,6 +177,7 @@ class _State(Dict[TermAtom, Union['_State', List[Expression]]]):
         else:
             return str(value)
 
+    @recursive_repr()
     def __repr__(self):
         return '{STATE %s}' % ', '.join('%s:%s' % (_term_str(term), self._target_str(target))
                                             for term, target in self.items())
@@ -204,25 +213,8 @@ class _WildcardState:
         self.last_wildcard = None
         """Last unbounded wildcard at the current level of operation nesting (if any)"""
 
-        self.symbol_after = None
-        """Symbol after the last unbounded wildcard"""
-
-        self.all_same = True
-        """True iff all symbols until now have been the same after the last unbounded wildcard"""
-
         self.fail_state = None
         """The failure state for the current level of operation nesting"""
-
-    def read_term(self, term: TermAtom):
-        if self.symbol_after is None:
-            self.symbol_after = term
-        if term != self.symbol_after:
-            self.all_same = False
-
-    def reset(self, state: _State):
-        self.last_wildcard = state
-        self.symbol_after = None
-        self.all_same = True
 
 
 class _StateQueueItem(object):
@@ -298,8 +290,37 @@ class DiscriminationNet(object):
 
     def add(self, pattern: Expression):
         """TODO"""
-        net = DiscriminationNet._generate_net(pattern)
-        self._root = DiscriminationNet._product_net(self._root, net)
+        if pattern.is_syntactic:
+            net = self._generate_syntactic_net(pattern)
+        else:
+            net = self._generate_net(pattern)
+
+        if self._root:
+            self._root = self._product_net(self._root, net)
+        else:
+            self._root = net
+
+    @classmethod
+    def _generate_syntactic_net(cls, pattern: Expression) -> _State:
+        assert pattern.is_syntactic
+
+        root = state = _State()
+        flatterm = FlatTerm(pattern)
+
+        for term in flatterm[:-1]:
+            if isinstance(term, Wildcard):
+                # Generate a chain of #min_count Wildcard edges
+                for _ in range(term.min_count):
+                    state[Wildcard] = _State()
+                    state = state[Wildcard]
+            else:
+                state[term] = _State()
+                state = state[term]
+
+        last_term = flatterm[-1] if not isinstance(flatterm[-1], Wildcard) else Wildcard
+        state[last_term] = [pattern]
+
+        return root
 
     @classmethod
     def _generate_net(cls, pattern: Expression) -> _State:
@@ -309,80 +330,119 @@ class DiscriminationNet(object):
         wildcard_states = [_WildcardState()]
         root = state = _State()
         flatterm = FlatTerm(pattern)
+        states = {root.id: root}
 
-        for j, term in enumerate(flatterm[:-1]):
+        for term in flatterm[:-1]:
             wc_state = wildcard_states[-1]
             # For wildcards, generate a chain of #min_count Wildcard edges
             # If the wildcard is unbounded (fixed_size = False),
             # add a wildcard self loop at the end
             if isinstance(term, Wildcard):
-                state = cls._build_wildcard_states(term, state, wc_state)
+                # Generate a chain of #min_count Wildcard edges
+                for _ in range(term.min_count):
+                    state[Wildcard] = _State()
+                    state = state[Wildcard]
+                    states[state.id] = state
+                # If it is a sequence wildcard, add a self loop
+                if not term.fixed_size:
+                    state[Wildcard] = state
+                    wc_state.last_wildcard = state
             else:
                 state[term] = _State()
                 state = state[term]
-                wc_state.read_term(term)
+                states[state.id] = state
                 if is_operation(term):
-                    wildcard_states.append(_WildcardState())
-                if term == OPERATION_END:
+                    new_wc_state = _WildcardState()
+                    if wc_state.last_wildcard or wc_state.fail_state:
+                        new_wc_state.fail_state = fail_state = _State()
+                        states[fail_state.id] = fail_state
+                        fail_state[OPERATION_END] = wc_state.last_wildcard or wc_state.fail_state
+                        fail_state[Wildcard] = fail_state
+                    wildcard_states.append(new_wc_state)
+                elif term == OPERATION_END:
                     wildcard_states.pop()
                 wc_state = wildcard_states[-1]
 
-            # Potentially, backtracking wildcard edges have to be added
-            if not isinstance(flatterm[j+1], Wildcard) or flatterm[j+1].fixed_size:
-                # If there was an unbounded wildcard inside the current operation
-                # and there is no wildcard directly after this,
-                # add a backtracking wildcard edge to the unbounded wildcard
-                if wc_state.last_wildcard is not None and Wildcard not in state:
-                    cls._backtrack_to_last_wildcard(wc_state, state)
-                # If there was an unbounded wildcard inside a parent operation of the current one,
-                # an additional fail state is needed, that eventually backtracks to the wildcard
-                # Every level of operation nesting gets its own fail state until the level of the
-                # wildcard is reached
-                if len(wildcard_states) > 1 and wildcard_states[-2].last_wildcard is not None:
-                    parent_wc_state = wildcard_states[-2]
-                    cls._backtrack_to_upper_level(wc_state, parent_wc_state, state)
+            if wc_state.last_wildcard != state:
+                if wc_state.last_wildcard:
+                    state[EPSILON] = wc_state.last_wildcard
+                elif wc_state.fail_state:
+                    state[EPSILON] = wc_state.fail_state
 
         last_term = flatterm[-1] if not isinstance(flatterm[-1], Wildcard) else Wildcard
         state[last_term] = [pattern]
 
-        return root
+        return cls.determinize(root, states)
+
+    @classmethod
+    def determinize(cls, root, states):
+        new_root = frozenset(cls.closure({root.id}, states))
+        queue = [new_root]
+        new_states = {new_root: _State()}
+
+        while queue:
+            state = queue.pop()
+            keys = set().union(*(states[s].keys() for s in state))
+            new_state = new_states[state]
+
+            for k in keys:
+                if k is EPSILON:
+                    continue
+                target = cls.goto(state, k, states)
+                if isinstance(target, list):
+                    new_state[k] = target
+                else:
+                    target = frozenset(target)
+                    if not target in new_states:
+                        new_states[target] = _State()
+                        queue.append(target)
+
+                    new_state[k] = new_states[target]
+
+        return new_states[new_root]
 
     @staticmethod
-    def _backtrack_to_last_wildcard(wc_state: _WildcardState, state: _State) -> None:
-        state[Wildcard] = wc_state.last_wildcard
-        # Also add an edge for the symbol directly after the wildcard to
-        # its respective state (or as a self loop if all symbols are the same)
-        if wc_state.symbol_after not in state:
-            should_loop = wc_state.all_same and not is_operation(wc_state.symbol_after)
-            if should_loop:
-                state[wc_state.symbol_after] = state
+    def closure(state, states):
+        output = set(state)
+
+        while True:
+            to_add = set()
+            for s in output:
+                try:
+                    new_state = states[s][EPSILON]
+                    if new_state.id not in output:
+                        to_add.add(new_state.id)
+                except KeyError:
+                    pass
+
+            if to_add:
+                output.update(to_add)
             else:
-                state[wc_state.symbol_after] = wc_state.last_wildcard[wc_state.symbol_after]
+                break
 
-    @staticmethod
-    def _backtrack_to_upper_level(wc_state: _WildcardState, parent_wc_state: _WildcardState, state: _State) -> None:
-        if wc_state.fail_state is None:
-            fail_state = _State()
-            fail_state[Wildcard] = fail_state
-            fail_state[OPERATION_END] = parent_wc_state.last_wildcard or parent_wc_state.fail_state or _State()
-            wc_state.fail_state = fail_state
-        if Wildcard not in state:
-            state[Wildcard] = wc_state.fail_state
-        if OPERATION_END not in state:
-            state[OPERATION_END] = wc_state.fail_state[OPERATION_END]
+        return output
 
-    @staticmethod
-    def _build_wildcard_states(wildcard: Wildcard, state: _State, wc_state: _WildcardState) -> _State:
-        # Generate a chain of #min_count Wildcard edges
-        for _ in range(wildcard.min_count):
-            state[Wildcard] = _State()
-            state = state[Wildcard]
-            wc_state.all_same = False
-        # If it is a sequence wildcard, add a self loop
-        if not wildcard.fixed_size:
-            state[Wildcard] = state
-            wc_state.reset(state)
-        return state
+    @classmethod
+    def goto(cls, state, label, states):
+        output = set()
+
+        for s in state:
+            if label in states[s]:
+                if isinstance(states[s][label], list):
+                    return states[s][label]
+                output.add(states[s][label].id)
+            if isinstance(label, Symbol):
+                type_label = _get_symbol_wildcard_label(states[s], type(label))
+                if type_label in states[s]:
+                    if isinstance(states[s][type_label], list):
+                        return states[s][type_label]
+                    output.add(states[s][type_label].id)
+            if Wildcard in states[s] and not is_operation(label) and label != OPERATION_END:
+                if isinstance(states[s][Wildcard], list):
+                    return states[s][Wildcard]
+                output.add(states[s][Wildcard].id)
+
+        return cls.closure(output, states)
 
     @staticmethod
     def _get_next_state(state: _State, label: TermAtom, fixed: bool) -> Tuple[_State, bool]:

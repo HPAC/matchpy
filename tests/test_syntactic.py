@@ -134,12 +134,12 @@ expression_strategy = st.recursive(expression_base_strategy, expression_recurse_
     (f(___, a, _),              f(a),                                   False),
     (f(___, a, _),              f(),                                    False),
     (f(___, a, _),              f(b),                                   False),
-    #(f(___, a, _),              f(a, a),                                True),  # TODO: currently failing
+    (f(___, a, _),              f(a, a),                                True),
     (f(___, a, _),              f(a, b),                                True),
     (f(___, a, _),              f(b, a),                                False),
-    #(f(___, a, _),              f(a, a, a),                             True),  # TODO: currently failing
+    (f(___, a, _),              f(a, a, a),                             True),
     (f(___, a, _),              f(a, b, a),                             False),
-    #(f(___, a, _),              f(b, a, a),                             True),  # TODO: currently failing
+    (f(___, a, _),              f(b, a, a),                             True),
     (f(___, a, _),              f(a, a, b),                             True),
     (f(___, a, _),              f(b, a, b),                             True),
     (f(___, a, _),              f(a, a, b, a, b),                       True),
@@ -181,10 +181,8 @@ expression_strategy = st.recursive(expression_base_strategy, expression_recurse_
 ])
 def test_generate_net_and_match(pattern, expr, is_match):
     net = DiscriminationNet()
-    net._root = DiscriminationNet._generate_net(freeze(pattern))
+    net.add(freeze(pattern))
     result = net.match(freeze(expr))
-
-    net.as_graph().render('tmp/%s' % pattern)
 
     if is_match:
         assert result == [pattern], 'Matching failed for %s and %s' % (pattern, expr)
