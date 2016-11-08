@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from typing import Any, Dict, Iterator, List, Set, Type, Union
+from typing import Any, Dict, Iterator, List, Set, Type, Union, Tuple
 
 from graphviz import Digraph
 
@@ -213,6 +213,17 @@ class _WildcardState:
         self.fail_state = None
         """The failure state for the current level of operation nesting"""
 
+    def read_term(self, term: TermAtom):
+        if self.symbol_after is None:
+            self.symbol_after = term
+        if term != self.symbol_after:
+            self.all_same = False
+
+    def reset(self, state: _State):
+        self.last_wildcard = state
+        self.symbol_after = None
+        self.all_same = True
+
 
 class _StateQueueItem(object):
     """Internal data structure used by the product net algorithm.
@@ -247,9 +258,9 @@ class _StateQueueItem(object):
 
     @property
     def labels(self) -> Set[TermAtom]:
-        """Return the set of transitions to examine for this queue state.
+        """Return the set of transition labels to examine for this queue state.
 
-        This is the union of the transition sets for both states.
+        This is the union of the transition label sets for both states.
         However, if one of the states is fixed, it is excluded from this union and a wildcard transition is included
         instead. Also, when already in a failed state (one of the states is ``None``), the :const:`OPERATION_END` is
         also included.
@@ -272,119 +283,128 @@ class _StateQueueItem(object):
 
 
 class DiscriminationNet(object):
-    """TODO"""
+    """An automaton to distinguish which patterns match a given expression.
+
+    This is a DFA with an implicit fail state whenever a transition is not actually defined.
+    For every pattern added, an automaton is created and then the product automaton with the existing one is used as
+    the new automaton.
+
+    The matching assumes that patterns are linear, i.e. it will treat all variables as non-existent and only consider
+    the wildcards.
+    """
+
     def __init__(self):
-        self._net = _State()
+        self._root = _State()
 
     def add(self, pattern: Expression):
         """TODO"""
         net = DiscriminationNet._generate_net(pattern)
-        self._net = DiscriminationNet._product_net(self._net, net)
+        self._root = DiscriminationNet._product_net(self._root, net)
 
-    @staticmethod
-    def _generate_net(pattern):
+    @classmethod
+    def _generate_net(cls, pattern: Expression) -> _State:
         """Generates a DFA matching the given pattern."""
-        last_state = None
-        last_term = None
         # Capture the last unbounded wildcard for every level of operation nesting on a stack
         # Used to add backtracking edges in case the "match" fails later
         wildcard_states = [_WildcardState()]
         root = state = _State()
         flatterm = FlatTerm(pattern)
 
-        for j, term in enumerate(flatterm):
-            last_state = state
-            last_term = term
+        for j, term in enumerate(flatterm[:-1]):
             wc_state = wildcard_states[-1]
             # For wildcards, generate a chain of #min_count Wildcard edges
             # If the wildcard is unbounded (fixed_size = False),
             # add a wildcard self loop at the end
             if isinstance(term, Wildcard):
-                last_term = Wildcard
-                for _ in range(term.min_count):
-                    state[Wildcard] = _State()
-                    state = state[Wildcard]
-                if not term.fixed_size:
-                    state[Wildcard] = state
-                    # set wildcard state to this reference this wildcard
-                    wc_state.last_wildcard = state
-                    wc_state.symbol_after = None
-                    wc_state.all_same = True
+                state = cls._build_wildcard_states(term, state, wc_state)
             else:
                 state[term] = _State()
                 state = state[term]
-                if wc_state.symbol_after is None:
-                    wc_state.symbol_after = term
-                if term != wc_state.symbol_after:
-                    wc_state.all_same = False
+                wc_state.read_term(term)
                 if is_operation(term):
                     wildcard_states.append(_WildcardState())
                 if term == OPERATION_END:
                     wildcard_states.pop()
                 wc_state = wildcard_states[-1]
 
-            try:
-                next_term = flatterm[j+1]
-            except IndexError:
-                next_term = None
-
             # Potentially, backtracking wildcard edges have to be added
-            if next_term is not None and not isinstance(next_term, Wildcard) :
-                # If there was an unbounded wildcard inside the current operation,
-                # add a backtracking wildcard edge to it
+            if not isinstance(flatterm[j+1], Wildcard) or flatterm[j+1].fixed_size:
+                # If there was an unbounded wildcard inside the current operation
+                # and there is no wildcard directly after this,
+                # add a backtracking wildcard edge to the unbounded wildcard
                 if wc_state.last_wildcard is not None and Wildcard not in state:
-                    state[Wildcard] = wc_state.last_wildcard
-                    # Also add an edge for the symbol directly after the wildcard to
-                    # its respective state (or as a self loop if all symbols are the same)
-                    if next_term != wc_state.symbol_after:
-                        should_loop = wc_state.all_same and \
-                                        next_term == OPERATION_END and \
-                                        not is_operation(wc_state.symbol_after)
-                        if should_loop:
-                            state[wc_state.symbol_after] = state
-                        else:
-                            state[wc_state.symbol_after] = wc_state.last_wildcard[wc_state.symbol_after]
+                    cls._backtrack_to_last_wildcard(wc_state, state)
                 # If there was an unbounded wildcard inside a parent operation of the current one,
                 # an additional fail state is needed, that eventually backtracks to the wildcard
                 # Every level of operation nesting gets its own fail state until the level of the
                 # wildcard is reached
                 if len(wildcard_states) > 1 and wildcard_states[-2].last_wildcard is not None:
-                    if wc_state.fail_state is None:
-                        fail_state = _State()
-                        fail_state[Wildcard] = fail_state
-                        last_state = wildcard_states[-2]
-                        fail_state[OPERATION_END] = last_state.last_wildcard or last_state.fail_state or _State()
-                        wc_state.fail_state = fail_state
-                    if Wildcard not in state:
-                        state[Wildcard] = wc_state.fail_state
-                    if next_term != OPERATION_END:
-                        state[OPERATION_END] = wc_state.fail_state[OPERATION_END]
+                    parent_wc_state = wildcard_states[-2]
+                    cls._backtrack_to_upper_level(wc_state, parent_wc_state, state)
 
-        last_state[last_term] = [pattern]
+        last_term = flatterm[-1] if not isinstance(flatterm[-1], Wildcard) else Wildcard
+        state[last_term] = [pattern]
 
         return root
 
     @staticmethod
-    def _product_net(state1, state2):
-        def get_child(state, key, fixed):
-            if fixed:
-                return state, False
-            if state is not None:
-                try:
-                    try:
-                        return state[key], False
-                    except KeyError:
-                        if key == OPERATION_END:
-                            return None, False
-                        if isinstance(key, Symbol):
-                            symbol_wildcard_key = _get_symbol_wildcard_label(state, key)
-                            if symbol_wildcard_key is not None:
-                                return state[_get_symbol_wildcard_label(state, key)], False
-                        return state[Wildcard], True
-                except KeyError:
-                    return None, False
-            return None, False
+    def _backtrack_to_last_wildcard(wc_state: _WildcardState, state: _State) -> None:
+        state[Wildcard] = wc_state.last_wildcard
+        # Also add an edge for the symbol directly after the wildcard to
+        # its respective state (or as a self loop if all symbols are the same)
+        if wc_state.symbol_after not in state:
+            should_loop = wc_state.all_same and not is_operation(wc_state.symbol_after)
+            if should_loop:
+                state[wc_state.symbol_after] = state
+            else:
+                state[wc_state.symbol_after] = wc_state.last_wildcard[wc_state.symbol_after]
 
+    @staticmethod
+    def _backtrack_to_upper_level(wc_state: _WildcardState, parent_wc_state: _WildcardState, state: _State) -> None:
+        if wc_state.fail_state is None:
+            fail_state = _State()
+            fail_state[Wildcard] = fail_state
+            fail_state[OPERATION_END] = parent_wc_state.last_wildcard or parent_wc_state.fail_state or _State()
+            wc_state.fail_state = fail_state
+        if Wildcard not in state:
+            state[Wildcard] = wc_state.fail_state
+        if OPERATION_END not in state:
+            state[OPERATION_END] = wc_state.fail_state[OPERATION_END]
+
+    @staticmethod
+    def _build_wildcard_states(wildcard: Wildcard, state: _State, wc_state: _WildcardState) -> _State:
+        # Generate a chain of #min_count Wildcard edges
+        for _ in range(wildcard.min_count):
+            state[Wildcard] = _State()
+            state = state[Wildcard]
+            wc_state.all_same = False
+        # If it is a sequence wildcard, add a self loop
+        if not wildcard.fixed_size:
+            state[Wildcard] = state
+            wc_state.reset(state)
+        return state
+
+    @staticmethod
+    def _get_next_state(state: _State, label: TermAtom, fixed: bool) -> Tuple[_State, bool]:
+        if fixed:
+            return state, False
+        if state is not None:
+            try:
+                try:
+                    return state[label], False
+                except KeyError:
+                    if label != OPERATION_END:
+                        if isinstance(label, Symbol):
+                            symbol_wildcard_key = _get_symbol_wildcard_label(state, label)
+                            if symbol_wildcard_key is not None:
+                                return state[_get_symbol_wildcard_label(state, label)], False
+                        return state[Wildcard], True
+            except KeyError:
+                pass
+        return None, False
+
+    @classmethod
+    def _product_net(cls, state1, state2):
         root = _State()
         states = {(state1.id, state2.id, 0): root}
         queue = [_StateQueueItem(state1, state2)]
@@ -393,15 +413,15 @@ class DiscriminationNet(object):
             current_state = queue.pop(0)
             state = states[(current_state.id1, current_state.id2, current_state.depth)]
 
-            for k in list(current_state.labels):
-                t1, with_wildcard1 = get_child(current_state.state1, k, current_state.fixed == 1)
-                t2, with_wildcard2 = get_child(current_state.state2, k, current_state.fixed == 2)
+            for label in list(current_state.labels):
+                t1, with_wildcard1 = cls._get_next_state(current_state.state1, label, current_state.fixed == 1)
+                t2, with_wildcard2 = cls._get_next_state(current_state.state2, label, current_state.fixed == 2)
 
                 child_state = _StateQueueItem(t1, t2)
                 child_state.depth = current_state.depth
                 child_state.fixed = current_state.fixed
 
-                if is_operation(k):
+                if is_operation(label):
                     if current_state.fixed:
                         child_state.depth += 1
                     elif with_wildcard1:
@@ -414,7 +434,7 @@ class DiscriminationNet(object):
                         child_state.depth = 1
                         child_state.state2 = current_state.state2
                         child_state.id2 = current_state.id2
-                elif k == OPERATION_END and current_state.fixed:
+                elif label == OPERATION_END and current_state.fixed:
                     child_state.depth -= 1
 
                     if child_state.depth == 0:
@@ -439,20 +459,20 @@ class DiscriminationNet(object):
                         states[(child_state.id1, child_state.id2, child_state.depth)] = _State()
                         queue.append(child_state)
 
-                    state[k] = states[(child_state.id1, child_state.id2, child_state.depth)]
+                    state[label] = states[(child_state.id1, child_state.id2, child_state.depth)]
                 else:
                     if isinstance(child_state.state1, list) and isinstance(child_state.state2, list):
-                        state[k] = child_state.state1 + child_state.state2
+                        state[label] = child_state.state1 + child_state.state2
                     elif isinstance(child_state.state1, list):
-                        state[k] = child_state.state1
+                        state[label] = child_state.state1
                     elif isinstance(child_state.state2, list):
-                        state[k] = child_state.state2
+                        state[label] = child_state.state2
 
         return root
 
     def match(self, expression: Expression) -> List[Expression]:
         flatterm = FlatTerm(expression) if isinstance(expression, Expression) else expression
-        state = self._net
+        state = self._root
         depth = 0
         for term in flatterm:
             if depth > 0:
@@ -490,7 +510,7 @@ class DiscriminationNet(object):
         dot = Digraph()
 
         nodes = set()
-        queue = [self._net]
+        queue = [self._root]
         while queue:
             state = queue.pop(0)
             nodes.add(state.id)
@@ -505,7 +525,7 @@ class DiscriminationNet(object):
                     dot.node('l%s' % id(next_state), l, {'shape': 'plaintext'})
 
         nodes = set()
-        queue = [self._net]
+        queue = [self._root]
         while queue:
             state = queue.pop(0)
             if state.id in nodes:
@@ -532,5 +552,12 @@ if __name__ == '__main__':
     x_ = Variable.dot('x')
     _ = Wildcard.dot()
     __ = Wildcard.plus()
+    ___ = Wildcard.star()
+
+    pattern = freeze(f(___, a, _, _))
+
+    net = DiscriminationNet()
+    net.add(pattern)
+    net.as_graph().render('tmp/%s' % pattern)
 
     doctest.testmod(exclude_empty=True)

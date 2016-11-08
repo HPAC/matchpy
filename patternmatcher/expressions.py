@@ -111,7 +111,7 @@ class _OperationMeta(type):
         return cls.name
 
     def __call__(cls, *operands: Expression, constraint: Optional[Constraint]=None):
-        # __call__ is overriden, so that for one_identity operations with a single argument
+        # __call__ is overridden, so that for one_identity operations with a single argument
         # that argument can be returned instead
         operands = list(operands)
         if not cls._simplify(operands):
