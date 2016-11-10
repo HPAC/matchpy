@@ -101,10 +101,15 @@ class FlatTerm(List[TermAtom]):
 
     >>> class SpecialSymbol(Symbol):
     ...     pass
-    >>> FlatTerm(Wildcard.symbol(SpecialSymbol)) == [SpecialSymbol]
-    True
+    >>> _s = Wildcard.symbol(SpecialSymbol)
+    >>> FlatTerm(_s)
+    [<class '__main__.SpecialSymbol'>]
 
-    Symbol wildcards are also not merged like regular wildcards, because they can never be sequence wildcards.
+
+    Symbol wildcards are also not merged like other wildcards, because they can never be sequence wildcards:
+
+    >>> FlatTerm(f(_, _s))
+    [f, _, <class '__main__.SpecialSymbol'>, )]
     """
 
     def __init__(self, expression: Expression) -> None:
@@ -148,7 +153,7 @@ class FlatTerm(List[TermAtom]):
             yield last_wildcard
 
     def __str__(self):
-        return ' '.join(map(self._term_str, self))
+        return ' '.join(map(_term_str, self))
 
     def __repr__(self):
         return '[{!s}]'.format(', '.join(map(str, self)))

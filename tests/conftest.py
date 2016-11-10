@@ -14,3 +14,4 @@ def add_default_expressions(doctest_namespace):
     doctest_namespace['_'] = Wildcard.dot()
     doctest_namespace['__'] = Wildcard.plus()
     doctest_namespace['___'] = Wildcard.star()
+    doctest_namespace['__name__'] = '__main__'
