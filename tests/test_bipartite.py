@@ -20,7 +20,7 @@ def bipartite_graph(draw):
         for j in range(m):
             b = draw(st.booleans())
             if b:
-                graph[i,j] = b
+                graph[i, j] = b
 
     return graph
 
@@ -32,15 +32,15 @@ def test_enum_maximum_matchings_iter_correctness(graph):
     for matching in enum_maximum_matchings_iter(graph):
         if size is None:
             size = len(matching)
-        assert len(matching) == size, 'Matching has a different size than the first one'
+        assert len(matching) == size, "Matching has a different size than the first one"
         for edge in matching.items():
-            assert edge in graph, 'Matching contains an edge that was not in the graph'
+            assert edge in graph, "Matching contains an edge that was not in the graph"
         frozen_matching = frozenset(matching.items())
         assert frozen_matching not in matchings, "Matching was duplicate"
         matchings.add(frozen_matching)
 
 
-@pytest.mark.parametrize('n,m', filter(lambda x: x[0] >= x[1], itertools.product(range(1, 6), range(0, 4))))
+@pytest.mark.parametrize('n, m', filter(lambda x: x[0] >= x[1], itertools.product(range(1, 6), range(0, 4))))
 def test_completeness(n, m):
     graph = BipartiteGraph(map(lambda x: (x, True), itertools.product(range(n), range(m))))
     count = sum(1 for _ in enum_maximum_matchings_iter(graph))
@@ -48,20 +48,23 @@ def test_completeness(n, m):
     assert count == expected_count
 
 
-@pytest.mark.parametrize('graph,expected_cycle', [
-    ({},                        []),
-    ({0: {1}},                  []),
-    ({0: {1}, 1: {2}},          []),
-    ({0: {1}, 1: {0}},          [0, 1]),
-    ({0: {1}, 1: {0}},          [1, 0]),
-    ({0: {1}, 1: {0, 2}},       [0, 1]),
-    ({0: {1, 2}, 1: {0, 2}},    [0, 1]),
-    ({0: {1, 2}, 1: {0}},       [0, 1]),
-    ({0: {1}, 1: {2}, 2: {0}},  [0, 1, 2]),
-    ({0: {2}, 1: {2}},          []),
-    ({0: {2}, 1: {2}, 2: {0}},  [0, 2]),
-    ({0: {2}, 1: {2}, 2: {1}},  [1, 2]),
-])
+@pytest.mark.parametrize(
+    '   graph,                      expected_cycle',
+    [
+        ({},                        []),
+        ({0: {1}},                  []),
+        ({0: {1}, 1: {2}},          []),
+        ({0: {1}, 1: {0}},          [0, 1]),
+        ({0: {1}, 1: {0}},          [1, 0]),
+        ({0: {1}, 1: {0, 2}},       [0, 1]),
+        ({0: {1, 2}, 1: {0, 2}},    [0, 1]),
+        ({0: {1, 2}, 1: {0}},       [0, 1]),
+        ({0: {1}, 1: {2}, 2: {0}},  [0, 1, 2]),
+        ({0: {2}, 1: {2}},          []),
+        ({0: {2}, 1: {2}, 2: {0}},  [0, 2]),
+        ({0: {2}, 1: {2}, 2: {1}},  [1, 2]),
+    ]
+)
 def test_directed_graph_find_cycle(graph, expected_cycle):
     dmg = _DirectedMatchGraph({}, {})
     dmg.update(graph)
@@ -77,7 +80,7 @@ class TestBipartiteGraphTest:
     def test_setitem(self):
         graph = BipartiteGraph()
 
-        graph[0,1] = True
+        graph[0, 1] = True
 
         with pytest.raises(TypeError):
             graph[0] = True
@@ -86,12 +89,12 @@ class TestBipartiteGraphTest:
             graph[0,] = True
 
         with pytest.raises(TypeError):
-            graph[0,1,2] = True
+            graph[0, 1, 2] = True
 
     def test_getitem(self):
-        graph = BipartiteGraph({(0,0): True})
+        graph = BipartiteGraph({(0, 0): True})
 
-        assert graph[0,0] == True
+        assert graph[0, 0] == True
 
         with pytest.raises(TypeError):
             _ = graph[0]
@@ -100,19 +103,19 @@ class TestBipartiteGraphTest:
             _ = graph[0,]
 
         with pytest.raises(TypeError):
-            _ = graph[0,1,2]
+            _ = graph[0, 1, 2]
 
         with pytest.raises(KeyError):
-            _ = graph[0,1]
+            _ = graph[0, 1]
 
     def test_delitem(self):
-        graph = BipartiteGraph({(0,0): True})
+        graph = BipartiteGraph({(0, 0): True})
 
-        assert (0,0) in graph
+        assert (0, 0) in graph
 
-        del graph[0,0]
+        del graph[0, 0]
 
-        assert (0,0) not in graph
+        assert (0, 0) not in graph
 
         with pytest.raises(TypeError):
             del graph[0]
@@ -121,10 +124,10 @@ class TestBipartiteGraphTest:
             del graph[0,]
 
         with pytest.raises(TypeError):
-            del graph[0,1,2]
+            del graph[0, 1, 2]
 
         with pytest.raises(KeyError):
-            del graph[0,1]
+            del graph[0, 1]
 
     def test_limited_to(self):
         graph = BipartiteGraph({(0, 0): True, (1, 0): True, (1, 1): True, (0, 1): True})

@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-from typing import Any, Dict, Iterator, List, Set, Type, Union, Tuple
 from reprlib import recursive_repr
+from typing import Any, Dict, Iterator, List, Optional, Set, Tuple, Type, Union
 
 from graphviz import Digraph
 
 from patternmatcher.expressions import (Arity, Atom, Expression, Operation,
-                                        Optional, Symbol, SymbolWildcard,
-                                        Variable, Wildcard, freeze)
+                                        Symbol, SymbolWildcard, Variable,
+                                        Wildcard, freeze)
 
 
 class _OperationEnd(object):
@@ -28,6 +28,7 @@ This is a singleton object that has *)* as representation.
 Is is also used by the :class:`DiscriminationNet`.
 """
 
+
 class _Epsilon(object):
     def __str__(self):
         return 'ε'
@@ -35,6 +36,7 @@ class _Epsilon(object):
     __repr__ = __str__
 
 EPSILON = _Epsilon()
+
 
 def is_operation(term: Any) -> bool:
     """Return True iff the given term is a subclass of :class:`.Operation`."""
@@ -271,7 +273,8 @@ class _StateQueueItem(object):
         return labels
 
     def __repr__(self):
-        return 'NQI({!r}, {!r}, {!r}, {!r}, {!r}, {!r})'.format(self.id1, self.id2, self.depth, self.fixed, self.state1, self.state2)
+        return 'NQI({!r}, {!r}, {!r}, {!r}, {!r}, {!r})'.format(
+            self.id1, self.id2, self.depth, self.fixed, self.state1, self.state2)
 
 
 class DiscriminationNet(object):
@@ -399,7 +402,7 @@ class DiscriminationNet(object):
                     new_state[k] = target
                 else:
                     target = frozenset(target)
-                    if not target in new_states:
+                    if target not in new_states:
                         new_states[target] = _State()
                         queue.append(target)
 

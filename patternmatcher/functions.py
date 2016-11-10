@@ -84,10 +84,11 @@ def _match(expressions: List[Expression], pattern: Expression, subst: Substituti
 Matcher = Callable[[List[Expression], Expression, Substitution], Iterator[Substitution]]
 
 
-def _match_variable(expressions: List[Expression], variable: Variable, subst: Substitution, matcher: Matcher) -> Iterator[Substitution]:
+def _match_variable(expressions: List[Expression], variable: Variable, subst: Substitution, matcher: Matcher) \
+        -> Iterator[Substitution]:
     inner = variable.expression
     if len(expressions) == 1 and (not isinstance(inner, Wildcard) or inner.fixed_size):
-        expr = expressions[0]  # type: Union[Expression,List[Expression]]
+        expr = expressions[0]  # type: Union[Expression, List[Expression]]
     else:
         expr = tuple(expressions)
     if variable.name in subst:
@@ -139,6 +140,7 @@ def _size(expr):
         return (expr.min_count, (not expr.fixed_size) and math.inf or expr.min_count)
     return (1, 1)
 
+
 def _partitions_iter(expressions, vars):
     integer_partition_vector_iter
 
@@ -149,6 +151,7 @@ def _match_factory(expressions, operand, matcher):
             yield (subst, )
 
     return factory
+
 
 def _count_seq_vars(expressions, operation):
     remaining = len(expressions)
@@ -165,6 +168,7 @@ def _count_seq_vars(expressions, operation):
         if remaining < 0:
             raise ValueError
     return remaining, sequence_var_count
+
 
 def _build_full_partition(sequence_var_partition, expressions, operation):
     i = 0
@@ -194,6 +198,7 @@ def _build_full_partition(sequence_var_partition, expressions, operation):
 
     return result
 
+
 def _non_commutative_match(expressions, operation, subst, matcher):
     try:
         remaining, sequence_var_count = _count_seq_vars(expressions, operation)
@@ -206,6 +211,7 @@ def _non_commutative_match(expressions, operation, subst, matcher):
 
         for (new_subst, ) in iterator_chain((subst, ), *factories):
             yield new_subst
+
 
 def _match_operation(expressions, operation, subst, matcher):
     if len(operation.operands) == 0:
@@ -225,7 +231,6 @@ def _match_operation(expressions, operation, subst, matcher):
         fake_maxs = maxs
     if len(expressions) < sum(mins) or len(expressions) > sum(fake_maxs):
         return
-    limits = list(zip(mins, fake_maxs))
     parts = commutative_partition_iter(expressions, mins, fake_maxs)
 
     for part in parts:
@@ -294,7 +299,8 @@ def substitute(expression: Expression, substitution: Substitution) -> Tuple[Unio
     return expression, False
 
 
-def replace(expression: Expression, position: Sequence[int], replacement: Union[Expression, List[Expression]]) -> Union[Expression, List[Expression]]:
+def replace(expression: Expression, position: Sequence[int], replacement: Union[Expression, List[Expression]]) \
+        -> Union[Expression, List[Expression]]:
     r"""Replaces the subexpression of `expression` at the given `position` with the given `replacement`.
 
     The original `expression` itself is not modified, but a modified copy is returned. If the replacement

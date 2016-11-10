@@ -7,8 +7,6 @@ from patternmatcher.expressions import Substitution
 from patternmatcher.utils import get_lambda_source
 
 
-# pylint: disable=too-few-public-methods
-
 class Constraint(object, metaclass=ABCMeta):
     """Base for pattern constraints.
     """
@@ -23,6 +21,7 @@ class Constraint(object, metaclass=ABCMeta):
     @abstractmethod
     def __hash__(self):
         raise NotImplementedError()
+
 
 class MultiConstraint(Constraint):
     def __init__(self, constraints: Set[Constraint]) -> None:
@@ -59,6 +58,7 @@ class MultiConstraint(Constraint):
     def __hash__(self):
         return hash(self.constraints)
 
+
 class EqualVariablesConstraint(Constraint):
     def __init__(self, *variables: str) -> None:
         self.variables = set(variables)
@@ -90,13 +90,14 @@ class EqualVariablesConstraint(Constraint):
     def __hash__(self):
         return hash(self.variables)
 
+
 class CustomConstraint(Constraint):
     def __init__(self, constraint: Callable[..., bool]) -> None:
         self.constraint = constraint
         signature = inspect.signature(constraint)
 
         self.allow_any = False
-        self.variables = set() # type: Set[str]
+        self.variables = set()  # type: Set[str]
 
         for param in signature.parameters.values():
             if param.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD or param.kind == inspect.Parameter.KEYWORD_ONLY:

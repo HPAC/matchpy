@@ -61,7 +61,7 @@ class Expression(object):
 
     def __init__(self, constraint: Optional[Constraint] = None) -> None:
         self.constraint = constraint
-        self.head = None  # type: Union[type,Atom]
+        self.head = None  # type: Union[type, Atom]
 
     @property
     def variables(self) -> Multiset[str]:
@@ -104,7 +104,8 @@ class Expression(object):
 
 class _OperationMeta(type):
     def __repr__(cls):
-        return 'Operation[{!r}, arity={!r}, associative={!r}, commutative={!r}, one_identity={!r}]'.format(cls.name, cls.arity, cls.associative, cls.commutative, cls.one_identity)
+        return 'Operation[{!r}, arity={!r}, associative={!r}, commutative={!r}, one_identity={!r}]'.format(
+            cls.name, cls.arity, cls.associative, cls.commutative, cls.one_identity)
 
     def __str__(cls):
         return cls.name
@@ -212,10 +213,12 @@ class Operation(Expression, metaclass=_OperationMeta):
         super().__init__(constraint)
 
         if len(operands) < self.arity.min_count:
-            raise ValueError("Operation {!s} got arity {!s}, but got {:d} operands.".format(type(self).__name__, self.arity, len(operands)))
+            raise ValueError("Operation {!s} got arity {!s}, but got {:d} operands.".format(
+                type(self).__name__, self.arity, len(operands)))
 
         if self.arity.fixed_size and len(operands) > self.arity.min_count:
-            msg = "Operation {!s} got arity {!s}, but got {:d} operands.".format(type(self).__name__, self.arity, len(operands))
+            msg = "Operation {!s} got arity {!s}, but got {:d} operands.".format(
+                type(self).__name__, self.arity, len(operands))
             if self.associative:
                 msg += " Associative operations should have a variadic/polyadic arity."
             raise ValueError(msg)
@@ -225,7 +228,8 @@ class Operation(Expression, metaclass=_OperationMeta):
         for var, _ in itertools.chain.from_iterable(var_iters):
             if var.name in variables:
                 if variables[var.name] != var:
-                    raise ValueError("Conflicting versions of variable {!s}: {!r} vs {!r}".format(var.name, var, variables[var.name]))
+                    raise ValueError("Conflicting versions of variable {!s}: {!r} vs {!r}".format(
+                        var.name, var, variables[var.name]))
             else:
                 variables[var.name] = var
 
@@ -491,7 +495,8 @@ class Variable(Expression):
 
     def __repr__(self):
         if self.constraint:
-            return '{!s}({!r}, {!r}, constraint={!r})'.format(type(self).__name__, self.name, self.expression, self.constraint)
+            return '{!s}({!r}, {!r}, constraint={!r})'.format(
+                type(self).__name__, self.name, self.expression, self.constraint)
         return '{!s}({!r}, {!r})'.format(type(self).__name__, self.name, self.expression)
 
     def __eq__(self, other):
@@ -599,7 +604,8 @@ class Wildcard(Atom):
 
     def __repr__(self):
         if self.constraint:
-            return '{!s}({!r}, {!r}, constraint={!r})'.format(type(self).__name__, self.min_count, self.fixed_size, self.constraint)
+            return '{!s}({!r}, {!r}, constraint={!r})'.format(
+                type(self).__name__, self.min_count, self.fixed_size, self.constraint)
         return '{!s}({!r}, {!r})'.format(type(self).__name__, self.min_count, self.fixed_size)
 
     def __lt__(self, other):
@@ -608,8 +614,8 @@ class Wildcard(Atom):
     def __eq__(self, other):
         if not isinstance(other, type(self)):
             return NotImplemented
-        return other.min_count == self.min_count and \
-               other.fixed_size == self.fixed_size
+        return (other.min_count == self.min_count and
+                other.fixed_size == self.fixed_size)
 
     def _compute_hash(self):
         return hash((Wildcard, self.min_count, self.fixed_size))
@@ -782,7 +788,8 @@ class _FrozenOperationMeta(_FrozenMeta, _OperationMeta):
         raise AssertionError
 
     def __repr__(cls):
-        return 'FrozenOperation[{!r}, arity={!r}, associative={!r}, commutative={!r}, one_identity={!r}]'.format(cls.name, cls.arity, cls.associative, cls.commutative, cls.one_identity)
+        return 'FrozenOperation[{!r}, arity={!r}, associative={!r}, commutative={!r}, one_identity={!r}]'.format(
+            cls.name, cls.arity, cls.associative, cls.commutative, cls.one_identity)
 
 
 class FrozenExpression(Expression, metaclass=_FrozenMeta):

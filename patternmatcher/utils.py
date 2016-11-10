@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import inspect
-import itertools
 import math
 import re
 from typing import (Callable, Dict, Iterator,  # pylint: disable=unused-import
@@ -42,21 +41,22 @@ def fixed_integer_vector_iter(maxVect: Tuple[int, ...], vector_sum: int) -> Iter
     total = sum(maxVect)
     if vector_sum <= total:
         vector_sum = min(vector_sum, total)
-        start  = max(maxVect[0] + vector_sum - total, 0)
-        end    = min(maxVect[0], vector_sum)
+        start = max(maxVect[0] + vector_sum - total, 0)
+        end = min(maxVect[0], vector_sum)
 
         for j in range(start, end + 1):
             for vec in fixed_integer_vector_iter(maxVect[1:], vector_sum - j):
                 yield (j, ) + vec
 
-def minimum_integer_vector_iter(maxVect: Tuple[int, ...], minSum:int=0) -> Iterator[Tuple[int, ...]]:
+
+def minimum_integer_vector_iter(maxVect: Tuple[int, ...], minSum: int=0) -> Iterator[Tuple[int, ...]]:
     if len(maxVect) == 0:
         yield tuple()
         return
 
     total = sum(maxVect)
     if minSum <= total:
-        start  = max(maxVect[0] + minSum - total, 0)
+        start = max(maxVect[0] + minSum - total, 0)
 
         for j in range(start, maxVect[0] + 1):
             newmin = max(0, minSum - j)
@@ -81,6 +81,7 @@ def integer_partition_vector_iter(n: int, m: int) -> Iterator[List[int]]:
     for i in range(0, n + 1):
         for vec in integer_partition_vector_iter(n - i, m - 1):
             yield (i, ) + vec
+
 
 def fixed_sum_vector_iter(min_vect: Sequence[int], max_vect: Sequence[int], total: int) -> Iterator[List[int]]:
     assert len(min_vect) == len(max_vect), "len(min_vect) != len(max_vect)"
@@ -137,8 +138,8 @@ def fixed_sum_vector_iter(min_vect: Sequence[int], max_vect: Sequence[int], tota
                 if pos == 0:
                     return
                 variable_amount = values[pos] - real_mins[pos]
-                values[pos] = real_mins[pos] # reset current position
-                values[-1] += variable_amount # reset last position
+                values[pos] = real_mins[pos]  # reset current position
+                values[-1] += variable_amount  # reset last position
 
                 if values[-1] > real_maxs[-1]:
                     remaining = values[-1] - real_maxs[-1] - 1
@@ -152,6 +153,7 @@ def fixed_sum_vector_iter(min_vect: Sequence[int], max_vect: Sequence[int], tota
                 pos -= 1
             else:
                 break
+
 
 def _count(values: Sequence[T]) -> Iterator[Tuple[T, int]]:
     if len(values) == 0:
@@ -168,11 +170,13 @@ def _count(values: Sequence[T]) -> Iterator[Tuple[T, int]]:
             last_count += 1
     yield last_value, last_count
 
-def commutative_partition_iter(values: Sequence[T], min_vect: Sequence[int], max_vect: Sequence[int]) -> Iterator[Tuple[List[T], ...]]:
+
+def commutative_partition_iter(values: Sequence[T], min_vect: Sequence[int], max_vect: Sequence[int]) \
+        -> Iterator[Tuple[List[T], ...]]:
     counts = list(_count(values))
     value_count = len(counts)
-    iterators = [None] * value_count # type: List[Optional[Iterator[List[int]]]]
-    pvalues = [None] * value_count # type: List[Optional[List[int]]]
+    iterators = [None] * value_count  # type: List[Optional[Iterator[List[int]]]]
+    pvalues = [None] * value_count  # type: List[Optional[List[int]]]
     new_min = tuple(0 for _ in min_vect)
     iterators[0] = fixed_sum_vector_iter(new_min, max_vect, counts[0][1])
     try:
@@ -187,10 +191,10 @@ def commutative_partition_iter(values: Sequence[T], min_vect: Sequence[int], max
                     iterators[i] = fixed_sum_vector_iter(new_min, max_vect, counts[i][1])
                 pvalues[i] = iterators[i].__next__()
                 i += 1
-            sums = tuple(map(sum, zip(*pvalues))) # type: Tuple[int, ...]
+            sums = tuple(map(sum, zip(*pvalues)))  # type: Tuple[int, ...]
             if all(minc <= s and s <= maxc for minc, s, maxc in zip(min_vect, sums, max_vect)):
                 # cast is needed for mypy, as it can't infer the type of the empty list otherwise
-                partiton = tuple(cast(List[T], []) for _ in range(len(min_vect))) # type: Tuple[List[T], ...]
+                partiton = tuple(cast(List[T], []) for _ in range(len(min_vect)))  # type: Tuple[List[T], ...]
                 for cs, (v, _) in zip(pvalues, counts):
                     for j, c in enumerate(cs):
                         partiton[j].extend([v] * c)
@@ -202,8 +206,10 @@ def commutative_partition_iter(values: Sequence[T], min_vect: Sequence[int], max
             if i < 0:
                 return
 
+
 def _make_iter_factory(value, total, variables: List[VariableWithCount]):
     var_counts = [v.count for v in variables]
+
     def factory(subst):
         for solution in solve_linear_diop(total, *var_counts):
             for var, count in zip(variables, solution):
@@ -212,12 +218,14 @@ def _make_iter_factory(value, total, variables: List[VariableWithCount]):
 
     return factory
 
-def commutative_sequence_variable_partition_iter(values: Multiset[T], variables: List[VariableWithCount]) -> Iterator[Dict[str, Multiset[T]]]:
+
+def commutative_sequence_variable_partition_iter(values: Multiset[T], variables: List[VariableWithCount]) \
+        -> Iterator[Dict[str, Multiset[T]]]:
     iterators = []
     for value, count in values.items():
         iterators.append(_make_iter_factory(value, count, variables))
 
-    initial = dict((var.name, Multiset()) for var in variables) # type: Dict[str, Multiset[T]]
+    initial = dict((var.name, Multiset()) for var in variables)  # type: Dict[str, Multiset[T]]
 
     for (subst, ) in iterator_chain((initial, ), *iterators):
         valid = True
@@ -238,6 +246,7 @@ def get_lambda_source(l):
 
     return match.group(1)
 
+
 def extended_euclid(a: int, b: int) -> Tuple[int, int, int]:
     """Extended Euclidean algorithm that computes the Bézout coefficients as well as `gcd(a, b)`
 
@@ -255,12 +264,13 @@ def extended_euclid(a: int, b: int) -> Tuple[int, int, int]:
 
     return (x, y, d)
 
+
 def base_solution_linear(a: int, b: int, c: int) -> Iterator[Tuple[int, int]]:
     r"""Yields solution for a basic linear Diophantine equation of the form :math:`ax + by = c`.
 
     First, the equation is normalized by dividing :math:`a, b, c` by their gcd.
     Then, the extended Euclidean algorithm (:func:`extended_euclid`) is used to find a base solution :math:`(x_0, y_0)`.
-    From that all non-negative solutions are generated by using that the general solution is :math:`(x_0 + b t, y_0 - a t)`.
+    All non-negative solutions are generated by using that the general solution is:math:`(x_0 + b t, y_0 - a t)`.
     Hence, by adding or substracting :math:`a` resp. :math:`b` from the base solution, all solutions can be generated.
     Because the base solution is one of the minimal pairs of Bézout's coefficients, for all non-negative solutions
     either :math:`t \geq 0` or :math:`t \leq 0` must hold. Also, all the non-negative solutions are consecutive with
@@ -297,6 +307,7 @@ def base_solution_linear(a: int, b: int, c: int) -> Iterator[Tuple[int, int]]:
                     yield (x, y)
                 x -= b
                 y += a
+
 
 def solve_linear_diop(total: int, *coeffs: int) -> Iterator[Tuple[int, ...]]:
     r"""Generator for the solutions of a linear Diophantine equation of the form :math:`c_1 x_1 + \dots + c_n x_n = total`
@@ -335,13 +346,16 @@ def solve_linear_diop(total: int, *coeffs: int) -> Iterator[Tuple[int, ...]]:
         for remainder_solution in solve_linear_diop(remainder_gcd_solution, *new_coeffs):
             yield (coeff0_solution, ) + remainder_solution
 
-def _match_value_repr_str(value): # pragma: no cover
+
+def _match_value_repr_str(value):  # pragma: no cover
     if isinstance(value, list):
         return '({!s})'.format(', '.join(str(x) for x in value))
     return str(value)
 
-def match_repr_str(match): # pragma: no cover
+
+def match_repr_str(match):  # pragma: no cover
     return ', '.join('{!s}: {!s}'.format(k, _match_value_repr_str(v)) for k, v in match.items())
+
 
 def is_sorted(l):
     for i, el in enumerate(l[1:]):
@@ -349,12 +363,13 @@ def is_sorted(l):
             return False
     return True
 
+
 def iterator_chain(initial_data: tuple, *factories: Callable[..., Iterator[tuple]]) -> Iterator[tuple]:
     f_count = len(factories)
     if f_count == 0:
         yield initial_data
         return
-    iterators = [None] * f_count # type: List[Optional[Iterator[tuple]]]
+    iterators = [None] * f_count  # type: List[Optional[Iterator[tuple]]]
     next_data = initial_data
     i = 0
     while True:
@@ -388,12 +403,12 @@ class cached_property(object):
 if __name__ == '__main__':
     for p in integer_partition_vector_iter(5, 2):
         print(p)
-    #for p in integer_vector_iter((5, 3), 2):
-    #    print (p)
+    # for p in integer_vector_iter((5, 3), 2):
+    #     print (p)
     values = Multiset('aaabbc')
     vars = Multiset({('x', 1): 2, ('y', 0): 1, ('z', 1): 1})
     for part in commutative_sequence_variable_partition_iter(values, vars):
         print('m')
         for v, c in part.items():
             print('{!s}: {!s}'.format(v, c))
-    #print(list(solve_linear_diop(5, 2, 3, 1)))
+    # print(list(solve_linear_diop(5, 2, 3, 1)))

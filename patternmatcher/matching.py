@@ -87,13 +87,13 @@ class CommutativePatternsParts(object):
         self.operation = operation
         self.length = len(expressions)
 
-        self.constant = Multiset() # type: Multiset[Expression]
-        self.syntactic = Multiset() # type: Multiset[Expression]
-        self.sequence_variables = Multiset() # type: Multiset[Tuple[str, int]]
+        self.constant = Multiset()  # type: Multiset[Expression]
+        self.syntactic = Multiset()  # type: Multiset[Expression]
+        self.sequence_variables = Multiset()  # type: Multiset[Tuple[str, int]]
         self.sequence_variable_infos = dict()
-        self.fixed_variables = Multiset() # type: Multiset[Tuple[str, int]]
+        self.fixed_variables = Multiset()  # type: Multiset[Tuple[str, int]]
         self.fixed_variable_infos = dict()
-        self.rest = Multiset() # type: Multiset[Expression]
+        self.rest = Multiset()  # type: Multiset[Expression]
 
         self.sequence_variable_min_length = 0
         self.fixed_variable_length = 0
@@ -103,7 +103,7 @@ class CommutativePatternsParts(object):
                 self.constant[expression] += 1
             elif expression.head is None:
                 wc = cast(Wildcard, expression)
-                name = None # type: Optional[str]
+                name = None  # type: Optional[str]
                 constraint = wc.constraint
                 if isinstance(wc, Variable):
                     name = wc.name
@@ -138,8 +138,8 @@ class CommutativePatternsParts(object):
 class ManyToOneMatcher(object):
     def __init__(self, *patterns: Expression) -> None:
         self.patterns = patterns
-        self.graphs = {} # type: Dict[Type[Operation], Set[Expression]]
-        self.commutative = {} # type: Dict[Type[Operation], CommutativeMatcher]
+        self.graphs = {}  # type: Dict[Type[Operation], Set[Expression]]
+        self.commutative = {}  # type: Dict[Type[Operation], CommutativeMatcher]
 
         for pattern in patterns:
             self._extract_subexpressions(pattern, False, self.graphs)
@@ -198,7 +198,9 @@ class ManyToOneMatcher(object):
                         yield result
 
     @staticmethod
-    def _extract_subexpressions(expression: Expression, include_constant: bool, subexpressions:Dict[Type[Operation], Set[Expression]]=None) -> Dict[Type[Operation], Set[Expression]]:
+    def _extract_subexpressions(expression: Expression, include_constant: bool,
+                                subexpressions: Dict[Type[Operation], Set[Expression]]=None) \
+            -> Dict[Type[Operation], Set[Expression]]:
         if subexpressions is None:
             subexpressions = {}
         for subexpr, _ in expression.preorder_iter(lambda e: isinstance(e, Operation) and e.commutative):
@@ -213,14 +215,15 @@ class ManyToOneMatcher(object):
             subexpressions[op_type].update(expressions)
         return subexpressions
 
+
 class CommutativeMatcher(object):
     _cnt = 0
 
     def __init__(self, parent: ManyToOneMatcher) -> None:
-        self.patterns = set() # type: Set[Expression]
-        self.expressions = set() # type: Set[Expression]
+        self.patterns = set()  # type: Set[Expression]
+        self.expressions = set()  # type: Set[Expression]
         self.net = DiscriminationNet()
-        self.bipartite = BipartiteGraph() # type: BipartiteGraph
+        self.bipartite = BipartiteGraph()  # type: BipartiteGraph
         self.parent = parent
 
     def add_pattern(self, pattern: Expression):
@@ -244,7 +247,7 @@ class CommutativeMatcher(object):
         if any(not e.is_constant for e in expression):
             raise ValueError("All given expressions must be constant.")
 
-        expressions = Multiset(expression) # type: Multiset[Expression]
+        expressions = Multiset(expression)  # type: Multiset[Expression]
 
         if not (pattern.constant <= expressions):
             return
@@ -260,7 +263,7 @@ class CommutativeMatcher(object):
 
         if pattern.syntactic:
             subgraph = self._build_bipartite(syntactics, pattern.syntactic)
-            #subgraph.as_graph().render('tmp/' + label + '.gv')
+            # subgraph.as_graph().render('tmp/' + label + '.gv')
             match_iter = enum_maximum_matchings_iter(subgraph)
             try:
                 matching = next(match_iter)
@@ -271,7 +274,7 @@ class CommutativeMatcher(object):
 
             if self._is_canonical_matching(matching):
                 subst = self._unify_substitutions(*(subgraph[s] for s in matching.items()))
-                matched = Multiset(e for e, _ in matching) # type: Multiset[Expression]
+                matched = Multiset(e for e, _ in matching)  # type: Multiset[Expression]
                 remaining = rest + (syntactics - matched)
                 if subst is not None:
                     yield from self._matches_from_matching(subst, remaining, pattern)
@@ -298,7 +301,7 @@ class CommutativeMatcher(object):
         return constants
 
     def _build_bipartite(self, syntactics: Multiset, patterns: Multiset):
-        bipartite = BipartiteGraph() # type: BipartiteGraph
+        bipartite = BipartiteGraph()  # type: BipartiteGraph
         for (expr, patt), m in self.bipartite.items():
             for i in range(syntactics[expr]):
                 for j in range(patterns[patt]):
@@ -317,17 +320,18 @@ class CommutativeMatcher(object):
     def _variables_with_counts(variables, infos):
         return tuple(VariableWithCount(name, count, infos[name].min_count) for name, count in variables.items())
 
-    def _matches_from_matching(self, subst: Substitution, remaining: Multiset, pattern: CommutativePatternsParts) -> Iterator[Substitution]:
+    def _matches_from_matching(self, subst: Substitution, remaining: Multiset, pattern: CommutativePatternsParts) \
+            -> Iterator[Substitution]:
         needed_length = len(pattern.sequence_variables) + len(pattern.fixed_variables) + len(pattern.rest)
 
         if sum(remaining.values()) < needed_length:
             return
 
-        fixed_vars = Multiset(pattern.fixed_variables) # type: Multiset[str]
+        fixed_vars = Multiset(pattern.fixed_variables)  # type: Multiset[str]
         for name, count in pattern.fixed_variables.items():
             if name in subst:
                 if pattern.operation.associative and isinstance(subst[name], pattern.operation):
-                    needed_count = Multiset(cast(Operation, subst[name]).operands) # type: Multiset[Expression]
+                    needed_count = Multiset(cast(Operation, subst[name]).operands)  # type: Multiset[Expression]
                 elif isinstance(subst[name], Expression):
                     needed_count = Multiset({subst[name]: 1})
                 else:
@@ -347,7 +351,7 @@ class CommutativeMatcher(object):
                 factory = self._fixed_var_iter_factory(name, count, info.min_count, info.constraint)
                 factories.append(factory)
 
-        expr_counter = Multiset(remaining) # type: Multiset[Expression]
+        expr_counter = Multiset(remaining)  # type: Multiset[Expression]
 
         for rem_expr, subst in iterator_chain((expr_counter, subst), *factories):
             sequence_vars = self._variables_with_counts(pattern.sequence_variables, pattern.sequence_variable_infos)
@@ -385,7 +389,8 @@ class CommutativeMatcher(object):
     def _fixed_var_iter_factory(variable, count, length, constraint=None):
         def factory(expressions, substitution):
             if variable in substitution:
-                value = isinstance(substitution[variable], Expression) and [substitution[variable]] or substitution[variable]
+                value = ([substitution[variable]] if isinstance(substitution[variable], Expression)
+                         else substitution[variable])
                 existing = Multiset(value) * count
                 if not (existing <= expressions):
                     return
@@ -436,11 +441,12 @@ class CommutativeMatcher(object):
 
     @staticmethod
     def split_expressions(expressions: Multiset[Expression]) -> Tuple[Multiset[Expression], Multiset[Expression]]:
-        constants = Multiset() # type: Multiset[Expression]
-        syntactics = Multiset() # type: Multiset[Expression]
+        constants = Multiset()  # type: Multiset[Expression]
+        syntactics = Multiset()  # type: Multiset[Expression]
 
         for expression, count in expressions.items():
-            if expression.is_syntactic or not (isinstance(expression, Operation) and (expression.associative or expression.commutative)):
+            if expression.is_syntactic or not (isinstance(expression, Operation) and
+                                               (expression.associative or expression.commutative)):
                 syntactics[expression] = count
             else:
                 constants[expression] = count
@@ -448,9 +454,9 @@ class CommutativeMatcher(object):
         return constants, syntactics
 
 
-if __name__ == '__main__': # pragma: no cover
+if __name__ == '__main__':  # pragma: no cover
     def _main():
-        # pylint: disable=invalid-name,bad-continuation
+        # pylint: disable=invalid-name, bad-continuation
         f = Operation.new('f', Arity.variadic, associative=True, one_identity=True, commutative=True)
         g = Operation.new('g', Arity.unary)
 
@@ -477,39 +483,37 @@ if __name__ == '__main__': # pragma: no cover
             f(x_, g(f(x_, z___)))
         ]
 
-        #expr = f(a, b, g(a), g(b))
+        # expr = f(a, b, g(a), g(b))
         expr = f(a, b, g(a), g(b), g(a, b), g(b, a))
-        #expr = f(g(a), g(a), g(b), g(b))
-        #expr = f(a, b, g(f(a, a, b)))
+        # expr = f(g(a), g(a), g(b), g(b))
+        # expr = f(a, b, g(f(a, a, b)))
 
         print('Expression: ', expr)
 
         matcher = ManyToOneMatcher(*patterns)
-        #matcher = CommutativeMatcher(parent)
+        # matcher = CommutativeMatcher(parent)
 
-        #parts = [CommutativePatternsParts(type(p), *p.operands) for p in patterns]
+        # parts = [CommutativePatternsParts(type(p), *p.operands) for p in patterns]
 
-        #for part in parts:
-        #    for op in part.syntactic:
-        #        matcher.add_pattern(op)
+        # for part in parts:
+        #     for op in part.syntactic:
+        #         matcher.add_pattern(op)
 
-        #_, expr_synts = matcher.split_expressions(Multiset(expr.operands))
+        # _, expr_synts = matcher.split_expressions(Multiset(expr.operands))
 
-        #for e in expr_synts:
-        #    matcher.add_expression(e)
+        # for e in expr_synts:
+        #     matcher.add_expression(e)
 
-        #matcher.bipartite.as_graph().render('tmp/BP.gv')
+        # matcher.bipartite.as_graph().render('tmp/BP.gv')
 
         for pattern, matches in itertools.groupby(matcher.match(expr), operator.itemgetter(0)):
-            print ('-------- {!s} ----------'.format(pattern))
+            print('-------- {!s} ----------'.format(pattern))
             for _, match in matches:
-                print ('match: ', match)
+                print('match: ', match)
 
-        #for i, pattern in enumerate(parts):
-        #    print ('-------- {!s} ----------'.format(patterns[i]))
-        #    for match in matcher.match(expr.operands, pattern):
-        #        print ('match: ', match)
-
-
+        # for i, pattern in enumerate(parts):
+        #     print ('-------- {!s} ----------'.format(patterns[i]))
+        #     for match in matcher.match(expr.operands, pattern):
+        #         print ('match: ', match)
 
     _main()
