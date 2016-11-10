@@ -1,12 +1,15 @@
 # -*- coding: utf-8 -*-
 from reprlib import recursive_repr
-from typing import Any, Dict, Iterator, List, Optional, Set, Tuple, Type, Union
+from typing import (Any, Dict, FrozenSet, Generic, Iterator, List, Optional,
+                    Set, Tuple, Type, TypeVar, Union)
 
 from graphviz import Digraph
 
-from patternmatcher.expressions import (Arity, Atom, Expression, Operation,
-                                        Symbol, SymbolWildcard, Variable,
-                                        Wildcard, freeze)
+from patternmatcher.expressions import (Arity, Expression, Operation, Symbol,
+                                        SymbolWildcard, Variable, Wildcard,
+                                        freeze)
+
+T = TypeVar('T')
 
 
 class _OperationEnd(object):
@@ -30,12 +33,22 @@ Is is also used by the :class:`DiscriminationNet`.
 
 
 class _Epsilon(object):
+    """Represents an epsilon transition label for the :class:`DiscriminationNet`.
+
+    Used for :const:`EPSILON` as a singleton. Could also be a plain object,
+    but the string representation is customized.
+    """
+
     def __str__(self):
         return 'ε'
 
     __repr__ = __str__
 
 EPSILON = _Epsilon()
+"""Constant used to label an epsilon transition for the :class:`DiscriminationNet`.
+
+This is a singleton object that has *ε* as representation.
+"""
 
 
 def is_operation(term: Any) -> bool:
@@ -53,10 +66,11 @@ def _get_symbol_wildcard_label(state: '_State', symbol: Symbol) -> Type[Symbol]:
     return next((t for t in state.keys() if is_symbol_wildcard(t) and isinstance(symbol, t)), None)
 
 # Broken without latest version of the typing package
-# TermAtom = Union[Atom, Type[Operation], Type[Symbol], _OperationEnd]
+# TermAtom = Union[Symbol, Type[Operation], Type[Symbol], _OperationEnd]
 # So for now use the non-generic version
-TermAtom = Union[Atom, type, _OperationEnd]
-
+TermAtom = Union[Symbol, Wildcard, type, _OperationEnd]
+# TransitionLabel = Union[Symbol, Type[Operation], Type[Symbol], Type[Wildcard], _OperationEnd, _Epsilon]
+TransitionLabel = Union[Symbol, type, _OperationEnd, _Epsilon]
 
 class FlatTerm(List[TermAtom]):
     """A flattened representation of an :class:`.Expression`.
@@ -108,7 +122,7 @@ class FlatTerm(List[TermAtom]):
             yield OPERATION_END
         elif isinstance(expression, SymbolWildcard):
             yield expression.symbol_type
-        elif isinstance(expression, Atom):
+        elif isinstance(expression, (Symbol, Wildcard)):
             yield expression
         else:
             raise TypeError()
@@ -154,7 +168,7 @@ def _term_str(term: TermAtom) -> str:  # pragma: no cover
         return str(term)
 
 
-class _State(Dict[TermAtom, Union['_State', List[Expression]]]):
+class _State(Dict[TransitionLabel, Union['_State', List[T]]], Generic[T]):
     """An DFA state used by the :class:`DiscriminationNet`.
 
     This is a dict of transitions mapping terms of a :class:`FlatTerm` to new states.
@@ -170,7 +184,7 @@ class _State(Dict[TermAtom, Union['_State', List[Expression]]]):
         self.id = _State._id
         _State._id += 1
 
-    def _target_str(self, value: Union['_State', List[Expression]]) -> str:  # pragma: no cover
+    def _target_str(self, value: Union['_State', List[T]]) -> str:  # pragma: no cover
         """Return a string representation of a transition target."""
         if value is self:
             return 'self'
@@ -185,41 +199,7 @@ class _State(Dict[TermAtom, Union['_State', List[Expression]]]):
                                        for term, target in self.items())
 
 
-class _WildcardState:
-    """Internal representation of the wildcard state at the current nesting level used by :class:`DiscriminationNet`.
-
-    This state is needed because unless a sequence wildcard is the last operand of an operation, fallback edges are
-    required.
-
-    Consider the pattern ``f(___, a, b)``: In order to match for example ``f(a, c, a, b)``, the automaton for
-    the pattern needs an edge to fall back to the sequence wildcard after reading the first ``a``, because the ``b`` is
-    missing.
-
-    The same applies when trying to match ``f(a, a, b)`` or ``f(a, b, a, b)``, but the position to fall back to is
-    different. Hence, not only the :attr:`last_wildcard` is saved in the state, but also the :attr:`symbol_after` it.
-    Also, :attr:`all_same` tracks whether all symbols of the pattern so far have been the same, so backtracking only
-    jumps back to the most recent state. This is needed for patterns like ``f(___, a, a)`` and subjects like
-    ``f(a, a, a)``.
-
-    Things get more complicated, when nested operations are combined with sequence wildcards. For these, a failure state
-    is generated and saved in :attr:`fail_state`. This state allows backtracking after a failed match in a nested
-    operation.
-
-    Consider the pattern ``f(___, g(a))`` and the subject ``f(g(b), g(a))`` which match. The automaton greedily
-    steps into the nested operation ``g(b)`` instead of jumping over it with the wildcard. But after encountering the
-    ``b``, it needs to backtrack to the wildcard and start looking for ``g(a)`` again. The failure state allows
-    finishing to read the ``g(b)`` and start over.
-    """
-
-    def __init__(self):
-        self.last_wildcard = None
-        """Last unbounded wildcard at the current level of operation nesting (if any)"""
-
-        self.fail_state = None
-        """The failure state for the current level of operation nesting"""
-
-
-class _StateQueueItem(object):
+class _StateQueueItem(Generic[T]):
     """Internal data structure used by the product net algorithm.
 
     It contains a pair of states from each source net (:attr:`state1` and :attr:`state2`), their :attr:`ids <State.id>`
@@ -236,7 +216,7 @@ class _StateQueueItem(object):
     the first automaton is using it. If set to ``2``,  the second automaton is using it. Otherwise it will be set to
     ``0``. :attr:`fixed` can only be non-zero if the depth is greater than zero.
     """
-    def __init__(self, state1: _State, state2: _State) -> None:
+    def __init__(self, state1: _State[T], state2: _State[T]) -> None:
         self.state1 = state1
         self.state2 = state2
         try:
@@ -251,7 +231,7 @@ class _StateQueueItem(object):
         self.fixed = 0
 
     @property
-    def labels(self) -> Set[TermAtom]:
+    def labels(self) -> Set[TransitionLabel]:
         """Return the set of transition labels to examine for this queue state.
 
         This is the union of the transition label sets for both states.
@@ -259,7 +239,7 @@ class _StateQueueItem(object):
         instead. Also, when already in a failed state (one of the states is ``None``), the :const:`OPERATION_END` is
         also included.
         """
-        labels = set()
+        labels = set() # type: Set[TransitionLabel]
         if self.state1 is not None and self.fixed != 1:
             labels.update(self.state1.keys())
         if self.state2 is not None and self.fixed != 2:
@@ -277,7 +257,7 @@ class _StateQueueItem(object):
             self.id1, self.id2, self.depth, self.fixed, self.state1, self.state2)
 
 
-class DiscriminationNet(object):
+class DiscriminationNet(Generic[T]):
     """An automaton to distinguish which patterns match a given expression.
 
     This is a DFA with an implicit fail state whenever a transition is not actually defined.
@@ -291,7 +271,7 @@ class DiscriminationNet(object):
     def __init__(self):
         self._root = _State()
 
-    def add(self, pattern: Expression, final_label=None):
+    def add(self, pattern: Expression, final_label: T=None) -> None:
         """TODO"""
         if final_label is None:
             final_label = pattern
@@ -306,16 +286,21 @@ class DiscriminationNet(object):
         else:
             self._root = net
 
+    @staticmethod
+    def _create_child_state(state: _State[T], label: TransitionLabel) -> _State[T]:
+        new_state = _State()
+        state[label] = new_state
+        return new_state
+
     @classmethod
-    def _generate_syntactic_net(cls, flatterm: FlatTerm, final_label) -> _State:
+    def _generate_syntactic_net(cls, flatterm: FlatTerm, final_label: T) -> _State[T]:
         root = state = _State()
 
         for term in flatterm[:-1]:
             if isinstance(term, Wildcard):
                 state = cls._generate_state_chain(state, Wildcard, term.min_count)
             else:
-                state[term] = _State()
-                state = state[term]
+                state = cls._create_child_state(state, term)
 
         if isinstance(flatterm[-1], Wildcard):
             state = cls._generate_state_chain(state, Wildcard, flatterm[-1].min_count - 1)
@@ -325,93 +310,92 @@ class DiscriminationNet(object):
 
         return root
 
-    @staticmethod
-    def _generate_state_chain(state, label, count):
+    @classmethod
+    def _generate_state_chain(cls, state: _State[T], label: TransitionLabel, count: int) -> _State[T]:
         for _ in range(count):
-            state[label] = _State()
-            state = state[label]
+            state = cls._create_child_state(state, label)
         return state
 
     @classmethod
-    def _generate_net(cls, flatterm: FlatTerm, final_label) -> _State:
+    def _generate_net(cls, flatterm: FlatTerm, final_label: T) -> _State[T]:
         """Generates a DFA matching the given pattern."""
-        # Capture the last unbounded wildcard for every level of operation nesting on a stack
+        # Capture the last sequence wildcard for every level of operation nesting on a stack
         # Used to add backtracking edges in case the "match" fails later
-        wildcard_states = [_WildcardState()]
+        last_wildcards = [None]
+        # Generate a fail state for every level of nesting to backtrack to a sequence wildcard in a parent Expression
+        # in case no match can be found
+        fail_states = [None]
         root = state = _State()
         states = {root.id: root}
 
         for term in flatterm[:-1]:
-            wc_state = wildcard_states[-1]
             # For wildcards, generate a chain of #min_count Wildcard edges
             # If the wildcard is unbounded (fixed_size = False),
             # add a wildcard self loop at the end
             if isinstance(term, Wildcard):
                 # Generate a chain of #min_count Wildcard edges
                 for _ in range(term.min_count):
-                    state[Wildcard] = _State()
-                    state = state[Wildcard]
+                    state = cls._create_child_state(state, Wildcard)
                     states[state.id] = state
                 # If it is a sequence wildcard, add a self loop
                 if not term.fixed_size:
                     state[Wildcard] = state
-                    wc_state.last_wildcard = state
+                    last_wildcards[-1] = state
             else:
-                state[term] = _State()
-                state = state[term]
+                state = cls._create_child_state(state, term)
                 states[state.id] = state
                 if is_operation(term):
-                    new_wc_state = _WildcardState()
-                    if wc_state.last_wildcard or wc_state.fail_state:
-                        new_wc_state.fail_state = fail_state = _State()
+                    fail_state = None
+                    if last_wildcards[-1] or fail_states[-1]:
+                        fail_state = _State()
                         states[fail_state.id] = fail_state
-                        fail_state[OPERATION_END] = wc_state.last_wildcard or wc_state.fail_state
+                        fail_state[OPERATION_END] = last_wildcards[-1] or fail_states[-1]
                         fail_state[Wildcard] = fail_state
-                    wildcard_states.append(new_wc_state)
+                    fail_states.append(fail_state)
+                    last_wildcards.append(None)
                 elif term == OPERATION_END:
-                    wildcard_states.pop()
-                wc_state = wildcard_states[-1]
+                    fail_states.pop()
+                    last_wildcards.pop()
 
-            if wc_state.last_wildcard != state:
-                if wc_state.last_wildcard:
-                    state[EPSILON] = wc_state.last_wildcard
-                elif wc_state.fail_state:
-                    state[EPSILON] = wc_state.fail_state
+            if last_wildcards[-1] != state:
+                if last_wildcards[-1]:
+                    state[EPSILON] = last_wildcards[-1]
+                elif fail_states[-1]:
+                    state[EPSILON] = fail_states[-1]
 
-        last_term = flatterm[-1] if not isinstance(flatterm[-1], Wildcard) else Wildcard
-        state[last_term] = [final_label]
+        assert not isinstance(flatterm[-1], Wildcard)
+        state[flatterm[-1]] = [final_label]
 
-        return cls.determinize(root, states)
+        return cls._convert_nfa_to_dfa(root, states)
 
     @classmethod
-    def determinize(cls, root, states):
-        new_root = frozenset(cls.closure({root.id}, states))
+    def _convert_nfa_to_dfa(cls, root: _State[T], states: Dict[int, _State[T]]) -> _State[T]:
+        new_root = cls._epsilon_closure({root.id}, states)
         queue = [new_root]
         new_states = {new_root: _State()}
 
         while queue:
             state = queue.pop()
-            keys = set().union(*(states[s].keys() for s in state))
+            labels = set().union(*(states[s].keys() for s in state))  # type: Set[TransitionLabel]
             new_state = new_states[state]
 
-            for k in keys:
-                if k is EPSILON:
+            for label in labels:
+                if label is EPSILON:
                     continue
-                target = cls.goto(state, k, states)
+                target = cls._target_set(state, label, states)
                 if isinstance(target, list):
-                    new_state[k] = target
+                    new_state[label] = target
                 else:
-                    target = frozenset(target)
                     if target not in new_states:
                         new_states[target] = _State()
                         queue.append(target)
 
-                    new_state[k] = new_states[target]
+                    new_state[label] = new_states[target]
 
         return new_states[new_root]
 
     @staticmethod
-    def closure(state, states):
+    def _epsilon_closure(state: Set[int], states: Dict[int, _State[T]]) -> FrozenSet[int]:
         output = set(state)
 
         while True:
@@ -429,10 +413,10 @@ class DiscriminationNet(object):
             else:
                 break
 
-        return output
+        return frozenset(output)
 
     @classmethod
-    def goto(cls, state, label, states):
+    def _target_set(cls, state: Set[int], label: TransitionLabel, states: Dict[int, _State[T]]) -> FrozenSet[int]:
         output = set()
 
         for s in state:
@@ -453,10 +437,10 @@ class DiscriminationNet(object):
                 assert not isinstance(states[s][Wildcard], list)
                 output.add(states[s][Wildcard].id)
 
-        return cls.closure(output, states)
+        return cls._epsilon_closure(output, states)
 
     @staticmethod
-    def _get_next_state(state: _State, label: TermAtom, fixed: bool) -> Tuple[_State, bool]:
+    def _get_next_state(state: _State[T], label: TransitionLabel, fixed: bool) -> Tuple[_State[T], bool]:
         if fixed:
             return state, False
         if state is not None:
@@ -475,7 +459,7 @@ class DiscriminationNet(object):
         return None, False
 
     @classmethod
-    def _product_net(cls, state1, state2):
+    def _product_net(cls, state1: _State[T], state2: _State[T]) -> _State[T]:
         root = _State()
         states = {(state1.id, state2.id, 0): root}
         queue = [_StateQueueItem(state1, state2)]
@@ -545,7 +529,7 @@ class DiscriminationNet(object):
 
         return root
 
-    def match(self, expression: Expression) -> List[Expression]:
+    def match(self, expression: Expression) -> List[T]:
         flatterm = FlatTerm(expression) if isinstance(expression, Expression) else expression
         state = self._root
         depth = 0
@@ -581,7 +565,7 @@ class DiscriminationNet(object):
         # after reading the last symbol in the expression term, so the loop will never finish normally.
         raise AssertionError
 
-    def as_graph(self):  # pragma: no cover
+    def as_graph(self) -> Digraph:  # pragma: no cover
         dot = Digraph()
 
         nodes = set()
@@ -620,20 +604,15 @@ class DiscriminationNet(object):
 if __name__ == '__main__':
     import doctest
 
-    f = Operation.new('f', Arity.variadic)
-    a = Symbol('a')
-    b = Symbol('b')
-    c = Symbol('c')
-    x_ = Variable.dot('x')
-    _ = Wildcard.dot()
-    __ = Wildcard.plus()
-    ___ = Wildcard.star()
-    _s = Wildcard.symbol()
+    globs = {
+        'f': Operation.new('f', Arity.variadic),
+        'a': Symbol('a'),
+        'b': Symbol('b'),
+        'c': Symbol('c'),
+        'x_': Variable.dot('x'),
+        '_': Wildcard.dot(),
+        '__': Wildcard.plus(),
+        '___': Wildcard.star()
+    }
 
-    pattern = freeze(f(___, a, _, _))
-
-    net = DiscriminationNet()
-    net.add(pattern)
-    net.as_graph().render('tmp/{!s}'.format(pattern))
-
-    doctest.testmod(exclude_empty=True)
+    doctest.testmod(exclude_empty=True, extraglobs=globs)

@@ -171,6 +171,8 @@ def _count(values: Sequence[T]) -> Iterator[Tuple[T, int]]:
     yield last_value, last_count
 
 
+ListT = List[T]
+
 def commutative_partition_iter(values: Sequence[T], min_vect: Sequence[int], max_vect: Sequence[int]) \
         -> Iterator[Tuple[List[T], ...]]:
     counts = list(_count(values))
@@ -194,7 +196,7 @@ def commutative_partition_iter(values: Sequence[T], min_vect: Sequence[int], max
             sums = tuple(map(sum, zip(*pvalues)))  # type: Tuple[int, ...]
             if all(minc <= s and s <= maxc for minc, s, maxc in zip(min_vect, sums, max_vect)):
                 # cast is needed for mypy, as it can't infer the type of the empty list otherwise
-                partiton = tuple(cast(List[T], []) for _ in range(len(min_vect)))  # type: Tuple[List[T], ...]
+                partiton = tuple(cast(ListT, []) for _ in range(len(min_vect)))  # type: Tuple[List[T], ...]
                 for cs, (v, _) in zip(pvalues, counts):
                     for j, c in enumerate(cs):
                         partiton[j].extend([v] * c)
