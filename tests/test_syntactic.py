@@ -1,14 +1,17 @@
 # -*- coding: utf-8 -*-
-import pytest
 import random
 
 import hypothesis.strategies as st
-from hypothesis import given
+from hypothesis import assume, given
+import pytest
 
-from patternmatcher.expressions import (Arity, Operation, Symbol, Variable,
-                                        Wildcard, freeze)
+from patternmatcher.expressions import (Arity, Atom, Operation, Symbol,
+                                        Variable, Wildcard, freeze)
+from patternmatcher.functions import match
 from patternmatcher.syntactic import OPERATION_END as OP_END
-from patternmatcher.syntactic import DiscriminationNet, FlatTerm, is_operation, is_symbol_wildcard
+from patternmatcher.syntactic import (DiscriminationNet, FlatTerm,
+                                      is_operation, is_symbol_wildcard)
+
 
 class SpecialSymbol(Symbol): pass
 
@@ -178,14 +181,18 @@ expression_strategy = st.recursive(expression_base_strategy, expression_recurse_
     (f(___, a, b),              f(a, a, a, b),                          True),
     (f(___, g(a), ___, g(b)),   f(g(b), g(a), g(a), g(b)),              True),
     (f(___, g(a), ___, g(b)),   f(g(a), g(a), g(b), g(b)),              True),
+    (f(___, a, _s),             f(a, a),                                True),
+    (f(___, a, _s),             f(a, a, a),                             True),
+    (__,                        a,                                      True),
 ])
 def test_generate_net_and_match(pattern, expr, is_match):
     net = DiscriminationNet()
-    net.add(freeze(pattern))
+    final_label = random.randrange(1000)
+    net.add(freeze(pattern), final_label)
     result = net.match(freeze(expr))
 
     if is_match:
-        assert result == [pattern], 'Matching failed for %s and %s' % (pattern, expr)
+        assert result == [final_label], 'Matching failed for %s and %s' % (pattern, expr)
     else:
         assert result == [], 'Matching should fail for %s and %s' % (pattern, expr)
 
@@ -199,9 +206,10 @@ def test_variable_expression_match_error():
         net.match(pattern)
 
 
-@pytest.mark.skip('Takes too long')
 @given(st.sets(expression_strategy, max_size=20))
 def test_randomized_product_net(patterns):
+    assume(all(not isinstance(p, Atom) for p in patterns))
+
     patterns = list(patterns)
     net = DiscriminationNet()
     exprs = []
@@ -227,8 +235,47 @@ def test_randomized_product_net(patterns):
     for pattern, expr in zip(patterns, exprs):
         result = net.match(expr)
 
-        assert pattern in result, '%s %s' % (expr, net_id)
+        assert pattern in result, '{} did not match {} in the automaton'.format(pattern, expr)
 
+PRODUCT_NET_PATTERNS = [
+    freeze(f(a, _, _)),
+    freeze(f(_, a, _)),
+    freeze(f(_, _, a)),
+    freeze(f(__)),
+    freeze(f(g(_), ___)),
+    freeze(f(___, g(_))),
+    freeze(_)
+]
+
+PRODUCT_NET_EXPRESSIONS = [
+    f(a, a, a),
+    f(b, a, a),
+    f(a, b, a),
+    f(a, a, b),
+    f(g(a), a, a),
+    f(g(a), a, g(b)),
+    f(g(a), g(b), g(b)),
+    f(a, g(b), g(b), a),
+    f(g(a)),
+]
+
+@pytest.mark.parametrize('i', range(len(PRODUCT_NET_PATTERNS)))
+def test_product_net(i):
+    net = DiscriminationNet()
+
+    patterns = PRODUCT_NET_PATTERNS[i:] + PRODUCT_NET_PATTERNS[:i]
+    for pattern in patterns:
+        net.add(pattern)
+
+    for expression in PRODUCT_NET_EXPRESSIONS:
+        result = net.match(expression)
+
+        for pattern in patterns:
+            try:
+                next(match(expression, pattern))
+                assert pattern in result
+            except StopIteration:
+                assert pattern not in result
 
 if __name__ == '__main__':
     import patternmatcher.syntactic as tested_module

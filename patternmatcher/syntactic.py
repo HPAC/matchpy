@@ -46,9 +46,9 @@ def is_symbol_wildcard(term: Any) -> bool:
     return isinstance(term, type) and issubclass(term, Symbol)
 
 
-def _get_symbol_wildcard_label(state: '_State', symbol_type: Type[Symbol]) -> Type[Symbol]:
+def _get_symbol_wildcard_label(state: '_State', symbol: Symbol) -> Type[Symbol]:
     """Return the transition target for the given symbol type from the the given state or None if it does not exist."""
-    return next((t for t in state.keys() if is_symbol_wildcard(t) and isinstance(symbol_type, t)), None)
+    return next((t for t in state.keys() if is_symbol_wildcard(t) and isinstance(symbol, t)), None)
 
 # Broken without latest version of the typing package
 # TermAtom = Union[Atom, Type[Operation], Type[Symbol], _OperationEnd]
@@ -288,12 +288,15 @@ class DiscriminationNet(object):
     def __init__(self):
         self._root = _State()
 
-    def add(self, pattern: Expression):
+    def add(self, pattern: Expression, final_label=None):
         """TODO"""
-        if pattern.is_syntactic:
-            net = self._generate_syntactic_net(pattern)
+        if final_label is None:
+            final_label = pattern
+        flatterm = FlatTerm(pattern)
+        if pattern.is_syntactic or len(flatterm) == 1:
+            net = self._generate_syntactic_net(flatterm, final_label)
         else:
-            net = self._generate_net(pattern)
+            net = self._generate_net(flatterm, final_label)
 
         if self._root:
             self._root = self._product_net(self._root, net)
@@ -301,35 +304,38 @@ class DiscriminationNet(object):
             self._root = net
 
     @classmethod
-    def _generate_syntactic_net(cls, pattern: Expression) -> _State:
-        assert pattern.is_syntactic
-
+    def _generate_syntactic_net(cls, flatterm: FlatTerm, final_label) -> _State:
         root = state = _State()
-        flatterm = FlatTerm(pattern)
 
         for term in flatterm[:-1]:
             if isinstance(term, Wildcard):
-                # Generate a chain of #min_count Wildcard edges
-                for _ in range(term.min_count):
-                    state[Wildcard] = _State()
-                    state = state[Wildcard]
+                state = cls._generate_state_chain(state, Wildcard, term.min_count)
             else:
                 state[term] = _State()
                 state = state[term]
 
-        last_term = flatterm[-1] if not isinstance(flatterm[-1], Wildcard) else Wildcard
-        state[last_term] = [pattern]
+        if isinstance(flatterm[-1], Wildcard):
+            state = cls._generate_state_chain(state, Wildcard, flatterm[-1].min_count - 1)
+            state[Wildcard] = [final_label]
+        else:
+            state[flatterm[-1]] = [final_label]
 
         return root
 
+    @staticmethod
+    def _generate_state_chain(state, label, count):
+        for _ in range(count):
+            state[label] = _State()
+            state = state[label]
+        return state
+
     @classmethod
-    def _generate_net(cls, pattern: Expression) -> _State:
+    def _generate_net(cls, flatterm: FlatTerm, final_label) -> _State:
         """Generates a DFA matching the given pattern."""
         # Capture the last unbounded wildcard for every level of operation nesting on a stack
         # Used to add backtracking edges in case the "match" fails later
         wildcard_states = [_WildcardState()]
         root = state = _State()
-        flatterm = FlatTerm(pattern)
         states = {root.id: root}
 
         for term in flatterm[:-1]:
@@ -370,7 +376,7 @@ class DiscriminationNet(object):
                     state[EPSILON] = wc_state.fail_state
 
         last_term = flatterm[-1] if not isinstance(flatterm[-1], Wildcard) else Wildcard
-        state[last_term] = [pattern]
+        state[last_term] = [final_label]
 
         return cls.determinize(root, states)
 
@@ -432,14 +438,16 @@ class DiscriminationNet(object):
                     return states[s][label]
                 output.add(states[s][label].id)
             if isinstance(label, Symbol):
-                type_label = _get_symbol_wildcard_label(states[s], type(label))
+                type_label = _get_symbol_wildcard_label(states[s], label)
                 if type_label in states[s]:
-                    if isinstance(states[s][type_label], list):
-                        return states[s][type_label]
+                    # A symbol with an alternative symbol wildcard can never be the final edge in the automaton
+                    # If it is, an invalid NFA was manually generated, that allows alternative expressions (OR) or has
+                    # imbalanced nesting
+                    assert not isinstance(states[s][type_label], list)
                     output.add(states[s][type_label].id)
             if Wildcard in states[s] and not is_operation(label) and label != OPERATION_END:
-                if isinstance(states[s][Wildcard], list):
-                    return states[s][Wildcard]
+                # Trivial wildcard expressions are handled by the syntactic net generator
+                assert not isinstance(states[s][Wildcard], list)
                 output.add(states[s][Wildcard].id)
 
         return cls.closure(output, states)
@@ -457,7 +465,7 @@ class DiscriminationNet(object):
                         if isinstance(label, Symbol):
                             symbol_wildcard_key = _get_symbol_wildcard_label(state, label)
                             if symbol_wildcard_key is not None:
-                                return state[_get_symbol_wildcard_label(state, label)], False
+                                return state[symbol_wildcard_key], False
                         return state[Wildcard], True
             except KeyError:
                 pass
@@ -527,6 +535,10 @@ class DiscriminationNet(object):
                         state[label] = child_state.state1
                     elif isinstance(child_state.state2, list):
                         state[label] = child_state.state2
+                    else:
+                        # Unreachable, because the state (None, None) cannot be reached, as
+                        # only labels which occur in at least one state are considered
+                        raise AssertionError
 
         return root
 
@@ -613,6 +625,7 @@ if __name__ == '__main__':
     _ = Wildcard.dot()
     __ = Wildcard.plus()
     ___ = Wildcard.star()
+    _s = Wildcard.symbol()
 
     pattern = freeze(f(___, a, _, _))
 

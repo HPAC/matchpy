@@ -303,7 +303,6 @@ class CommutativeMatcher(object):
             for i in range(syntactics[expr]):
                 for j in range(patterns[patt]):
                     bipartite[(expr, i), (patt, j)] = m
-        bipartite.as_graph().render('tmp/' + str(CommutativeMatcher._cnt) + '.gv')
         CommutativeMatcher._cnt += 1
         return bipartite
 
@@ -397,7 +396,7 @@ class CommutativeMatcher(object):
                     for expr, expr_count in expressions:
                         if expr_count >= count:
                             new_substitution = Substitution(substitution)
-                            new_substitution[variable] = expr                            
+                            new_substitution[variable] = expr
                             if constraint is None or constraint(new_substitution):
                                 yield expressions - Multiset({expr: count}), new_substitution
                 else:
@@ -406,7 +405,7 @@ class CommutativeMatcher(object):
                     for subset in fixed_integer_vector_iter(counts, length):
                         sub_counter = Multiset(dict((exprs_with_counts[i][0], c * count) for i, c in enumerate(subset)))
                         new_substitution = Substitution(substitution)
-                        new_substitution[variable] = list(sub_counter)     
+                        new_substitution[variable] = list(sub_counter)
                         if constraint is None or constraint(new_substitution):
                             yield expressions - sub_counter, new_substitution
 

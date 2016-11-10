@@ -3,7 +3,7 @@ import itertools
 import math
 
 import hypothesis.strategies as st
-from hypothesis import example, given
+from hypothesis import example, given, assume
 import pytest
 from multiset import Multiset
 
@@ -67,7 +67,7 @@ class TestFixedSumVectorIterator:
                         last_vect = vect
 
 
-@given(st.integers(min_value=1), st.integers(min_value=1))
+@given(st.integers(min_value=1, max_value=1000), st.integers(min_value=1, max_value=1000))
 def test_extended_euclid(a, b):
     x, y, d = extended_euclid(a, b)
     assert a % d == 0
@@ -98,9 +98,18 @@ class TestBaseSolutionLinear:
 
 
 class TestSolveLinearDiop:
+    @staticmethod
+    def _limit_possible_solution_count(coeffs, c):
+        total_solutions_approx = 1
+        for coeff in coeffs:
+            if c % coeff == 0:
+                total_solutions_approx *= c / coeff
+        assume(total_solutions_approx <= 100)
+
     @given(st.lists(st.integers(min_value=1, max_value=100), max_size=5), st.integers(min_value=0, max_value=100))
     @example([1,2,2], 4)
     def test_correctness(self, coeffs, c):
+        self._limit_possible_solution_count(coeffs, c)
         for solution in solve_linear_diop(c, *coeffs):
             assert len(solution) == len(coeffs), 'Solution size differs from coefficient count'
             result = sum(c*x for c, x in zip(coeffs, solution))
@@ -111,6 +120,7 @@ class TestSolveLinearDiop:
     @given(st.lists(st.integers(min_value=1, max_value=100), max_size=5), st.integers(min_value=0, max_value=100))
     @example([1,2,2], 4)
     def test_completeness(self, coeffs, c):
+        self._limit_possible_solution_count(coeffs, c)
         solutions = set(solve_linear_diop(c, *coeffs))
         values = [range(c // x) for x in coeffs]
         for solution2 in itertools.product(*values):
@@ -121,6 +131,7 @@ class TestSolveLinearDiop:
     @given(st.lists(st.integers(min_value=1, max_value=100), max_size=5), st.integers(min_value=0, max_value=100))
     @example([1,2,2], 4)
     def test_uniqueness(self, coeffs, c):
+        self._limit_possible_solution_count(coeffs, c)
         solutions = list(solve_linear_diop(c, *coeffs))
         assert is_unique_list(solutions), 'Duplicate solution found'
 
