@@ -23,17 +23,17 @@ class BipartiteGraph(Dict[Tuple[TLeft, TRight], TEdge], Generic[TLeft, TRight, T
 
     def __setitem__(self, key: Tuple[TLeft, TRight], value: TEdge) -> None:
         if not isinstance(key, tuple) or len(key) != 2:
-            raise TypeError('Key must a 2-tuple')
+            raise TypeError("Key must a 2-tuple")
         super(BipartiteGraph, self).__setitem__(key, value)
 
     def __getitem__(self, key: Tuple[TLeft, TRight]) -> TEdge:
         if not isinstance(key, tuple) or len(key) != 2:
-            raise TypeError('Key must a 2-tuple')
+            raise TypeError("Key must a 2-tuple")
         return super(BipartiteGraph, self).__getitem__(key)
 
     def __delitem__(self, key: Tuple[TLeft, TRight]) -> None:
         if not isinstance(key, tuple) or len(key) != 2:
-            raise TypeError('Key must a 2-tuple')
+            raise TypeError("Key must a 2-tuple")
         return super(BipartiteGraph, self).__delitem__(key)
 
     def as_graph(self) -> Graph: # pragma: no cover
@@ -45,12 +45,12 @@ class BipartiteGraph(Dict[Tuple[TLeft, TRight], TEdge], Generic[TLeft, TRight, T
         node_id = 0
         for (left, right), value in self.items():
             if left not in nodes_left:
-                name = 'node%d' % node_id
+                name = 'node{:d}'.format(node_id)
                 nodes_left[left] = name
                 graph.node(name, label=str(left))
                 node_id += 1
             if right not in nodes_right:
-                name = 'node%d' % node_id
+                name = 'node{:d}'.format(node_id)
                 nodes_right[right] = name
                 graph.node(name, label=str(right))
                 node_id += 1
@@ -126,13 +126,13 @@ class _DirectedMatchGraph(Dict[Node, Set[Node]], Generic[TLeft, TRight]):
         node_id = 0
         for (tail_part, tail), head_set in self.items():
             if tail not in nodes[tail_part]:
-                name = 'node%d' % node_id
+                name = 'node{:d}'.format(node_id)
                 nodes[tail_part][tail] = name
                 subgraphs[tail_part].node(name, label=str(tail))
                 node_id += 1
             for head_part, head in head_set:
                 if head not in nodes[head_part]:
-                    name = 'node%d' % node_id
+                    name = 'node{:d}'.format(node_id)
                     nodes[head_part][head] = name
                     subgraphs[head_part].node(name, label=str(head))
                     node_id += 1
@@ -191,7 +191,7 @@ def _enum_maximum_matchings_iter(graph: BipartiteGraph[TLeft, TRight, TEdge], ma
     # Note that this circle alternates between nodes from the left and the right part of the graph
     raw_cycle = directed_match_graph.find_cycle()
 
-    if raw_cycle:        
+    if raw_cycle:
         # Make sure the circle "starts"" in the the left part
         # If not, start the circle from the second node, which is in the left part
         if raw_cycle[0][0] != LEFT:

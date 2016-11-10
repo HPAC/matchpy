@@ -83,8 +83,8 @@ def integer_partition_vector_iter(n: int, m: int) -> Iterator[List[int]]:
             yield (i, ) + vec
 
 def fixed_sum_vector_iter(min_vect: Sequence[int], max_vect: Sequence[int], total: int) -> Iterator[List[int]]:
-    assert len(min_vect) == len(max_vect), 'len(min_vect) != len(max_vect)'
-    assert all(min_value <= max_value for min_value, max_value in zip(min_vect, max_vect)), 'min_vect > max_vect'
+    assert len(min_vect) == len(max_vect), "len(min_vect) != len(max_vect)"
+    assert all(min_value <= max_value for min_value, max_value in zip(min_vect, max_vect)), "min_vect > max_vect"
 
     min_sum = sum(min_vect)
     max_sum = sum(max_vect)
@@ -266,8 +266,8 @@ def base_solution_linear(a: int, b: int, c: int) -> Iterator[Tuple[int, int]]:
     either :math:`t \geq 0` or :math:`t \leq 0` must hold. Also, all the non-negative solutions are consecutive with
     respect to :math:`t`. Therefore, all non-negative solutions can be generated efficiently from the base solution.
     """
-    assert a > 0, 'Invalid coefficient'
-    assert b > 0, 'Invalid coefficient'
+    assert a > 0, "Invalid coefficient"
+    assert b > 0, "Invalid coefficient"
 
     d = math.gcd(a, math.gcd(b, c))
     a = a // d
@@ -337,11 +337,11 @@ def solve_linear_diop(total: int, *coeffs: int) -> Iterator[Tuple[int, ...]]:
 
 def _match_value_repr_str(value): # pragma: no cover
     if isinstance(value, list):
-        return '(%s)' % (', '.join(str(x) for x in value))
+        return '({!s})'.format(', '.join(str(x) for x in value))
     return str(value)
 
 def match_repr_str(match): # pragma: no cover
-    return ', '.join('%s: %s' % (k, _match_value_repr_str(v)) for k, v in match.items())
+    return ', '.join('{!s}: {!s}'.format(k, _match_value_repr_str(v)) for k, v in match.items())
 
 def is_sorted(l):
     for i, el in enumerate(l[1:]):
@@ -395,5 +395,5 @@ if __name__ == '__main__':
     for part in commutative_sequence_variable_partition_iter(values, vars):
         print('m')
         for v, c in part.items():
-            print('%s: %s' % (v, c))
+            print('{!s}: {!s}'.format(v, c))
     #print(list(solve_linear_diop(5, 2, 3, 1)))

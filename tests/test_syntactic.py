@@ -192,9 +192,9 @@ def test_generate_net_and_match(pattern, expr, is_match):
     result = net.match(freeze(expr))
 
     if is_match:
-        assert result == [final_label], 'Matching failed for %s and %s' % (pattern, expr)
+        assert result == [final_label], "Matching failed for {!s} and {!s}".format(pattern, expr)
     else:
-        assert result == [], 'Matching should fail for %s and %s' % (pattern, expr)
+        assert result == [], "Matching should fail for {!s} and {!s}".format(pattern, expr)
 
 
 def test_variable_expression_match_error():
@@ -235,7 +235,7 @@ def test_randomized_product_net(patterns):
     for pattern, expr in zip(patterns, exprs):
         result = net.match(expr)
 
-        assert pattern in result, '{} did not match {} in the automaton'.format(pattern, expr)
+        assert pattern in result, "{!s} did not match {!s} in the automaton".format(pattern, expr)
 
 PRODUCT_NET_PATTERNS = [
     freeze(f(a, _, _)),

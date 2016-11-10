@@ -135,7 +135,7 @@ class FlatTerm(List[TermAtom]):
         return ' '.join(map(self._term_str, self))
 
     def __repr__(self):
-        return '[%s]' % ', '.join(map(str, self))
+        return '[{!s}]'.format(', '.join(map(str, self)))
 
 
 def _term_str(term: TermAtom) -> str:  # pragma: no cover
@@ -143,9 +143,9 @@ def _term_str(term: TermAtom) -> str:  # pragma: no cover
     if is_operation(term):
         return term.name + '('
     elif is_symbol_wildcard(term):
-        return '*%s' % term.__name__
+        return '*{!s}'.format(term.__name__)
     elif isinstance(term, Wildcard):
-        return '*%s%s' % (term.min_count, (not term.fixed_size) and '+' or '')
+        return '*{!s}{!s}'.format(term.min_count, (not term.fixed_size) and '+' or '')
     elif term == Wildcard:
         return '*'
     else:
@@ -173,14 +173,14 @@ class _State(Dict[TermAtom, Union['_State', List[Expression]]]):
         if value is self:
             return 'self'
         elif isinstance(value, list):
-            return '[%s]' % ', '.join(map(str, value))
+            return '[{!s}]'.format(', '.join(map(str, value)))
         else:
             return str(value)
 
     @recursive_repr()
     def __repr__(self):
-        return '{STATE %s}' % ', '.join('%s:%s' % (_term_str(term), self._target_str(target))
-                                            for term, target in self.items())
+        return '{{STATE {!s}}}'.format(', '.join('{!s}:{!s}'.format(_term_str(term), self._target_str(target)))
+                                       for term, target in self.items())
 
 
 class _WildcardState:
@@ -271,7 +271,7 @@ class _StateQueueItem(object):
         return labels
 
     def __repr__(self):
-        return 'NQI(%r, %r, %r, %r, %r, %r)' % (self.id1, self.id2, self.depth, self.fixed, self.state1, self.state2)
+        return 'NQI({!r}, {!r}, {!r}, {!r}, {!r}, {!r})'.format(self.id1, self.id2, self.depth, self.fixed, self.state1, self.state2)
 
 
 class DiscriminationNet(object):
@@ -566,7 +566,7 @@ class DiscriminationNet(object):
                             symbol_wildcard_key = _get_symbol_wildcard_label(state, term)
                             state = state[symbol_wildcard_key or Wildcard]
                         else:
-                            raise TypeError('Expression contains non-terminal atom: %s' % expression)
+                            raise TypeError("Expression contains non-terminal atom: {!s}".format(expression))
                 except KeyError:
                     return []
 
@@ -586,7 +586,7 @@ class DiscriminationNet(object):
         while queue:
             state = queue.pop(0)
             nodes.add(state.id)
-            dot.node('n%s' % state.id, '', {'shape': 'point'})
+            dot.node('n{!s}'.format(state.id), '', {'shape': 'point'})
 
             for next_state in state.values():
                 if isinstance(next_state, _State):
@@ -594,7 +594,7 @@ class DiscriminationNet(object):
                         queue.append(next_state)
                 else:
                     l = '\n'.join(str(x) for x in next_state)
-                    dot.node('l%s' % id(next_state), l, {'shape': 'plaintext'})
+                    dot.node('l{!s}'.format(id(next_state)), l, {'shape': 'plaintext'})
 
         nodes = set()
         queue = [self._root]
@@ -606,11 +606,11 @@ class DiscriminationNet(object):
 
             for (label, other) in state.items():
                 if isinstance(other, _State):
-                    dot.edge('n%s' % state.id, 'n%s' % other.id, _term_str(label))
+                    dot.edge('n{!s}'.format(state.id), 'n{!s}'.format(other.id), _term_str(label))
                     if other.id not in nodes:
                         queue.append(other)
                 else:
-                    dot.edge('n%s' % state.id, 'l%s' % id(other), _term_str(label))
+                    dot.edge('n{!s}'.format(state.id), 'l{!s}'.format(id(other)), _term_str(label))
 
         return dot
 
@@ -631,6 +631,6 @@ if __name__ == '__main__':
 
     net = DiscriminationNet()
     net.add(pattern)
-    net.as_graph().render('tmp/%s' % pattern)
+    net.as_graph().render('tmp/{!s}'.format(pattern))
 
     doctest.testmod(exclude_empty=True)

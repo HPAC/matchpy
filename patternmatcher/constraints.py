@@ -48,10 +48,10 @@ class MultiConstraint(Constraint):
         return all(c(match) for c in self.constraints)
 
     def __str__(self):
-        return '(%s)' % ' and '.join(map(str, self.constraints))
+        return '({!s})'.format(' and '.join(map(str, self.constraints)))
 
     def __repr__(self):
-        return 'MultiConstraint(%s)' % ' and '.join(map(repr, self.constraints))
+        return 'MultiConstraint({!s})'.format(' and '.join(map(repr, self.constraints)))
 
     def __eq__(self, other):
         return isinstance(other, MultiConstraint) and self.constraints == other.constraints
@@ -79,10 +79,10 @@ class EqualVariablesConstraint(Constraint):
         return True
 
     def __str__(self):
-        return '(%s)' % ' == '.join(self.variables)
+        return '({!s})'.format(' == '.join(self.variables))
 
     def __repr__(self):
-        return 'EqualVariablesConstraint(%s)' % ' == '.join(self.variables)
+        return 'EqualVariablesConstraint({!s})'.format(' == '.join(self.variables))
 
     def __eq__(self, other):
         return isinstance(other, EqualVariablesConstraint) and self.variables == other.variables
@@ -104,7 +104,7 @@ class CustomConstraint(Constraint):
             elif param.kind == inspect.Parameter.VAR_KEYWORD:
                 self.allow_any = True
             elif param.kind == inspect.Parameter.POSITIONAL_ONLY:
-                raise ValueError('constraint cannot have positional-only arguments')
+                raise ValueError("constraint cannot have positional-only arguments")
 
     def __call__(self, match: Substitution) -> bool:
         if self.allow_any:
@@ -114,10 +114,10 @@ class CustomConstraint(Constraint):
         return self.constraint(**args)
 
     def __str__(self):
-        return '(%s)' % get_lambda_source(self.constraint)
+        return '({!s})'.format(get_lambda_source(self.constraint))
 
     def __repr__(self):
-        return 'CustomConstraint(%s)' % get_lambda_source(self.constraint)
+        return 'CustomConstraint({!s})'.format(get_lambda_source(self.constraint))
 
     def __eq__(self, other):
         return isinstance(other, CustomConstraint) and self.constraint == other.constraint

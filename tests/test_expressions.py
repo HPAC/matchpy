@@ -278,10 +278,10 @@ class TestExpression:
     )
     def test_lt(self, expression1, expression2, first_is_bigger_than_second):
         if first_is_bigger_than_second:
-            assert expression1 < expression2, '%s < %s did not hold' % (expression1, expression2)
-            assert not (expression2 < expression1), '%s < %s but should not be' % (expression2, expression1)
+            assert expression1 < expression2, "{!s} < {!s} did not hold".format(expression1, expression2)
+            assert not (expression2 < expression1), "{!s} < {!s} but should not be".format(expression2, expression1)
         else:
-            assert not (expression1 < expression2), '%s < %s but should not be' % (expression1, expression2)
+            assert not (expression1 < expression2), "{!s} < {!s} but should not be".format(expression1, expression2)
 
     def test_from_args(self):
         expression = f.from_args(a, b)
@@ -334,7 +334,7 @@ class TestFrozenExpression:
             if attr == 'operands':
                 assert getattr(frozen_expr, attr) == tuple(getattr(expression, attr)), "Operands of frozen instance differs"
             else:
-                assert getattr(frozen_expr, attr) == getattr(expression, attr), "Attribute %s of frozen instance differs" % attr
+                assert getattr(frozen_expr, attr) == getattr(expression, attr), "Attribute {!s} of frozen instance differs".format(attr)
 
     @pytest.mark.parametrize('expression', SIMPLE_EXPRESSIONS)
     def test_refreeze(self, expression):
@@ -360,9 +360,9 @@ class TestFrozenExpression:
         frozen = freeze(expression)
         other = freeze(other)
         if expression != other:
-            assert hash(frozen) != hash(other), 'hash(%s) == hash(%s)' % (frozen, other)
+            assert hash(frozen) != hash(other), "hash({!s}) == hash({!s})".format(frozen, other)
         else:
-            assert hash(frozen) == hash(other), 'hash(%s) != hash(%s)' % (frozen, other)
+            assert hash(frozen) == hash(other), "hash({!s}) != hash({!s})".format(frozen, other)
 
     def test_immutability(self):
         frozen = freeze(f(a))

@@ -39,7 +39,7 @@ class Arity(_ArityBase, Enum, metaclass=_ArityMeta, _root=True):
     variadic    = (0, False)
 
     def __repr__(self):
-        return "%s.%s" % (type(self).__name__, self._name_)
+        return "{!s}.{!s}".format(type(self).__name__, self._name_)
 
 Match = Dict[str, Union['Expression', List['Expression']]]
 Constraint = Callable[[Match], bool]
@@ -104,8 +104,7 @@ class Expression(object):
 
 class _OperationMeta(type):
     def __repr__(cls):
-        return 'Operation[%r, arity=%r, associative=%r, commutative=%r, one_identity=%r]' % \
-            (cls.name, cls.arity, cls.associative, cls.commutative, cls.one_identity)
+        return 'Operation[{!r}, arity={!r}, associative={!r}, commutative={!r}, one_identity={!r}]'.format(cls.name, cls.arity, cls.associative, cls.commutative, cls.one_identity)
 
     def __str__(cls):
         return cls.name
@@ -213,12 +212,10 @@ class Operation(Expression, metaclass=_OperationMeta):
         super().__init__(constraint)
 
         if len(operands) < self.arity.min_count:
-            raise ValueError("Operation %s got arity %s, but got %d operands."
-                             % (type(self).__name__, self.arity, len(operands)))
+            raise ValueError("Operation {!s} got arity {!s}, but got {:d} operands.".format(type(self).__name__, self.arity, len(operands)))
 
         if self.arity.fixed_size and len(operands) > self.arity.min_count:
-            msg = "Operation %s got arity %s, but got %d operands." \
-                % (type(self).__name__, self.arity, len(operands))
+            msg = "Operation {!s} got arity {!s}, but got {:d} operands.".format(type(self).__name__, self.arity, len(operands))
             if self.associative:
                 msg += " Associative operations should have a variadic/polyadic arity."
             raise ValueError(msg)
@@ -228,8 +225,7 @@ class Operation(Expression, metaclass=_OperationMeta):
         for var, _ in itertools.chain.from_iterable(var_iters):
             if var.name in variables:
                 if variables[var.name] != var:
-                    raise ValueError("Conflicting versions of variable %s: %r vs %r"
-                                     % (var.name, var, variables[var.name]))
+                    raise ValueError("Conflicting versions of variable {!s}: {!r} vs {!r}".format(var.name, var, variables[var.name]))
             else:
                 variables[var.name] = var
 
@@ -238,18 +234,18 @@ class Operation(Expression, metaclass=_OperationMeta):
 
     def __str__(self):
         if self.infix:
-            value = '(%s)' % (' %s ' % self.name).join(str(o) for o in self.operands)
+            value = '({!s})'.format(' {!s} '.format(self.name)).join(str(o) for o in self.operands)
         else:
-            value = '%s(%s)' % (self.name, ', '.join(str(o) for o in self.operands))
+            value = '{!s}({!s})'.format(self.name, ', '.join(str(o) for o in self.operands))
         if self.constraint:
-            value += ' /; %s' % self.constraint
+            value += ' /; {!s}'.format(self.constraint)
         return value
 
     def __repr__(self):
         operand_str = ', '.join(map(repr, self.operands))
         if self.constraint:
-            return '%s(%s, constraint=%r)' % (type(self).__name__, operand_str, self.constraint)
-        return '%s(%s)' % (type(self).__name__, operand_str)
+            return '{!s}({!s}, constraint={!r})'.format(type(self).__name__, operand_str, self.constraint)
+        return '{!s}({!s})'.format(type(self).__name__, operand_str)
 
     @staticmethod
     def new(name: str, arity: Arity, class_name: str = None, **attributes) -> Type['Operation']:
@@ -364,8 +360,8 @@ class Symbol(Atom):
 
     def __repr__(self):
         if self.constraint:
-            return '%s(%r, constraint=%r)' % (type(self).__name__, self.name, self.constraint)
-        return '%s(%r)' % (type(self).__name__, self.name)
+            return '{!s}({!r}, constraint={!r})'.format(type(self).__name__, self.name, self.constraint)
+        return '{!s}({!r})'.format(type(self).__name__, self.name)
 
     @property
     def symbols(self):
@@ -487,16 +483,16 @@ class Variable(Expression):
         if isinstance(self.expression, Wildcard):
             value = self.name + str(self.expression)
         else:
-            value = '%s_: %s' % (self.name, self.expression)
+            value = '{!s}_: {!s}'.format(self.name, self.expression)
         if self.constraint:
-            value += ' /; %s' % str(self.constraint)
+            value += ' /; {!s}'.format(str(self.constraint))
 
         return value
 
     def __repr__(self):
         if self.constraint:
-            return '%s(%r, %r, constraint=%r)' % (type(self).__name__, self.name, self.expression, self.constraint)
-        return '%s(%r, %r)' % (type(self).__name__, self.name, self.expression)
+            return '{!s}({!r}, {!r}, constraint={!r})'.format(type(self).__name__, self.name, self.expression, self.constraint)
+        return '{!s}({!r}, {!r})'.format(type(self).__name__, self.name, self.expression)
 
     def __eq__(self, other):
         return isinstance(other, Variable) and self.name == other.name and self.expression == other.expression
@@ -512,7 +508,7 @@ class Variable(Expression):
         if len(key) == 0:
             return self
         if key[0] != 0:
-            raise IndexError('Invalid position.')
+            raise IndexError("Invalid position.")
         return self.expression[key[1:]]
 
     def _compute_hash(self):
@@ -599,12 +595,12 @@ class Wildcard(Atom):
         if self.min_count == 1:
             return '_'
         else:
-            return '_[%d%s]' % (self.min_count, '' if self.fixed_size else '+')
+            return '_[{:d}{!s}]'.format(self.min_count, '' if self.fixed_size else '+')
 
     def __repr__(self):
         if self.constraint:
-            return '%s(%r, %r, constraint=%r)' % (type(self).__name__, self.min_count, self.fixed_size, self.constraint)
-        return '%s(%r, %r)' % (type(self).__name__, self.min_count, self.fixed_size)
+            return '{!s}({!r}, {!r}, constraint={!r})'.format(type(self).__name__, self.min_count, self.fixed_size, self.constraint)
+        return '{!s}({!r}, {!r})'.format(type(self).__name__, self.min_count, self.fixed_size)
 
     def __lt__(self, other):
         return (not isinstance(other, Wildcard)) and type(self).__name__ < type(other).__name__
@@ -651,11 +647,11 @@ class SymbolWildcard(Wildcard):
 
     def __repr__(self):
         if self.constraint:
-            return '%s(%r, constraint=%r)' % (type(self).__name__, self.symbol_type, self.constraint)
-        return '%s(%r)' % (type(self).__name__, self.symbol_type)
+            return '{!s}({!r}, constraint={!r})'.format(type(self).__name__, self.symbol_type, self.constraint)
+        return '{!s}({!r})'.format(type(self).__name__, self.symbol_type)
 
     def __str__(self):
-        return '_[%s]' % self.symbol_type.__name__
+        return '_[{!s}]'.format(self.symbol_type.__name__)
 
 VariableReplacement = Union[Tuple[Expression, ...], Set[Expression], Expression]
 
@@ -767,11 +763,11 @@ class Substitution(Dict[str, VariableReplacement]):
     @staticmethod
     def _match_value_repr_str(value: Union[List[Expression], Expression]) -> str:  # pragma: no cover
         if isinstance(value, (list, tuple)):
-            return '(%s)' % (', '.join(str(x) for x in value))
+            return '({!s})'.format(', '.join(str(x) for x in value))
         return str(value)
 
     def __str__(self):
-        return ', '.join('%s ← %s' % (k, self._match_value_repr_str(v)) for k, v in sorted(self.items()))
+        return ', '.join('{!s} ← {!s}'.format(k, self._match_value_repr_str(v)) for k, v in sorted(self.items()))
 
 
 class _FrozenMeta(type):
@@ -786,8 +782,7 @@ class _FrozenOperationMeta(_FrozenMeta, _OperationMeta):
         raise AssertionError
 
     def __repr__(cls):
-        return 'FrozenOperation[%r, arity=%r, associative=%r, commutative=%r, one_identity=%r]' % \
-            (cls.name, cls.arity, cls.associative, cls.commutative, cls.one_identity)
+        return 'FrozenOperation[{!r}, arity={!r}, associative={!r}, commutative={!r}, one_identity={!r}]'.format(cls.name, cls.arity, cls.associative, cls.commutative, cls.one_identity)
 
 
 class FrozenExpression(Expression, metaclass=_FrozenMeta):
@@ -824,7 +819,7 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):
 
     def __setattr__(self, name, value):
         if self._frozen:  # pylint: disable=no-member
-            raise TypeError('Cannot modifiy a FrozenExpression')
+            raise TypeError("Cannot modifiy a FrozenExpression")
         else:
             object.__setattr__(self, name, value)
 

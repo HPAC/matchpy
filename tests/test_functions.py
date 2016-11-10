@@ -89,9 +89,9 @@ class TestMatch:
         pattern = freeze(pattern)
         result = list(match(expression, pattern))
         if is_match:
-            assert result == [dict()], 'Expression %s and %s did not match but were supposed to' % (expression, pattern)
+            assert result == [dict()], "Expression {!s} and {!s} did not match but were supposed to".format(expression, pattern)
         else:
-            assert result == [], 'Expression %s and %s did match but were not supposed to' % (expression, pattern)
+            assert result == [], "Expression {!s} and {!s} did match but were not supposed to".format(expression, pattern)
 
     @pytest.mark.parametrize(
         '   expression,         pattern,            is_match',
@@ -115,9 +115,9 @@ class TestMatch:
         pattern = freeze(pattern)
         result = list(match(expression, pattern))
         if is_match:
-            assert result == [dict()], 'Expression %s and %s did not match but were supposed to' % (expression, pattern)
+            assert result == [dict()], "Expression {!s} and {!s} did not match but were supposed to".format(expression, pattern)
         else:
-            assert result == [], 'Expression %s and %s did match but were not supposed to' % (expression, pattern)
+            assert result == [], "Expression {!s} and {!s} did match but were not supposed to".format(expression, pattern)
 
     @pytest.mark.parametrize(
         '   expression,         pattern,                            expected_match',
@@ -155,10 +155,9 @@ class TestMatch:
         pattern = freeze(pattern)
         result = list(match(expression, pattern))
         if expected_match is not None:
-            assert result == [expected_match], 'Expression %s and %s did not match as %s but were supposed to' \
-                % (expression, pattern, match_repr_str(expected_match))
+            assert result == [expected_match], "Expression {!s} and {!s} did not match as {!s} but were supposed to".format(expression, pattern, match_repr_str(expected_match))
         else:
-            assert result == [], 'Expression %s and %s did match but were not supposed to' % (expression, pattern)
+            assert result == [], "Expression {!s} and {!s} did match but were not supposed to".format(expression, pattern)
 
     @pytest.mark.parametrize(
         '   expression,             pattern,        expected_matches',
@@ -181,9 +180,9 @@ class TestMatch:
         pattern = freeze(pattern)
         result = list(match(expression, pattern))
         for expected_match in expected_matches:
-            assert expected_match in result, 'Expression %s and %s did not yield the match %s but were supposed to' % (expression, pattern, match_repr_str(expected_match))
+            assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(expression, pattern, match_repr_str(expected_match))
         for result_match in result:
-            assert result_match in expected_matches, 'Expression %s and %s yielded the unexpected match %s' % (expression, pattern, match_repr_str(result_match))
+            assert result_match in expected_matches, "Expression {!s} and {!s} yielded the unexpected match {!s}".format(expression, pattern, match_repr_str(result_match))
 
     @pytest.mark.parametrize(
         '   expression,                 pattern,            expected_matches',
@@ -249,9 +248,9 @@ class TestMatch:
         result = list(match(expression, pattern))
         for expected_match in expected_matches:
             _convert_match_list_to_tuple(expected_match)
-            assert expected_match in result, 'Expression %s and %s did not yield the match %s but were supposed to' % (expression, pattern, match_repr_str(expected_match))
+            assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(expression, pattern, match_repr_str(expected_match))
         for result_match in result:
-            assert result_match in expected_matches, 'Expression %s and %s yielded the unexpected match %s' % (expression, pattern, match_repr_str(result_match))
+            assert result_match in expected_matches, "Expression {!s} and {!s} yielded the unexpected match {!s}".format(expression, pattern, match_repr_str(result_match))
 
     @pytest.mark.parametrize(
         '   expression,                 pattern,            expected_matches',
@@ -302,9 +301,9 @@ class TestMatch:
         result = list(match(expression, pattern))
         for expected_match in expected_matches:
             _convert_match_list_to_tuple(expected_match)
-            assert expected_match in result, 'Expression %s and %s did not yield the match %s but were supposed to' % (expression, pattern, match_repr_str(expected_match))
+            assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(expression, pattern, match_repr_str(expected_match))
         for result_match in result:
-            assert result_match in expected_matches, 'Expression %s and %s yielded the unexpected match %s' % (expression, pattern, match_repr_str(result_match))
+            assert result_match in expected_matches, "Expression {!s} and {!s} yielded the unexpected match {!s}".format(expression, pattern, match_repr_str(result_match))
 
     @pytest.mark.parametrize(
         '   expression,                 pattern,            expected_matches',
@@ -332,9 +331,9 @@ class TestMatch:
         result = list(match(expression, pattern))
         for expected_match in expected_matches:
             _convert_match_list_to_tuple(expected_match)
-            assert expected_match in result, 'Expression %s and %s did not yield the match %s but were supposed to' % (expression, pattern, match_repr_str(expected_match))
+            assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(expression, pattern, match_repr_str(expected_match))
         for result_match in result:
-            assert result_match in expected_matches, 'Expression %s and %s yielded the unexpected match %s' % (expression, pattern, match_repr_str(result_match))
+            assert result_match in expected_matches, "Expression {!s} and {!s} yielded the unexpected match {!s}".format(expression, pattern, match_repr_str(result_match))
 
     @pytest.mark.parametrize(
         '   expression,           pattern,      expected_matches',
@@ -352,9 +351,9 @@ class TestMatch:
         pattern = freeze(pattern)
         result = list(match(expression, pattern))
         for expected_match in expected_matches:
-            assert expected_match in result, 'Expression %s and %s did not yield the match %s but were supposed to' % (expression, pattern, match_repr_str(expected_match))
+            assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(expression, pattern, match_repr_str(expected_match))
         for result_match in result:
-            assert result_match in expected_matches, 'Expression %s and %s yielded the unexpected match %s' % (expression, pattern, match_repr_str(result_match))
+            assert result_match in expected_matches, "Expression {!s} and {!s} yielded the unexpected match {!s}".format(expression, pattern, match_repr_str(result_match))
 
     @pytest.mark.parametrize(
         'expression,    pattern_factory,                                                    constraint_values,  constraint_call_counts, match_count',
@@ -388,7 +387,7 @@ class TestMatch:
         pattern = freeze(pattern)
         result = list(match(expression, pattern))
 
-        assert len(result) == match_count, 'Wrong number of matched for %r and %r' % (expression, pattern)
+        assert len(result) == match_count, "Wrong number of matched for {!r} and {!r}".format(expression, pattern)
         for constraint, call_count in zip(constraints, constraint_call_counts):
             assert constraint.call_count == call_count
 
@@ -437,7 +436,7 @@ expression_strategy = st.recursive(expression_base_strategy, expression_recurse_
 pattern_strategy = st.recursive(pattern_base_strategy, expression_recurse_strategy, max_leaves=10)
 
 
-@pytest.mark.skip('Takes too long on average')
+@pytest.mark.skip("Takes too long on average")
 @given(expression_strategy, pattern_strategy)
 def test_randomized_match(expression, pattern):
     assume(not pattern.is_constant)
@@ -485,10 +484,10 @@ class TestSubstitute:
     )
     def test_substitution_match(self, expression, substitution, expected_result, replaced):
         result, did_replace = substitute(expression, substitution)
-        assert result == expected_result, 'Substitution did not yield expected result'
-        assert did_replace == replaced, 'Substitution did not yield expected result'
+        assert result == expected_result, "Substitution did not yield expected result"
+        assert did_replace == replaced, "Substitution did not yield expected result"
         if not did_replace:
-            assert result is expression, 'When nothing is substituted, the original expression has to be returned'
+            assert result is expression, "When nothing is substituted, the original expression has to be returned"
 
     def test_error_with_nested_variables(self):
         with pytest.raises(ValueError):
@@ -526,8 +525,8 @@ class TestReplaceTest:
     )
     def test_substitution_match(self, expression, position, replacement, expected_result):
         result = replace(expression, position, replacement)
-        assert result == expected_result, 'Replacement did not yield expected result (%r %r -> %r)' % (expression, position, replacement)
-        assert result != expression, 'Replacement modified the original expression'
+        assert result == expected_result, "Replacement did not yield expected result ({!r} {!r} -> {!r})".format(expression, position, replacement)
+        assert result != expression, "Replacement modified the original expression"
 
     def test_too_big_position_error(self):
         with pytest.raises(IndexError):

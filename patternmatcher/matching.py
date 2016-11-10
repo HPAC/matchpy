@@ -183,7 +183,7 @@ class ManyToOneMatcher(object):
                     yield subst
 
         else:
-            assert isinstance(pattern, Operation), 'Unexpected expression of type %r' % type(pattern)
+            assert isinstance(pattern, Operation), "Unexpected expression of type {!r}".format(type(pattern))
             if not isinstance(expression, pattern.__class__):
                 return
             op_expr = cast(Operation, expression)
@@ -225,14 +225,14 @@ class CommutativeMatcher(object):
 
     def add_pattern(self, pattern: Expression):
         if not pattern.is_syntactic:
-            raise ValueError('Can only add syntactic subpatterns.')
+            raise ValueError("Can only add syntactic subpatterns.")
         if pattern not in self.patterns:
             self.patterns.add(pattern)
             self.net.add(pattern)
 
     def add_expression(self, expression: Expression):
         if not expression.is_constant:
-            raise ValueError('The expression must be constant.')
+            raise ValueError("The expression must be constant.")
         if expression not in self.expressions:
             self.expressions.add(expression)
             for pattern in self.net.match(expression):
@@ -242,7 +242,7 @@ class CommutativeMatcher(object):
 
     def match(self, expression: List[Expression], pattern: CommutativePatternsParts) -> Iterator[Substitution]:
         if any(not e.is_constant for e in expression):
-            raise ValueError('All given expressions must be constant.')
+            raise ValueError("All given expressions must be constant.")
 
         expressions = Multiset(expression) # type: Multiset[Expression]
 
@@ -501,12 +501,12 @@ if __name__ == '__main__': # pragma: no cover
         #matcher.bipartite.as_graph().render('tmp/BP.gv')
 
         for pattern, matches in itertools.groupby(matcher.match(expr), operator.itemgetter(0)):
-            print ('-------- %s ----------' % pattern)
+            print ('-------- {!s} ----------'.format(pattern))
             for _, match in matches:
                 print ('match: ', match)
 
         #for i, pattern in enumerate(parts):
-        #    print ('-------- %s ----------' % patterns[i])
+        #    print ('-------- {!s} ----------'.format(patterns[i]))
         #    for match in matcher.match(expr.operands, pattern):
         #        print ('match: ', match)
 

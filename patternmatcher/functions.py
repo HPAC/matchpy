@@ -73,7 +73,7 @@ def _match(expressions: List[Expression], pattern: Expression, subst: Substituti
                 yield subst
 
     else:
-        assert isinstance(pattern, Operation), 'Unexpected expression of type %r' % type(pattern)
+        assert isinstance(pattern, Operation), "Unexpected expression of type {!r}".format(type(pattern))
         if len(expressions) != 1 or not isinstance(expressions[0], pattern.__class__):
             return
         op_expr = cast(Operation, expressions[0])
@@ -320,9 +320,9 @@ def replace(expression: Expression, position: Sequence[int], replacement: Union[
     if position == ():
         return replacement
     if not isinstance(expression, Operation):
-        raise IndexError('Invalid position %r for expression %s' % (position, expression))
+        raise IndexError("Invalid position {!r} for expression {!s}".format(position, expression))
     if position[0] >= len(expression.operands):
-        raise IndexError('Position %r out of range for expression %s' % (position, expression))
+        raise IndexError("Position {!r} out of range for expression {!s}".format(position, expression))
     op_class = type(expression)
     pos = position[0]
     subexpr = replace(expression.operands[pos], position[1:], replacement)

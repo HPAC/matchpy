@@ -31,12 +31,12 @@ class TestFixedSumVectorIterator:
                 for n in range(3 * m + 1):
                     minVect, maxVect = limits and zip(*limits) or (tuple(), tuple())
                     for vect in fixed_sum_vector_iter(minVect, maxVect, n):
-                        assert len(vect) == m, 'Incorrect size of vector'
-                        assert sum(vect) == n, 'Incorrect sum of vector'
+                        assert len(vect) == m, "Incorrect size of vector"
+                        assert sum(vect) == n, "Incorrect sum of vector"
 
                         for v, l in zip(vect, limits):
-                            assert v >= l[0], 'Value %r out of range %r in vector %r' % (v, l, vect)
-                            assert v <= l[1], 'Value %r out of range %r in vector %r' % (v, l, vect)
+                            assert v >= l[0], "Value {!r} out of range {!r} in vector {!r}".format(v, l, vect)
+                            assert v <= l[1], "Value {!r} out of range {!r} in vector {!r}".format(v, l, vect)
 
 
 
@@ -47,14 +47,14 @@ class TestFixedSumVectorIterator:
                 for n in range(3 * m + 1):
                     minVect, maxVect = limits and zip(*limits) or (tuple(), tuple())
                     results = list(fixed_sum_vector_iter(minVect, maxVect, n))
-                    assert is_unique_list(results), 'Got duplicate vector'
+                    assert is_unique_list(results), "Got duplicate vector"
 
                     realLimits = [(minimum, min(maximum, n)) for minimum, maximum in limits]
                     ranges = [list(range(minimum, maximum + 1)) for minimum, maximum in realLimits]
                     for possibleResult in itertools.product(*ranges):
                         if sum(possibleResult) != n:
                             continue
-                        assert list(possibleResult) in results, 'Missing expected vector %r' % (possibleResult, )
+                        assert list(possibleResult) in results, "Missing expected vector {!r}".format(possibleResult)
 
     def test_order(self):
         for m in range(self.max_partition_count + 1):
@@ -63,7 +63,7 @@ class TestFixedSumVectorIterator:
                     minVect, maxVect = limits and zip(*limits) or (tuple(), tuple())
                     last_vect = [-1] * m
                     for vect in fixed_sum_vector_iter(minVect, maxVect, n):
-                        assert vect >= last_vect, 'Vectors are not in lexical order'
+                        assert vect >= last_vect, "Vectors are not in lexical order"
                         last_vect = vect
 
 
@@ -81,7 +81,7 @@ class TestBaseSolutionLinear:
         for x, y in base_solution_linear(a, b, c):
             assert x >= 0
             assert y >= 0
-            assert a * x + b * y == c, 'Invalid solution %r,%r' % (x, y)
+            assert a * x + b * y == c, "Invalid solution {!r},{!r}".format(x, y)
 
     @given(st.integers(min_value=1, max_value=1000), st.integers(min_value=1, max_value=1000), st.integers(min_value=0, max_value=1000))
     def test_completeness(self, a, b, c):
@@ -89,12 +89,12 @@ class TestBaseSolutionLinear:
         for x in range(c + 1):
             for y in range(c - a * x):
                 if a * x + b * y == c:
-                    assert (x, y) in solutions, 'Missing solution %r,%r' % (x, y)
+                    assert (x, y) in solutions, "Missing solution {!r},{!r}".format(x, y)
 
     @given(st.integers(min_value=1, max_value=1000), st.integers(min_value=1, max_value=1000), st.integers(min_value=0, max_value=1000))
     def test_uniqueness(self, a, b, c):
         solutions = list(base_solution_linear(a, b, c))
-        assert is_unique_list(solutions), 'Duplicate solution found'
+        assert is_unique_list(solutions), "Duplicate solution found"
 
 
 class TestSolveLinearDiop:
@@ -111,11 +111,11 @@ class TestSolveLinearDiop:
     def test_correctness(self, coeffs, c):
         self._limit_possible_solution_count(coeffs, c)
         for solution in solve_linear_diop(c, *coeffs):
-            assert len(solution) == len(coeffs), 'Solution size differs from coefficient count'
+            assert len(solution) == len(coeffs), "Solution size differs from coefficient count"
             result = sum(c*x for c, x in zip(coeffs, solution))
             for x in solution:
                 assert x >= 0
-            assert result == c, 'Invalid solution %r' % (solution, )
+            assert result == c, "Invalid solution {!r}".format(solution)
 
     @given(st.lists(st.integers(min_value=1, max_value=100), max_size=5), st.integers(min_value=0, max_value=100))
     @example([1,2,2], 4)
@@ -126,14 +126,14 @@ class TestSolveLinearDiop:
         for solution2 in itertools.product(*values):
             result = sum(c*x for c, x in zip(coeffs, solution2))
             if result == c:
-                assert solution2 in solutions, 'Missing solution %r' % (solution2, )
+                assert solution2 in solutions, "Missing solution {!r}".format(solution2)
 
     @given(st.lists(st.integers(min_value=1, max_value=100), max_size=5), st.integers(min_value=0, max_value=100))
     @example([1,2,2], 4)
     def test_uniqueness(self, coeffs, c):
         self._limit_possible_solution_count(coeffs, c)
         solutions = list(solve_linear_diop(c, *coeffs))
-        assert is_unique_list(solutions), 'Duplicate solution found'
+        assert is_unique_list(solutions), "Duplicate solution found"
 
 
 @st.composite
@@ -142,7 +142,7 @@ def sequence_vars(draw):
 
     variables = []
     for i in range(num_vars):
-        name = 'var%d' % i
+        name = 'var{:d}'.format(i)
         count = draw(st.integers(min_value=1, max_value=4))
         minimum = draw(st.integers(min_value=0, max_value=2))
 
@@ -219,7 +219,7 @@ class TestCommutativeSequenceVariablePartitionIter:
     )
     def test_correctness(self, variables, values, expected_iter_count):
         values = Multiset(values)
-        variables = [VariableWithCount('var%d' % i, c, m) for i, (c, m) in enumerate(variables)]
+        variables = [VariableWithCount('var{:d}'.format(i), c, m) for i, (c, m) in enumerate(variables)]
         count = 0
         for subst in commutative_sequence_variable_partition_iter(values, variables):
             assert len(variables) == len(subst), "Wrong number of variables in the substitution"
