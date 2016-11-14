@@ -158,19 +158,10 @@ class ManyToOneMatcher(object):
                     self.commutative[t].add_expression(e)
 
         for pattern in self.patterns:
-            for match in self._match(expression, pattern, Substitution()):
+            for match in self._match([expression], pattern, Substitution()):
                 yield pattern, match
 
-    def _match(self, expression, pattern, subst):
-        if isinstance(expression, list):
-            expressions = expression
-            if len(expression) == 1:
-                expression = expression[0]
-            else:
-                expression = None
-        else:
-            expressions = [expression]
-
+    def _match(self, expressions, pattern, subst):
         if isinstance(pattern, Variable):
             yield from _match_variable(expressions, pattern, subst, self._match)
 
@@ -178,15 +169,15 @@ class ManyToOneMatcher(object):
             yield from _match_wildcard(expressions, pattern, subst)
 
         elif isinstance(pattern, Symbol):
-            if expression == pattern:
+            if len(expressions) == 1 and expressions[0] == pattern:
                 if pattern.constraint is None or pattern.constraint(subst):
                     yield subst
 
         else:
             assert isinstance(pattern, Operation), "Unexpected expression of type {!r}".format(type(pattern))
-            if not isinstance(expression, pattern.__class__):
+            if len(expressions) != 1 or not isinstance(expressions[0], pattern.__class__):
                 return
-            op_expr = cast(Operation, expression)
+            op_expr = cast(Operation, expressions[0])
 
             if op_expr.commutative:
                 matcher = self.commutative[type(op_expr)]
@@ -256,20 +247,17 @@ class CommutativeMatcher(object):
 
         rest, syntactics = self.split_expressions(expressions)
 
-        syn_patt_count = sum(pattern.syntactic.values())
-
-        if syn_patt_count > sum(syntactics.values()):
+        if len(pattern.syntactic) > len(syntactics):
             return
 
         if pattern.syntactic:
             subgraph = self._build_bipartite(syntactics, pattern.syntactic)
-            # subgraph.as_graph().render('tmp/' + label + '.gv')
             match_iter = enum_maximum_matchings_iter(subgraph)
             try:
                 matching = next(match_iter)
             except StopIteration:
                 return
-            if len(matching) < syn_patt_count:
+            if len(matching) < len(pattern.syntactic):
                 return
 
             if self._is_canonical_matching(matching):
@@ -324,7 +312,7 @@ class CommutativeMatcher(object):
             -> Iterator[Substitution]:
         needed_length = len(pattern.sequence_variables) + len(pattern.fixed_variables) + len(pattern.rest)
 
-        if sum(remaining.values()) < needed_length:
+        if len(remaining) < needed_length:
             return
 
         fixed_vars = Multiset(pattern.fixed_variables)  # type: Multiset[str]

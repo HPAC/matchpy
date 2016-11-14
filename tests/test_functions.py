@@ -7,16 +7,9 @@ import pytest
 
 from patternmatcher.expressions import (Arity, Operation, Symbol, Variable,
                                         Wildcard, freeze)
-from patternmatcher.functions import (ReplacementRule, match, match_anywhere,
+from patternmatcher.functions import (ReplacementRule, match_anywhere,
                                       replace, replace_all, substitute)
 from patternmatcher.utils import match_repr_str
-
-
-# from patternmatcher.matching import ManyToOneMatcher
-# def match(expression, pattern):
-#     matcher = ManyToOneMatcher(pattern)
-#     for _, substitution in matcher.match(expression):
-#         yield substitution
 
 class SpecialSymbol(Symbol):
     pass
@@ -84,7 +77,7 @@ class TestMatch:
             (f(f(a, b)),        f(f(a, b)),     True)
         ]
     )
-    def test_constant_match(self, expression, pattern, is_match):
+    def test_constant_match(self, match, expression, pattern, is_match):
         expression = freeze(expression)
         pattern = freeze(pattern)
         result = list(match(expression, pattern))
@@ -110,7 +103,7 @@ class TestMatch:
             (f2(c, fc(a, b)),   f2(fc(a, b), c),    False),
         ]
     )
-    def test_commutative_match(self, expression, pattern, is_match):
+    def test_commutative_match(self, match, expression, pattern, is_match):
         expression = freeze(expression)
         pattern = freeze(pattern)
         result = list(match(expression, pattern))
@@ -150,7 +143,7 @@ class TestMatch:
             (f2(a, b),          f(x_, y_),                          None),
             (f(f(a, b)),        f(f(x_, y_)),                       {'x': a,       'y': b}),
         ])
-    def test_wildcard_dot_match(self, expression, pattern, expected_match):
+    def test_wildcard_dot_match(self, match, expression, pattern, expected_match):
         expression = freeze(expression)
         pattern = freeze(pattern)
         result = list(match(expression, pattern))
@@ -175,7 +168,7 @@ class TestMatch:
                                                      {'x': fa(a, b),    'y': c}])
         ]
     )
-    def test_associative_wildcard_dot_match(self, expression, pattern, expected_matches):
+    def test_associative_wildcard_dot_match(self, match, expression, pattern, expected_matches):
         expression = freeze(expression)
         pattern = freeze(pattern)
         result = list(match(expression, pattern))
@@ -242,7 +235,7 @@ class TestMatch:
                                                              {'x': [a],               'y': [a, b]}]),
         ]
     )
-    def test_wildcard_star_match(self, expression, pattern, expected_matches):
+    def test_wildcard_star_match(self, match, expression, pattern, expected_matches):
         expression = freeze(expression)
         pattern = freeze(pattern)
         result = list(match(expression, pattern))
@@ -295,7 +288,7 @@ class TestMatch:
             (f(a, b, a, b),             f(x__, b, y__),     [{'x': [a],          'y': [a, b]}]),
         ]
     )
-    def test_wildcard_plus_match(self, expression, pattern, expected_matches):
+    def test_wildcard_plus_match(self, match, expression, pattern, expected_matches):
         expression = freeze(expression)
         pattern = freeze(pattern)
         result = list(match(expression, pattern))
@@ -325,7 +318,7 @@ class TestMatch:
                                                              {'x': [],          'y': a,        'z': [b, c]}]),
         ]
     )
-    def test_wildcard_mixed_match(self, expression, pattern, expected_matches):
+    def test_wildcard_mixed_match(self, match, expression, pattern, expected_matches):
         expression = freeze(expression)
         pattern = freeze(pattern)
         result = list(match(expression, pattern))
@@ -346,7 +339,7 @@ class TestMatch:
             (s,                   ss_,          [{'ss': s}])
         ]
     )
-    def test_wildcard_symbol_match(self, expression, pattern, expected_matches):
+    def test_wildcard_symbol_match(self, match, expression, pattern, expected_matches):
         expression = freeze(expression)
         pattern = freeze(pattern)
         result = list(match(expression, pattern))
@@ -380,7 +373,7 @@ class TestMatch:
             (f(a),      lambda c: f(a, constraint=c),                                       [True],             [1],                    1),
         ]
     )
-    def test_constraint_match(self, expression, pattern_factory, constraint_values, constraint_call_counts, match_count):
+    def test_constraint_match(self, match, expression, pattern_factory, constraint_values, constraint_call_counts, match_count):
         constraints = [Mock(return_value=v) for v in constraint_values]
         pattern = pattern_factory(*constraints)
         expression = freeze(expression)
@@ -391,7 +384,7 @@ class TestMatch:
         for constraint, call_count in zip(constraints, constraint_call_counts):
             assert constraint.call_count == call_count
 
-    def test_constraint_call_values(self):
+    def test_constraint_call_values(self, match):
         constraint1 = Mock(return_value=True)
         constraint2 = Mock(return_value=True)
         constraint3 = Mock(return_value=True)
@@ -438,7 +431,7 @@ pattern_strategy = st.recursive(pattern_base_strategy, expression_recurse_strate
 
 @pytest.mark.skip("Takes too long on average")
 @given(expression_strategy, pattern_strategy)
-def test_randomized_match(expression, pattern):
+def test_randomized_match(match, expression, pattern):
     assume(not pattern.is_constant)
 
     expr_symbols = expression.symbols
