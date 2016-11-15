@@ -276,18 +276,6 @@ class CommutativeMatcher(object):
         else:
             yield from self._matches_from_matching(Substitution(), expressions, pattern)
 
-    def _match_and_remove_constants(self, expressions, pattern):
-        constants = sorted(expressions)
-        i = 0
-        for const_pattern in pattern.constant:
-            while constants[i] < const_pattern:
-                i += 1
-            if constants[i] == const_pattern:
-                del constants[i]
-            else:
-                return
-        return constants
-
     def _build_bipartite(self, syntactics: Multiset, patterns: Multiset):
         bipartite = BipartiteGraph()  # type: BipartiteGraph
         for (expr, patt), m in self.bipartite.items():
@@ -365,9 +353,9 @@ class CommutativeMatcher(object):
 
     def _fixed_expr_factory(self, expression):
         def factory(expressions, substitution):
-            for expr in expressions:
+            for expr in expressions.keys():
                 if expr.head == expression.head:
-                    for subst in self.parent._match(expr, expression, substitution):
+                    for subst in self.parent._match([expr], expression, substitution):
                         if expression.constraint is None or expression.constraint(subst):
                             yield expressions - Multiset({expr: 1}), subst
 
@@ -386,7 +374,7 @@ class CommutativeMatcher(object):
                     yield expressions - existing, substitution
             else:
                 if length == 1:
-                    for expr, expr_count in expressions:
+                    for expr, expr_count in expressions.items():
                         if expr_count >= count:
                             new_substitution = Substitution(substitution)
                             new_substitution[variable] = expr

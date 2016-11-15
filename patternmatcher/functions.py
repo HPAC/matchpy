@@ -289,7 +289,7 @@ def substitute(expression: Expression, substitution: Substitution) -> Tuple[Unio
             result, replaced = substitute(operand, substitution)
             if replaced:
                 any_replaced = True
-            if isinstance(result, list):
+            if isinstance(result, (list, tuple)):
                 new_operands.extend(result)
             else:
                 new_operands.append(result)

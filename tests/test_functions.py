@@ -101,6 +101,10 @@ class TestMatch:
             (fc(c, a, f2(b)),   fc(f2(a), b, c),    False),
             (f2(c, fc(a, b)),   f2(c, fc(b, a)),    True),
             (f2(c, fc(a, b)),   f2(fc(a, b), c),    False),
+            (fc(c, fc(a, b)),   fc(fc(a, b), c),    True),
+            (fc(c, fc(b, a)),   fc(fc(a, b), c),    True),
+            (fc(c, fc(b, b)),   fc(fc(a, b), c),    False),
+            (fc(a, fc(b, a)),   fc(fc(a, b), c),    False),
         ]
     )
     def test_commutative_match(self, match, expression, pattern, is_match):
@@ -111,6 +115,33 @@ class TestMatch:
             assert result == [dict()], "Expression {!s} and {!s} did not match but were supposed to".format(expression, pattern)
         else:
             assert result == [], "Expression {!s} and {!s} did match but were not supposed to".format(expression, pattern)
+
+    @pytest.mark.parametrize(
+        '   expression,         pattern,                    match_count',
+        [
+            (fc(f(a)),          fc(f(x_)),                  1),
+            (fc(f(a), f(b)),    fc(f(x_), f(y_)),           2),
+            (fc(f(a), f(b)),    fc(f(x_), f(x_)),           0),
+            (fc(f(a), f(a)),    fc(f(x_), f(x_)),           1),
+            (fc(f(a), f(b)),    fc(f(x_), y_),              2),
+            (fc(f(a), f(a)),    fc(f(x_), x_),              0),
+            (fc(f(a), a),       fc(f(x_), x_),              1),
+            (fc(f(a), a),       fc(f(x_)),                  0),
+            (fc(f(a), a),       fc(f(x_), f(y_)),           0),
+            (fc(f(a), f(a)),    fc(f(x_), f(y_), f(z_)),    0),
+            (fc(f2(a), f2(a)),  fc(f(x_), f(y_)),           0),
+            (fc2(f(a),  f(a)),  fc(f(x_), f(y_)),           0),
+            (fc(fc(a, b), c),   fc(fc(x__), y__),           1),
+        ]
+    )
+    def test_commutative_syntactic_match(self, match, expression, pattern, match_count):
+        expression = freeze(expression)
+        pattern = freeze(pattern)
+        result = list(match(expression, pattern))
+        assert len(result) == match_count, 'Wrong number of matches'
+
+        for subst in result:
+            assert substitute(pattern, subst)[0] == expression, 'Invalid match'
 
     @pytest.mark.parametrize(
         '   expression,         pattern,                            expected_match',
