@@ -145,7 +145,7 @@ class ManyToOneMatcher(object):
             self._extract_subexpressions(pattern, False, self.graphs)
 
         for g, exprs in self.graphs.items():
-            matcher = CommutativeMatcher(self)
+            matcher = CommutativeMatcher(self._match)
             for expr in exprs:
                 matcher.add_pattern(expr)
             self.commutative[g] = matcher
@@ -208,23 +208,21 @@ class ManyToOneMatcher(object):
 
 
 class CommutativeMatcher(object):
-    _cnt = 0
-
-    def __init__(self, parent: ManyToOneMatcher) -> None:
+    def __init__(self, matcher) -> None:
         self.patterns = set()  # type: Set[Expression]
         self.expressions = set()  # type: Set[Expression]
         self.net = DiscriminationNet()
         self.bipartite = BipartiteGraph()  # type: BipartiteGraph
-        self.parent = parent
+        self.matcher = matcher
 
-    def add_pattern(self, pattern: Expression):
+    def add_pattern(self, pattern: Expression) -> None:
         if not pattern.is_syntactic:
             raise ValueError("Can only add syntactic subpatterns.")
         if pattern not in self.patterns:
             self.patterns.add(pattern)
             self.net.add(pattern)
 
-    def add_expression(self, expression: Expression):
+    def add_expression(self, expression: Expression) -> None:
         if not expression.is_constant:
             raise ValueError("The expression must be constant.")
         if expression not in self.expressions:
@@ -235,46 +233,29 @@ class CommutativeMatcher(object):
                     self.bipartite[expression, pattern] = subst
 
     def match(self, expression: List[Expression], pattern: CommutativePatternsParts) -> Iterator[Substitution]:
-        if any(not e.is_constant for e in expression):
-            raise ValueError("All given expressions must be constant.")
+        yield from _match_commutative_operation(expression, pattern, self.matcher, self._syntactic_match)
 
-        expressions = Multiset(expression)  # type: Multiset[Expression]
-
-        if not (pattern.constant <= expressions):
+    def _syntactic_match(self, syntactics, patterns) -> Iterator[Substitution]:
+        subgraph = self._build_bipartite(syntactics, patterns)
+        match_iter = enum_maximum_matchings_iter(subgraph)
+        try:
+            matching = next(match_iter)
+        except StopIteration:
+            return
+        if len(matching) < len(patterns):
             return
 
-        expressions -= pattern.constant
-
-        rest, syntactics = self.split_expressions(expressions)
-
-        if len(pattern.syntactic) > len(syntactics):
-            return
-
-        if pattern.syntactic:
-            subgraph = self._build_bipartite(syntactics, pattern.syntactic)
-            match_iter = enum_maximum_matchings_iter(subgraph)
-            try:
-                matching = next(match_iter)
-            except StopIteration:
-                return
-            if len(matching) < len(pattern.syntactic):
-                return
-
+        if self._is_canonical_matching(matching):
+            subst = _unify_substitutions(*(subgraph[s] for s in matching.items()))
+            matched = Multiset(e for e, _ in matching)  # type: Multiset[Expression]
+            if subst is not None:
+                yield subst, syntactics - matched
+        for matching in match_iter:
             if self._is_canonical_matching(matching):
-                subst = self._unify_substitutions(*(subgraph[s] for s in matching.items()))
-                matched = Multiset(e for e, _ in matching)  # type: Multiset[Expression]
-                remaining = rest + (syntactics - matched)
+                subst = _unify_substitutions(*(subgraph[s] for s in matching.items()))
+                matched = Multiset(e for e, _ in matching)
                 if subst is not None:
-                    yield from self._matches_from_matching(subst, remaining, pattern)
-            for matching in match_iter:
-                if self._is_canonical_matching(matching):
-                    subst = self._unify_substitutions(*(subgraph[s] for s in matching.items()))
-                    matched = Multiset(e for e, _ in matching)
-                    remaining = rest + (syntactics - matched)
-                    if subst is not None:
-                        yield from self._matches_from_matching(subst, remaining, pattern)
-        else:
-            yield from self._matches_from_matching(Substitution(), expressions, pattern)
+                    yield subst, syntactics - matched
 
     def _build_bipartite(self, syntactics: Multiset, patterns: Multiset):
         bipartite = BipartiteGraph()  # type: BipartiteGraph
@@ -282,8 +263,23 @@ class CommutativeMatcher(object):
             for i in range(syntactics[expr]):
                 for j in range(patterns[patt]):
                     bipartite[(expr, i), (patt, j)] = m
-        CommutativeMatcher._cnt += 1
         return bipartite
+
+    @classmethod
+    def _extract_substitution(cls, expression: Expression, pattern: Expression, subst: Substitution) -> bool:
+        if isinstance(pattern, Variable):
+            try:
+                subst.try_add_variable(pattern.name, expression)
+            except ValueError:
+                return False
+            return cls._extract_substitution(expression, pattern.expression, subst)
+        elif isinstance(pattern, Operation):
+            assert isinstance(expression, type(pattern))
+            op_expression = cast(Operation, expression)
+            for expr, patt in zip(op_expression.operands, pattern.operands):
+                if not cls._extract_substitution(expr, patt, subst):
+                    return False
+        return True
 
     @staticmethod
     def _is_canonical_matching(matching: Dict[Tuple[Tuple[Expression, int], Tuple[Expression, int]], Any]) -> bool:
@@ -292,204 +288,154 @@ class CommutativeMatcher(object):
                 return False
         return True
 
-    @staticmethod
-    def _variables_with_counts(variables, infos):
-        return tuple(VariableWithCount(name, count, infos[name].min_count) for name, count in variables.items())
 
-    def _matches_from_matching(self, subst: Substitution, remaining: Multiset, pattern: CommutativePatternsParts) \
-            -> Iterator[Substitution]:
-        needed_length = len(pattern.sequence_variables) + len(pattern.fixed_variables) + len(pattern.rest)
+def _match_commutative_operation(operands: Iterable[Expression], pattern: CommutativePatternsParts, matcher, syntactic_matcher=None) -> Iterator[Substitution]:
+    if any(not e.is_constant for e in operands):
+        raise ValueError("All given expressions must be constant.")
 
-        if len(remaining) < needed_length:
+    expressions = Multiset(operands)  # type: Multiset[Expression]
+
+    if not (pattern.constant <= expressions):
+        return
+
+    expressions -= pattern.constant
+
+    if syntactic_matcher is not None and pattern.syntactic:
+        rest, syntactics = _split_expressions(expressions)
+
+        if len(pattern.syntactic) > len(syntactics):
             return
 
-        fixed_vars = Multiset(pattern.fixed_variables)  # type: Multiset[str]
-        for name, count in pattern.fixed_variables.items():
-            if name in subst:
-                if pattern.operation.associative and isinstance(subst[name], pattern.operation):
-                    needed_count = Multiset(cast(Operation, subst[name]).operands)  # type: Multiset[Expression]
-                elif isinstance(subst[name], Expression):
-                    needed_count = Multiset({subst[name]: 1})
-                else:
-                    needed_count = Multiset(cast(Iterable[Expression], subst[name]))
-                if count > 1:
-                    needed_count *= count
-                if not (needed_count <= remaining):
-                    return
-                remaining -= needed_count
-                del fixed_vars[name]
+        for subst, remaining in syntactic_matcher(syntactics, pattern.syntactic):
+            yield from _matches_from_matching(subst, remaining + rest, pattern, matcher, False)
+    else:
+        yield from _matches_from_matching(Substitution(), expressions, pattern, matcher, True)
 
-        factories = [self._fixed_expr_factory(e) for e in pattern.rest]
 
-        if not pattern.operation.associative:
-            for name, count in fixed_vars.items():
-                info = pattern.fixed_variable_infos[name]
-                factory = self._fixed_var_iter_factory(name, count, info.min_count, info.constraint)
-                factories.append(factory)
+def _variables_with_counts(variables, infos):
+    return tuple(VariableWithCount(name, count, infos[name].min_count) for name, count in variables.items())
 
-        expr_counter = Multiset(remaining)  # type: Multiset[Expression]
 
-        for rem_expr, subst in iterator_chain((expr_counter, subst), *factories):
-            sequence_vars = self._variables_with_counts(pattern.sequence_variables, pattern.sequence_variable_infos)
-            constraints = [pattern.sequence_variable_infos[name].constraint for name in pattern.sequence_variables]
+def _matches_from_matching(subst: Substitution, remaining: Multiset, pattern: CommutativePatternsParts, matcher, include_syntactic: bool) \
+        -> Iterator[Substitution]:
+    rest_expr = (pattern.rest + pattern.syntactic) if include_syntactic else pattern.rest
+    needed_length = len(pattern.sequence_variables) + len(pattern.fixed_variables) + len(rest_expr)
+
+    if len(remaining) < needed_length:
+        return
+
+    fixed_vars = Multiset(pattern.fixed_variables)  # type: Multiset[str]
+    for name, count in pattern.fixed_variables.items():
+        if name in subst:
+            if pattern.operation.associative and isinstance(subst[name], pattern.operation):
+                needed_count = Multiset(cast(Operation, subst[name]).operands)  # type: Multiset[Expression]
+            elif isinstance(subst[name], Expression):
+                needed_count = Multiset({subst[name]: 1})
+            else:
+                needed_count = Multiset(cast(Iterable[Expression], subst[name]))
+            if count > 1:
+                needed_count *= count
+            if not (needed_count <= remaining):
+                return
+            remaining -= needed_count
+            del fixed_vars[name]
+
+    factories = [_fixed_expr_factory(e, matcher) for e in rest_expr]
+
+    if not pattern.operation.associative:
+        for name, count in fixed_vars.items():
+            info = pattern.fixed_variable_infos[name]
+            factory = _fixed_var_iter_factory(name, count, info.min_count, info.constraint)
+            factories.append(factory)
+
+    expr_counter = Multiset(remaining)  # type: Multiset[Expression]
+
+    for rem_expr, subst in iterator_chain((expr_counter, subst), *factories):
+        sequence_vars = _variables_with_counts(pattern.sequence_variables, pattern.sequence_variable_infos)
+        constraints = [pattern.sequence_variable_infos[name].constraint for name in pattern.sequence_variables]
+        if pattern.operation.associative:
+            sequence_vars += _variables_with_counts(fixed_vars, pattern.fixed_variable_infos)
+            constraints += [pattern.fixed_variable_infos[name].constraint for name in fixed_vars]
+        combined_constraint = MultiConstraint.create(*constraints)
+
+        for sequence_subst in commutative_sequence_variable_partition_iter(Multiset(rem_expr), sequence_vars):
+            s = Substitution((var, sorted(exprs)) for var, exprs in sequence_subst.items())
             if pattern.operation.associative:
-                sequence_vars += self._variables_with_counts(fixed_vars, pattern.fixed_variable_infos)
-                constraints += [pattern.fixed_variable_infos[name].constraint for name in fixed_vars]
-            combined_constraint = MultiConstraint.create(*constraints)
+                for v in fixed_vars:
+                    l = pattern.fixed_variable_infos[v].min_count
+                    value = cast(list, s[v])
+                    if len(value) > l:
+                        s[v] = pattern.operation(*value)
+                    elif l == len(value) and l == 1:
+                        s[v] = value[0]
+            result = _unify_substitutions(subst, s)
+            if result is not None and (combined_constraint is None or combined_constraint(result)):
+                yield result
 
-            for sequence_subst in commutative_sequence_variable_partition_iter(Multiset(rem_expr), sequence_vars):
-                s = Substitution((var, sorted(exprs)) for var, exprs in sequence_subst.items())
-                if pattern.operation.associative:
-                    for v in fixed_vars:
-                        l = pattern.fixed_variable_infos[v].min_count
-                        value = cast(list, s[v])
-                        if len(value) > l:
-                            s[v] = pattern.operation(*value)
-                        elif l == len(value) and l == 1:
-                            s[v] = value[0]
-                result = self._unify_substitutions(subst, s)
-                if result is not None and (combined_constraint is None or combined_constraint(result)):
-                    yield result
 
-    def _fixed_expr_factory(self, expression):
-        def factory(expressions, substitution):
-            for expr in expressions.keys():
-                if expr.head == expression.head:
-                    for subst in self.parent._match([expr], expression, substitution):
-                        if expression.constraint is None or expression.constraint(subst):
-                            yield expressions - Multiset({expr: 1}), subst
+def _fixed_expr_factory(expression, matcher):
+    def factory(expressions, substitution):
+        for expr in expressions.keys():
+            if expr.head == expression.head:
+                for subst in matcher([expr], expression, substitution):
+                    if expression.constraint is None or expression.constraint(subst):
+                        yield expressions - Multiset({expr: 1}), subst
 
-        return factory
+    return factory
 
-    @staticmethod
-    def _fixed_var_iter_factory(variable, count, length, constraint=None):
-        def factory(expressions, substitution):
-            if variable in substitution:
-                value = ([substitution[variable]] if isinstance(substitution[variable], Expression)
-                         else substitution[variable])
-                existing = Multiset(value) * count
-                if not (existing <= expressions):
-                    return
-                if constraint is None or constraint(substitution):
-                    yield expressions - existing, substitution
-            else:
-                if length == 1:
-                    for expr, expr_count in expressions.items():
-                        if expr_count >= count:
-                            new_substitution = Substitution(substitution)
-                            new_substitution[variable] = expr
-                            if constraint is None or constraint(new_substitution):
-                                yield expressions - Multiset({expr: count}), new_substitution
-                else:
-                    exprs_with_counts = list(expressions.items())
-                    counts = tuple(c // count for _, c in exprs_with_counts)
-                    for subset in fixed_integer_vector_iter(counts, length):
-                        sub_counter = Multiset(dict((exprs_with_counts[i][0], c * count) for i, c in enumerate(subset)))
+
+def _fixed_var_iter_factory(variable, count, length, constraint=None):
+    def factory(expressions, substitution):
+        if variable in substitution:
+            value = ([substitution[variable]] if isinstance(substitution[variable], Expression)
+                        else substitution[variable])
+            existing = Multiset(value) * count
+            if not (existing <= expressions):
+                return
+            if constraint is None or constraint(substitution):
+                yield expressions - existing, substitution
+        else:
+            if length == 1:
+                for expr, expr_count in expressions.items():
+                    if expr_count >= count:
                         new_substitution = Substitution(substitution)
-                        new_substitution[variable] = list(sub_counter)
+                        new_substitution[variable] = expr
                         if constraint is None or constraint(new_substitution):
-                            yield expressions - sub_counter, new_substitution
-
-        return factory
-
-    @staticmethod
-    def _extract_substitution(expression: Expression, pattern: Expression, subst: Substitution) -> bool:
-        if isinstance(pattern, Variable):
-            try:
-                subst.try_add_variable(pattern.name, expression)
-            except ValueError:
-                return False
-            return CommutativeMatcher._extract_substitution(expression, pattern.expression, subst)
-        elif isinstance(pattern, Operation):
-            assert isinstance(expression, type(pattern))
-            op_expression = cast(Operation, expression)
-            for expr, patt in zip(op_expression.operands, pattern.operands):
-                if not CommutativeMatcher._extract_substitution(expr, patt, subst):
-                    return False
-        return True
-
-    @staticmethod
-    def _unify_substitutions(*substs: Substitution) -> Substitution:
-        try:
-            return substs[0].union(*substs[1:])
-        except ValueError:
-            return None
-
-    @staticmethod
-    def split_expressions(expressions: Multiset[Expression]) -> Tuple[Multiset[Expression], Multiset[Expression]]:
-        constants = Multiset()  # type: Multiset[Expression]
-        syntactics = Multiset()  # type: Multiset[Expression]
-
-        for expression, count in expressions.items():
-            if expression.is_syntactic or not (isinstance(expression, Operation) and
-                                               (expression.associative or expression.commutative)):
-                syntactics[expression] = count
+                            yield expressions - Multiset({expr: count}), new_substitution
             else:
-                constants[expression] = count
+                exprs_with_counts = list(expressions.items())
+                counts = tuple(c // count for _, c in exprs_with_counts)
+                for subset in fixed_integer_vector_iter(counts, length):
+                    sub_counter = Multiset(dict((exprs_with_counts[i][0], c * count) for i, c in enumerate(subset)))
+                    new_substitution = Substitution(substitution)
+                    new_substitution[variable] = list(sub_counter)
+                    if constraint is None or constraint(new_substitution):
+                        yield expressions - sub_counter, new_substitution
 
-        return constants, syntactics
+    return factory
 
 
-if __name__ == '__main__':  # pragma: no cover
-    def _main():
-        # pylint: disable=invalid-name, bad-continuation
-        f = Operation.new('f', Arity.variadic, associative=True, one_identity=True, commutative=True)
-        g = Operation.new('g', Arity.unary)
+def _unify_substitutions(*substs: Substitution) -> Substitution:
+    try:
+        return substs[0].union(*substs[1:])
+    except ValueError:
+        return None
 
-        x_ = Variable.dot('x')
-        y_ = Variable.dot('y')
-        z_ = Variable.dot('z')
-        z___ = Variable.star('z')
 
-        a = Symbol('a')
-        b = Symbol('b')
-        c = Symbol('c')
+def _split_expressions(expressions: Multiset[Expression]) -> Tuple[Multiset[Expression], Multiset[Expression]]:
+    constants = Multiset()  # type: Multiset[Expression]
+    syntactics = Multiset()  # type: Multiset[Expression]
 
-        patterns = [
-            f(b, x_, g(b), g(x_, b), z___),
-            f(a, x_, g(a), g(x_, a), z___),
-            f(b, y_, g(b), g(x_, b), z___),
-            f(a, y_, g(a), g(x_, a), z___),
-            f(x_, y_, g(x_), g(y_), g(x_, y_), z_),
-            f(c, x_, g(y_), g(c)),
-            f(c, x_, g(y_), g(c), g(g(a)), g(a, c)),
-            f(b, c, x_, g(x_), g(x_)),
-            f(g(x_), g(c), b, g(g(y_))),
-            f(y_, y_, g(x_), g(x_)),
-            f(x_, g(f(x_, z___)))
-        ]
+    for expression, count in expressions.items():
+        if expression.is_syntactic or not (isinstance(expression, Operation) and
+                                            (expression.associative or expression.commutative)):
+            syntactics[expression] = count
+        else:
+            constants[expression] = count
 
-        # expr = f(a, b, g(a), g(b))
-        expr = f(a, b, g(a), g(b), g(a, b), g(b, a))
-        # expr = f(g(a), g(a), g(b), g(b))
-        # expr = f(a, b, g(f(a, a, b)))
+    return constants, syntactics
 
-        print('Expression: ', expr)
 
-        matcher = ManyToOneMatcher(*patterns)
-        # matcher = CommutativeMatcher(parent)
-
-        # parts = [CommutativePatternsParts(type(p), *p.operands) for p in patterns]
-
-        # for part in parts:
-        #     for op in part.syntactic:
-        #         matcher.add_pattern(op)
-
-        # _, expr_synts = matcher.split_expressions(Multiset(expr.operands))
-
-        # for e in expr_synts:
-        #     matcher.add_expression(e)
-
-        # matcher.bipartite.as_graph().render('tmp/BP.gv')
-
-        for pattern, matches in itertools.groupby(matcher.match(expr), operator.itemgetter(0)):
-            print('-------- {!s} ----------'.format(pattern))
-            for _, match in matches:
-                print('match: ', match)
-
-        # for i, pattern in enumerate(parts):
-        #     print ('-------- {!s} ----------'.format(patterns[i]))
-        #     for match in matcher.match(expr.operands, pattern):
-        #         print ('match: ', match)
-
-    _main()
+if __name__ == '__main__':
+    import doctest
+    doctest.testmod(exclude_empty=True)
