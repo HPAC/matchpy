@@ -96,10 +96,10 @@ class TestCommutativePatternsParts:
             ([None,     None,       constr1],   constr1),
             ([None,     constr1,    None],      constr1),
             ([constr1,  None,       None],      constr1),
-            ([constr1,  constr2],               MultiConstraint({constr1, constr2})),
-            ([None,     constr1,    constr2],   MultiConstraint({constr1, constr2})),
-            ([constr1,  None,       constr2],   MultiConstraint({constr1, constr2})),
-            ([constr1,  constr2,    None],      MultiConstraint({constr1, constr2}))
+            ([constr1,  constr2],               MultiConstraint(constr1, constr2)),
+            ([None,     constr1,    constr2],   MultiConstraint(constr1, constr2)),
+            ([constr1,  None,       constr2],   MultiConstraint(constr1, constr2)),
+            ([constr1,  constr2,    None],      MultiConstraint(constr1, constr2))
         ]
     )
     def test_fixed_var_constraints(self, constraints, result_constraint):
@@ -125,10 +125,10 @@ class TestCommutativePatternsParts:
             ([None,     None,       constr1],   constr1),
             ([None,     constr1,    None],      constr1),
             ([constr1,  None,       None],      constr1),
-            ([constr1,  constr2],               MultiConstraint({constr1, constr2})),
-            ([None,     constr1,    constr2],   MultiConstraint({constr1, constr2})),
-            ([constr1,  None,       constr2],   MultiConstraint({constr1, constr2})),
-            ([constr1,  constr2,    None],      MultiConstraint({constr1, constr2}))
+            ([constr1,  constr2],               MultiConstraint(constr1, constr2)),
+            ([None,     constr1,    constr2],   MultiConstraint(constr1, constr2)),
+            ([constr1,  None,       constr2],   MultiConstraint(constr1, constr2)),
+            ([constr1,  constr2,    None],      MultiConstraint(constr1, constr2))
         ]
     )
     def test_sequence_var_constraints(self, constraints, result_constraint):

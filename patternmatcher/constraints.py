@@ -24,8 +24,8 @@ class Constraint(object, metaclass=ABCMeta):
 
 
 class MultiConstraint(Constraint):
-    def __init__(self, constraints: Set[Constraint]) -> None:
-        self.constraints = constraints
+    def __init__(self, *constraints: Constraint) -> None:
+        self.constraints = frozenset(constraints)
 
     @classmethod
     def create(cls, *constraints: Optional[Constraint]) -> Optional[Constraint]:
@@ -41,7 +41,7 @@ class MultiConstraint(Constraint):
         elif len(flat_constraints) == 0:
             return None
 
-        return cls(flat_constraints)
+        return cls(*flat_constraints)
 
     def __call__(self, match: Substitution) -> bool:
         return all(c(match) for c in self.constraints)
@@ -61,20 +61,14 @@ class MultiConstraint(Constraint):
 
 class EqualVariablesConstraint(Constraint):
     def __init__(self, *variables: str) -> None:
-        self.variables = set(variables)
-
-    @staticmethod
-    def _wrap_expr(expr):
-        if not isinstance(expr, list):
-            return [expr]
-        return expr
+        self.variables = frozenset(variables)
 
     def __call__(self, match: Substitution) -> bool:
-        variables = self.variables.copy()
-        v1 = self._wrap_expr(match[variables.pop()])
-        while variables:
-            v2 = self._wrap_expr(match[variables.pop()])
-            if v2 != v1:
+        subst = Substitution()
+        for name in self.variables:
+            try:
+                subst.try_add_variable('_', match[name])
+            except ValueError:
                 return False
         return True
 
@@ -104,8 +98,8 @@ class CustomConstraint(Constraint):
                 self.variables.add(param.name)
             elif param.kind == inspect.Parameter.VAR_KEYWORD:
                 self.allow_any = True
-            elif param.kind == inspect.Parameter.POSITIONAL_ONLY:
-                raise ValueError("constraint cannot have positional-only arguments")
+            else:
+                raise ValueError("constraint cannot have positional-only or variable positional arguments (*args)")
 
     def __call__(self, match: Substitution) -> bool:
         if self.allow_any:
@@ -128,12 +122,6 @@ class CustomConstraint(Constraint):
 
 
 if __name__ == '__main__':
-    from patternmatcher.expressions import Symbol
-    a = Symbol('a')
-    b = Symbol('b')
-    c = Symbol('c')
-    cc = CustomConstraint(lambda x, y: x == y)
-    vc = EqualVariablesConstraint('x', 'y')
-    print(cc.variables)
-    print(cc({'x': a, 'y': a, 'z': b, 'k': c}))
-    print(vc({'x': a, 'y': a, 'z': b, 'k': c}))
+    import doctest
+    doctest.testmod(exclude_empty=True)
+
