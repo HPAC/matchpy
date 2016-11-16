@@ -4,7 +4,7 @@ from abc import ABCMeta, abstractmethod
 from typing import Callable, Optional, Set
 
 from patternmatcher.expressions import Substitution
-from patternmatcher.utils import get_lambda_source
+from patternmatcher.utils import get_short_lambda_source
 
 
 class Constraint(object, metaclass=ABCMeta):
@@ -109,10 +109,10 @@ class CustomConstraint(Constraint):
         return self.constraint(**args)
 
     def __str__(self):
-        return '({!s})'.format(get_lambda_source(self.constraint))
+        return '({!s})'.format(get_short_lambda_source(self.constraint) or self.constraint.__name__)
 
     def __repr__(self):
-        return 'CustomConstraint({!s})'.format(get_lambda_source(self.constraint))
+        return 'CustomConstraint({!s})'.format(get_short_lambda_source(self.constraint) or self.constraint.__name__)
 
     def __eq__(self, other):
         return isinstance(other, CustomConstraint) and self.constraint == other.constraint

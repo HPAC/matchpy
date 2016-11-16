@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import itertools
 import math
+import os
 
 import hypothesis.strategies as st
 from hypothesis import example, given, assume
@@ -10,7 +11,7 @@ from multiset import Multiset
 from patternmatcher.utils import (VariableWithCount, base_solution_linear,
                                   commutative_sequence_variable_partition_iter,
                                   extended_euclid, fixed_sum_vector_iter,
-                                  solve_linear_diop)
+                                  solve_linear_diop, get_short_lambda_source)
 
 
 def is_unique_list(l):
@@ -230,6 +231,36 @@ class TestCommutativeSequenceVariablePartitionIter:
             assert result_union == values, "Substitution is not a partition of the values"
             count += 1
         assert count == expected_iter_count, "Invalid number of substitution in the iterable"
+
+# =========================================================================
+# DON'T CHANGE THE FORMATTING OF THESE LINES, IT IS IMPORTANT FOR THE TESTS
+lambda_example = lambda a: a > 0, 0
+def not_a_lambda(): pass
+lambda_multiline_example = [
+    lambda x, y: x == y
+]
+# =========================================================================
+
+@pytest.mark.parametrize(
+    '   lambda_func,                    expected_source',
+    [
+        ((lambda x: x == 1),            'x == 1'),
+        (lambda x: x == 1,              'x == 1'),
+        (lambda_example[0],             'a > 0'),
+        (lambda_multiline_example[0],   'x == y'),
+        (lambda x: x[0],                'x[0]'),
+        (lambda x: x == (0, 1),         'x == (0, 1)'),
+        # FORMATTING IS IMPORTANT HERE TOO
+        (lambda x: x > 1 and \
+                   x < 5,               'x > 1 and \\{}x < 5'.format(os.linesep)),
+        ([lambda x: x == 42, 5][0],     'x == 42'),
+        (not_a_lambda,                  None),
+        (5,                             None),
+    ]
+)
+def test_get_short_lambda_source(lambda_func, expected_source):
+    source = get_short_lambda_source(lambda_func)
+    assert source == expected_source
 
 if __name__ == '__main__':
     import patternmatcher.utils as tested_module
