@@ -2,7 +2,7 @@
 import random
 
 import hypothesis.strategies as st
-from hypothesis import assume, given, example
+from hypothesis import assume, example, given
 import pytest
 
 from patternmatcher.expressions import (Arity, Atom, Operation, Symbol,
@@ -10,12 +10,14 @@ from patternmatcher.expressions import (Arity, Atom, Operation, Symbol,
 from patternmatcher.functions import match
 from patternmatcher.syntactic import OPERATION_END as OP_END
 from patternmatcher.syntactic import (DiscriminationNet, FlatTerm,
-                                      is_operation, is_symbol_wildcard)
+                                      SequenceMatcher, is_operation,
+                                      is_symbol_wildcard)
 
 
 class SpecialSymbol(Symbol): pass
 
 f = Operation.new('f', Arity.variadic)
+fc = Operation.new('fc', Arity.variadic, commutative=True)
 g = Operation.new('g', Arity.variadic)
 h = Operation.new('h', Arity.unary)
 a = Symbol('a')
@@ -71,6 +73,38 @@ def test_flatterm_init(expr, result):
 def test_flatterm_init_error():
     with pytest.raises(TypeError):
         FlatTerm(None)
+
+def test_flatterm_add():
+    assert FlatTerm(a) + [b] == FlatTerm([a, b])
+    assert FlatTerm(a) + (b, ) == FlatTerm([a, b])
+    assert FlatTerm(a) + FlatTerm(b) == FlatTerm([a, b])
+
+    with pytest.raises(TypeError):
+        FlatTerm() + 5
+
+def test_flatterm_contains():
+    flatterm = FlatTerm(f(a))
+
+    assert f in flatterm
+    assert a in flatterm
+    assert b not in flatterm
+
+def test_flatterm_getitem():
+    flatterm = FlatTerm(f(a))
+
+    assert flatterm[0] == f
+    assert flatterm[1] == a
+    assert flatterm[2] == OP_END
+
+    with pytest.raises(IndexError):
+        flatterm[3]
+
+def test_flatterm_eq():
+    flatterm = FlatTerm(f(a))
+
+    assert FlatTerm(a) == FlatTerm(a)
+    assert not FlatTerm(a) == FlatTerm(b)
+    assert FlatTerm(a) != [a]
 
 
 def test_is_operation():
@@ -283,6 +317,51 @@ def test_product_net(i):
                 assert pattern in result
             except StopIteration:
                 assert pattern not in result
+
+
+def test_sequence_matcher_match():
+    PATTERNS = [
+        f(___, x_, x_, ___),
+        f(z___, a, b, ___),
+        f(___, a, c, z___),
+    ]
+
+    matcher = SequenceMatcher(*PATTERNS)
+
+    expr = freeze(f(a, b, c, a, a, b, a, c, b))
+
+    matches = list(matcher.match(expr))
+
+    assert len(matches) == 4
+    assert ({'x': a}, PATTERNS[0]) in matches
+    assert ({'z': ()}, PATTERNS[1]) in matches
+    assert ({'z': (a, b, c, a)}, PATTERNS[1]) in matches
+    assert ({'z': (b, )}, PATTERNS[2]) in matches
+
+    assert list(matcher.match(freeze(a))) == []
+
+
+@pytest.mark.parametrize(
+    '   patterns,                   expected_error',
+    [
+        ([a],                       TypeError),
+        ([fc(a)],                   TypeError),
+        ([f(___, a, ___), g(a)],    TypeError),
+        ([f(___)],                  ValueError),
+        ([f(___, a)],               ValueError),
+        ([f(a, b, c)],              ValueError),
+        ([f(_, b, ___)],            ValueError),
+        ([f(___, b, _)],            ValueError),
+        ([f(__, b, ___)],           ValueError),
+        ([f(___, b, __)],           ValueError),
+        ([f(a, b, ___)],            ValueError),
+        ([f(___, b, c)],            ValueError),
+    ]
+)
+def test_sequence_matcher_errors(patterns, expected_error):
+    with pytest.raises(expected_error):
+        SequenceMatcher(*patterns)
+
 
 if __name__ == '__main__':
     import patternmatcher.syntactic as tested_module

@@ -3,7 +3,7 @@ import itertools
 import keyword
 from enum import Enum, EnumMeta
 from typing import (Callable, Dict, Iterator, List, NamedTuple, Optional, Set,
-                    Tuple, TupleMeta, Type, Union)
+                    Tuple, TupleMeta, Type, Union, cast)
 
 from multiset import Multiset
 
@@ -736,6 +736,21 @@ class Substitution(Dict[str, VariableReplacement]):
         new_subst = Substitution(self)
         new_subst.try_add_variable(variable, replacement)
         return new_subst
+
+    def extract_substitution(self, expression: Expression, pattern: Expression) -> bool:
+        if isinstance(pattern, Variable):
+            try:
+                self.try_add_variable(pattern.name, expression)
+            except ValueError:
+                return False
+            return self.extract_substitution(expression, pattern.expression)
+        elif isinstance(pattern, Operation):
+            assert isinstance(expression, type(pattern))
+            op_expression = cast(Operation, expression)
+            for expr, patt in zip(op_expression.operands, pattern.operands):
+                if not self.extract_substitution(expr, patt):
+                    return False
+        return True
 
     def union(self, *others: 'Substitution') -> 'Substitution':
         """Try to merge the substitutions.

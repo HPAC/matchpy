@@ -224,7 +224,7 @@ class CommutativeMatcher(object):
             self.expressions.add(expression)
             for pattern in self.net.match(expression):
                 subst = Substitution()
-                if self._extract_substitution(expression, pattern, subst):
+                if subst.extract_substitution(expression, pattern):
                     self.bipartite[expression, pattern] = subst
 
     def match(self, expression: List[Expression], pattern: CommutativePatternsParts) -> Iterator[Substitution]:
@@ -267,22 +267,6 @@ class CommutativeMatcher(object):
                 for j in range(patterns[patt]):
                     bipartite[(expr, i), (patt, j)] = m
         return bipartite
-
-    @classmethod
-    def _extract_substitution(cls, expression: Expression, pattern: Expression, subst: Substitution) -> bool:
-        if isinstance(pattern, Variable):
-            try:
-                subst.try_add_variable(pattern.name, expression)
-            except ValueError:
-                return False
-            return cls._extract_substitution(expression, pattern.expression, subst)
-        elif isinstance(pattern, Operation):
-            assert isinstance(expression, type(pattern))
-            op_expression = cast(Operation, expression)
-            for expr, patt in zip(op_expression.operands, pattern.operands):
-                if not cls._extract_substitution(expr, patt, subst):
-                    return False
-        return True
 
     @staticmethod
     def _is_canonical_matching(matching: Dict[Tuple[Tuple[Expression, int], Tuple[Expression, int]], Any]) -> bool:
