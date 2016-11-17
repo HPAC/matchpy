@@ -173,35 +173,33 @@ def _term_str(term: TermAtom) -> str:  # pragma: no cover
         return str(term)
 
 
-class _State(Dict[TransitionLabel, Union['_State', List[T]]], Generic[T]):
+class _State(Dict[TransitionLabel, '_State'], Generic[T]):
     """An DFA state used by the :class:`DiscriminationNet`.
 
     This is a dict of transitions mapping terms of a :class:`FlatTerm` to new states.
     Each state has a unique :attr:`id`.
-
-    A transition can also go to a terminal state that is a list of patterns.
     """
 
     _id = 1
 
-    def __init__(self) -> None:
+    def __init__(self, payload=None) -> None:
         super().__init__(self)
         self.id = _State._id
         _State._id += 1
+        self.payload = payload if payload is not None else []
 
-    def _target_str(self, value: Union['_State', List[T]]) -> str:  # pragma: no cover
+    def _target_str(self, value: '_State') -> str:  # pragma: no cover
         """Return a string representation of a transition target."""
         if value is self:
             return 'self'
-        elif isinstance(value, list):
-            return '[{!s}]'.format(', '.join(map(str, value)))
         else:
             return str(value)
 
     @recursive_repr()
     def __repr__(self):
-        return '{{STATE {!s}}}'.format(', '.join('{!s}:{!s}'.format(_term_str(term), self._target_str(target)))
-                                       for term, target in self.items())
+        return '{{STATE {!s}: {!s}}}'.format(self.payload, ', '.join('{!s}:{!s}'.format(_term_str(term),
+                                                                                        self._target_str(target))
+                                                                     for term, target in self.items()))
 
 
 class _StateQueueItem(Generic[T]):
@@ -224,12 +222,15 @@ class _StateQueueItem(Generic[T]):
     def __init__(self, state1: _State[T], state2: _State[T]) -> None:
         self.state1 = state1
         self.state2 = state2
+        self.payload = []
         try:
             self.id1 = state1.id
+            self.payload.extend(state1.payload)
         except AttributeError:
             self.id1 = 0
         try:
             self.id2 = state2.id
+            self.payload.extend(state2.payload)
         except AttributeError:
             self.id2 = 0
         self.depth = 0
@@ -301,17 +302,13 @@ class DiscriminationNet(Generic[T]):
     def _generate_syntactic_net(cls, flatterm: FlatTerm, final_label: T) -> _State[T]:
         root = state = _State()
 
-        for term in flatterm[:-1]:
+        for term in flatterm:
             if isinstance(term, Wildcard):
                 state = cls._generate_state_chain(state, Wildcard, term.min_count)
             else:
                 state = cls._create_child_state(state, term)
 
-        if isinstance(flatterm[-1], Wildcard):
-            state = cls._generate_state_chain(state, Wildcard, flatterm[-1].min_count - 1)
-            state[Wildcard] = [final_label]
-        else:
-            state[flatterm[-1]] = [final_label]
+        state.payload = [final_label]
 
         return root
 
@@ -330,10 +327,14 @@ class DiscriminationNet(Generic[T]):
         # Generate a fail state for every level of nesting to backtrack to a sequence wildcard in a parent Expression
         # in case no match can be found
         fail_states = [None]
+        operand_counts = [0]
         root = state = _State()
         states = {root.id: root}
 
-        for term in flatterm[:-1]:
+        for term in flatterm:
+            if operand_counts[-1] >= 0:
+                operand_counts[-1] += 1
+
             # For wildcards, generate a chain of #min_count Wildcard edges
             # If the wildcard is unbounded (fixed_size = False),
             # add a wildcard self loop at the end
@@ -346,38 +347,66 @@ class DiscriminationNet(Generic[T]):
                 if not term.fixed_size:
                     state[Wildcard] = state
                     last_wildcards[-1] = state
+                    operand_counts[-1] = -1
             else:
                 state = cls._create_child_state(state, term)
                 states[state.id] = state
                 if is_operation(term):
                     fail_state = None
                     if last_wildcards[-1] or fail_states[-1]:
-                        fail_state = _State()
-                        states[fail_state.id] = fail_state
-                        fail_state[OPERATION_END] = last_wildcards[-1] or fail_states[-1]
-                        fail_state[Wildcard] = fail_state
+                        last_fail_state = fail_states[-1] if not isinstance(fail_states[-1], list) else fail_states[-1][operand_counts[-1]]
+                        if term.arity.fixed_size:
+                            fail_state = _State()
+                            states[fail_state.id] = fail_state
+                            new_fail_states = [fail_state]
+                            for i in range(term.arity.min_count):
+                                new_fail_state = _State()
+                                states[new_fail_state.id] = new_fail_state
+                                fail_state[Wildcard] = new_fail_state
+                                fail_state = new_fail_state
+                                new_fail_states.append(new_fail_state)
+                            fail_state[OPERATION_END] = last_wildcards[-1] or last_fail_state
+                            fail_state = new_fail_states
+                        else:
+                            fail_state = _State()
+                            states[fail_state.id] = fail_state
+                            fail_state[OPERATION_END] = last_wildcards[-1] or last_fail_state
+                            fail_state[Wildcard] = fail_state
                     fail_states.append(fail_state)
                     last_wildcards.append(None)
+                    operand_counts.append(0)
                 elif term == OPERATION_END:
                     fail_states.pop()
                     last_wildcards.pop()
+                    operand_counts.pop()
 
             if last_wildcards[-1] != state:
                 if last_wildcards[-1]:
                     state[EPSILON] = last_wildcards[-1]
                 elif fail_states[-1]:
-                    state[EPSILON] = fail_states[-1]
+                    last_fail_state = fail_states[-1] if not isinstance(fail_states[-1], list) else fail_states[-1][operand_counts[-1]]
+                    state[EPSILON] = last_fail_state
 
-        assert not isinstance(flatterm[-1], Wildcard)
-        state[flatterm[-1]] = [final_label]
+
+        state.payload = [final_label]
 
         return cls._convert_nfa_to_dfa(root, states)
+
+    @staticmethod
+    def _create_state(state_set: Set[int], states: Dict[int, _State[T]]) -> _State[T]:
+        payload = set()
+
+        for state in state_set:
+            payload.update(states[state].payload)
+
+        return _State(list(payload))
+
 
     @classmethod
     def _convert_nfa_to_dfa(cls, root: _State[T], states: Dict[int, _State[T]]) -> _State[T]:
         new_root = cls._epsilon_closure({root.id}, states)
         queue = [new_root]
-        new_states = {new_root: _State()}
+        new_states = {new_root: cls._create_state(new_root, states)}
 
         while queue:
             state = queue.pop()
@@ -388,14 +417,11 @@ class DiscriminationNet(Generic[T]):
                 if label is EPSILON:
                     continue
                 target = cls._target_set(state, label, states)
-                if isinstance(target, list):
-                    new_state[label] = target
-                else:
-                    if target not in new_states:
-                        new_states[target] = _State()
-                        queue.append(target)
+                if target not in new_states:
+                    new_states[target] = cls._create_state(target, states)
+                    queue.append(target)
 
-                    new_state[label] = new_states[target]
+                new_state[label] = new_states[target]
 
         return new_states[new_root]
 
@@ -426,8 +452,6 @@ class DiscriminationNet(Generic[T]):
 
         for s in state:
             if label in states[s]:
-                if isinstance(states[s][label], list):
-                    return states[s][label]
                 output.add(states[s][label].id)
             if isinstance(label, Symbol):
                 type_label = _get_symbol_wildcard_label(states[s], label)
@@ -435,11 +459,9 @@ class DiscriminationNet(Generic[T]):
                     # A symbol with an alternative symbol wildcard can never be the final edge in the automaton
                     # If it is, an invalid NFA was manually generated, that allows alternative expressions (OR) or has
                     # imbalanced nesting
-                    assert not isinstance(states[s][type_label], list)
                     output.add(states[s][type_label].id)
             if Wildcard in states[s] and not is_operation(label) and label != OPERATION_END:
                 # Trivial wildcard expressions are handled by the syntactic net generator
-                assert not isinstance(states[s][Wildcard], list)
                 output.add(states[s][Wildcard].id)
 
         return cls._epsilon_closure(output, states)
@@ -489,55 +511,42 @@ class DiscriminationNet(Generic[T]):
                         child_state.depth = 1
                         child_state.state1 = current_state.state1
                         child_state.id1 = current_state.id1
+                        child_state.payload = child_state.state2.payload
                     elif with_wildcard2:
                         child_state.fixed = 2
                         child_state.depth = 1
                         child_state.state2 = current_state.state2
                         child_state.id2 = current_state.id2
+                        child_state.payload =  child_state.state1.payload
                 elif label == OPERATION_END and current_state.fixed:
                     child_state.depth -= 1
 
                     if child_state.depth == 0:
                         if child_state.fixed == 1:
                             child_state.state1 = child_state.state1[Wildcard]
-                            try:
-                                child_state.id1 = child_state.state1.id
-                            except AttributeError:
-                                child_state.id1 = 0
+                            child_state.id1 = child_state.state1.id
                         elif child_state.fixed == 2:
                             child_state.state2 = child_state.state2[Wildcard]
-                            try:
-                                child_state.id2 = child_state.state2.id
-                            except AttributeError:
-                                child_state.id2 = 0
+                            child_state.id2 = child_state.state2.id
                         else:
                             raise AssertionError  # unreachable
                         child_state.fixed = 0
 
-                if child_state.id1 != 0 or child_state.id2 != 0:
-                    if (child_state.id1, child_state.id2, child_state.depth) not in states:
-                        states[(child_state.id1, child_state.id2, child_state.depth)] = _State()
-                        queue.append(child_state)
+                if (child_state.id1, child_state.id2, child_state.depth) not in states:
+                    states[(child_state.id1, child_state.id2, child_state.depth)] = _State(child_state.payload)
+                    queue.append(child_state)
 
-                    state[label] = states[(child_state.id1, child_state.id2, child_state.depth)]
-                else:
-                    if isinstance(child_state.state1, list) and isinstance(child_state.state2, list):
-                        state[label] = child_state.state1 + child_state.state2
-                    elif isinstance(child_state.state1, list):
-                        state[label] = child_state.state1
-                    elif isinstance(child_state.state2, list):
-                        state[label] = child_state.state2
-                    else:
-                        # Unreachable, because the state (None, None) cannot be reached, as
-                        # only labels which occur in at least one state are considered
-                        raise AssertionError
+                state[label] = states[(child_state.id1, child_state.id2, child_state.depth)]
 
         return root
 
-    def match(self, expression: Expression) -> List[T]:
+    def match(self, expression: Union[Expression, FlatTerm], collect: bool=False, first=False) -> List[T]:
         flatterm = FlatTerm(expression) if isinstance(expression, Expression) else expression
         state = self._root
         depth = 0
+        result = state.payload[:]
+        if result and first:
+            return result
         for term in flatterm:
             if depth > 0:
                 if is_operation(term):
@@ -560,15 +569,14 @@ class DiscriminationNet(Generic[T]):
                         else:
                             raise TypeError("Expression contains non-terminal atom: {!s}".format(expression))
                 except KeyError:
-                    return []
+                    return result if collect else []
 
-                if not isinstance(state, _State):
-                    return state
+                if state.payload and first:
+                    return state.payload
 
-        # Unreachable code: Unless the automaton got manually screwed up, it should be balanced in terms of opening and
-        # closing symbols. Reading the expression with such an automaton will always hit a terminal node at the latest
-        # after reading the last symbol in the expression term, so the loop will never finish normally.
-        raise AssertionError
+                result.extend(state.payload)
+
+        return result if collect else state.payload
 
     def as_graph(self) -> Digraph:  # pragma: no cover
         dot = Digraph()
@@ -577,16 +585,15 @@ class DiscriminationNet(Generic[T]):
         queue = [self._root]
         while queue:
             state = queue.pop(0)
-            nodes.add(state.id)
-            dot.node('n{!s}'.format(state.id), '', {'shape': 'point'})
+            if not state.payload:
+                dot.node('n{!s}'.format(state.id), '', {'shape': ('circle' if state else 'doublecircle' )})
+            else:
+                dot.node('n{!s}'.format(state.id), str(state.payload), {'shape': 'box'})
 
             for next_state in state.values():
-                if isinstance(next_state, _State):
-                    if next_state.id not in nodes:
-                        queue.append(next_state)
-                else:
-                    l = '\n'.join(str(x) for x in next_state)
-                    dot.node('l{!s}'.format(id(next_state)), l, {'shape': 'plaintext'})
+                if next_state.id not in nodes:
+                    queue.append(next_state)
+                    nodes.add(state.id)
 
         nodes = set()
         queue = [self._root]
@@ -597,14 +604,12 @@ class DiscriminationNet(Generic[T]):
             nodes.add(state.id)
 
             for (label, other) in state.items():
-                if isinstance(other, _State):
-                    dot.edge('n{!s}'.format(state.id), 'n{!s}'.format(other.id), _term_str(label))
-                    if other.id not in nodes:
-                        queue.append(other)
-                else:
-                    dot.edge('n{!s}'.format(state.id), 'l{!s}'.format(id(other)), _term_str(label))
+                dot.edge('n{!s}'.format(state.id), 'n{!s}'.format(other.id), _term_str(label))
+                if other.id not in nodes:
+                    queue.append(other)
 
         return dot
+
 
 if __name__ == '__main__':
     import doctest

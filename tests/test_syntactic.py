@@ -2,7 +2,7 @@
 import random
 
 import hypothesis.strategies as st
-from hypothesis import assume, given
+from hypothesis import assume, given, example
 import pytest
 
 from patternmatcher.expressions import (Arity, Atom, Operation, Symbol,
@@ -17,7 +17,7 @@ class SpecialSymbol(Symbol): pass
 
 f = Operation.new('f', Arity.variadic)
 g = Operation.new('g', Arity.variadic)
-h = Operation.new('h', Arity.variadic)
+h = Operation.new('h', Arity.unary)
 a = Symbol('a')
 b = Symbol('b')
 c = Symbol('c')
@@ -166,7 +166,7 @@ expression_strategy = st.recursive(expression_base_strategy, expression_recurse_
         (f(___, g(_)),              f(g(a), g(b)),                          True),
         (f(___, g(_)),              f(g(b), g(a)),                          True),
         (f(___, g(_)),              f(g(b), g(h(a))),                       True),
-        (f(___, g(_)),              f(g(b), g(h(a, b))),                    True),
+        (f(___, g(_)),              f(g(b), g(g(a, b))),                    True),
         (f(___, g(_)),              f(g(b), g(h(a), a)),                    False),
         (f(___, g(___)),            f(g(a), g(b)),                          True),
         (f(___, g(___)),            f(g(b), g(a, b)),                       True),
@@ -213,6 +213,7 @@ def test_variable_expression_match_error():
 
 
 @given(st.sets(expression_strategy, max_size=20))
+@example({freeze(f(a)), freeze(f(_s))})
 def test_randomized_product_net(patterns):
     assume(all(not isinstance(p, Atom) for p in patterns))
 
