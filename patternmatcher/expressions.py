@@ -7,7 +7,7 @@ from typing import (Callable, Dict, Iterator, List, NamedTuple, Optional, Set,
 
 from multiset import Multiset
 
-from patternmatcher.utils import cached_property
+from .utils import cached_property
 
 
 # This class is needed so that Tuple and Enum play nicely with each other
@@ -898,8 +898,3 @@ def unfreeze(expr: FrozenExpression) -> Expression:
     if isinstance(expr, Operation):
         return expr._original_base.from_args(*map(unfreeze, expr.operands), constraint=expr.constraint)
     raise AssertionError
-
-
-if __name__ == '__main__':
-    import doctest
-    doctest.testmod(exclude_empty=True)

@@ -713,20 +713,3 @@ class SequenceMatcher(DiscriminationNet):
                         continue
 
                     yield subst, pattern
-
-
-if __name__ == '__main__':
-    import doctest
-
-    globs = {
-        'f': Operation.new('f', Arity.variadic),
-        'a': Symbol('a'),
-        'b': Symbol('b'),
-        'c': Symbol('c'),
-        'x_': Variable.dot('x'),
-        '_': Wildcard.dot(),
-        '__': Wildcard.plus(),
-        '___': Wildcard.star()
-    }
-
-    doctest.testmod(exclude_empty=True, extraglobs=globs)

@@ -12,7 +12,7 @@ from ..utils import (VariableWithCount,
                      commutative_sequence_variable_partition_iter,
                      fixed_integer_vector_iter, iterator_chain)
 from .bipartite import BipartiteGraph, enum_maximum_matchings_iter
-from .common import _match_operation, _match_variable, _match_wildcard
+from .common import match_operation, match_variable, match_wildcard
 from .syntactic import DiscriminationNet
 
 VarInfo = NamedTuple('VarInfo', [('min_count', int), ('constraint', Constraint)])
@@ -158,10 +158,10 @@ class ManyToOneMatcher(object):
 
     def _match(self, expressions, pattern, subst):
         if isinstance(pattern, Variable):
-            yield from _match_variable(expressions, pattern, subst, self._match)
+            yield from match_variable(expressions, pattern, subst, self._match)
 
         elif isinstance(pattern, Wildcard):
-            yield from _match_wildcard(expressions, pattern, subst)
+            yield from match_wildcard(expressions, pattern, subst)
 
         elif isinstance(pattern, Symbol):
             if len(expressions) == 1 and expressions[0] == pattern:
@@ -179,7 +179,7 @@ class ManyToOneMatcher(object):
                 parts = CommutativePatternsParts(type(pattern), *pattern.operands)
                 yield from matcher.match(op_expr.operands, parts)
             else:
-                for result in _match_operation(op_expr.operands, pattern, subst, self._match):
+                for result in match_operation(op_expr.operands, pattern, subst, self._match):
                     if pattern.constraint is None or pattern.constraint(result):
                         yield result
 

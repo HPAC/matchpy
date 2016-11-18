@@ -1,17 +1,10 @@
 # -*- coding: utf-8 -*-
 import itertools
-import math
-from typing import (Callable, Iterator, List, NamedTuple, Sequence, Tuple,
-                    Union, cast)
+from typing import Callable, List, NamedTuple, Sequence, Tuple, Union
 
-from patternmatcher.expressions import (Arity, Expression, Operation,
-                                        Substitution, Symbol, SymbolWildcard,
-                                        Variable, Wildcard)
-from patternmatcher.utils import (commutative_partition_iter,
-                                  integer_partition_vector_iter,
-                                  iterator_chain)
+from .expressions import Expression, Operation, Substitution, Variable
+from .matching.one_to_one import match
 
-from patternmatcher.matching.one_to_one import match
 
 def substitute(expression: Expression, substitution: Substitution) -> Tuple[Union[Expression, List[Expression]], bool]:
     """Replaces variables in the given `expression` by the given `substitution`.
@@ -125,14 +118,3 @@ def replace_all(expression: Expression, rules: Sequence[ReplacementRule]) -> Uni
                 break
 
     return expression
-
-if __name__ == '__main__':
-    import doctest
-
-    f = Operation.new('f', Arity.variadic)
-    a = Symbol('a')
-    b = Symbol('b')
-    c = Symbol('c')
-    x_ = Variable.dot('x')
-
-    doctest.testmod(exclude_empty=True)

@@ -8,12 +8,15 @@ from ..utils import (commutative_partition_iter, integer_partition_vector_iter,
                      iterator_chain)
 
 
+Matcher = Callable[[List[Expression], Expression, Substitution], Iterator[Substitution]]
+
+
 def match(expressions: List[Expression], pattern: Expression, subst: Substitution) -> Iterator[Substitution]:
     if isinstance(pattern, Variable):
-        yield from _match_variable(expressions, pattern, subst, match)
+        yield from match_variable(expressions, pattern, subst, match)
 
     elif isinstance(pattern, Wildcard):
-        yield from _match_wildcard(expressions, pattern, subst)
+        yield from match_wildcard(expressions, pattern, subst)
 
     elif isinstance(pattern, Symbol):
         if len(expressions) == 1 and expressions[0] == pattern:
@@ -25,14 +28,12 @@ def match(expressions: List[Expression], pattern: Expression, subst: Substitutio
         if len(expressions) != 1 or not isinstance(expressions[0], pattern.__class__):
             return
         op_expr = cast(Operation, expressions[0])
-        for result in _match_operation(op_expr.operands, pattern, subst, match):
+        for result in match_operation(op_expr.operands, pattern, subst, match):
             if pattern.constraint is None or pattern.constraint(result):
                 yield result
 
-Matcher = Callable[[List[Expression], Expression, Substitution], Iterator[Substitution]]
 
-
-def _match_variable(expressions: List[Expression], variable: Variable, subst: Substitution, matcher: Matcher) \
+def match_variable(expressions: List[Expression], variable: Variable, subst: Substitution, matcher: Matcher) \
         -> Iterator[Substitution]:
     inner = variable.expression
     if len(expressions) == 1 and (not isinstance(inner, Wildcard) or inner.fixed_size):
@@ -51,7 +52,7 @@ def _match_variable(expressions: List[Expression], variable: Variable, subst: Su
             yield new_subst
 
 
-def _match_wildcard(expressions: List[Expression], wildcard: Wildcard, subst: Substitution) -> Iterator[Substitution]:
+def match_wildcard(expressions: List[Expression], wildcard: Wildcard, subst: Substitution) -> Iterator[Substitution]:
     if wildcard.fixed_size:
         if len(expressions) == wildcard.min_count:
             if isinstance(wildcard, SymbolWildcard) and not isinstance(expressions[0], wildcard.symbol_type):
@@ -87,10 +88,6 @@ def _size(expr):
     if isinstance(expr, Wildcard):
         return (expr.min_count, (not expr.fixed_size) and math.inf or expr.min_count)
     return (1, 1)
-
-
-def _partitions_iter(expressions, vars):
-    integer_partition_vector_iter
 
 
 def _match_factory(expressions, operand, matcher):
@@ -161,7 +158,7 @@ def _non_commutative_match(expressions, operation, subst, matcher):
             yield new_subst
 
 
-def _match_operation(expressions, operation, subst, matcher):
+def match_operation(expressions, operation, subst, matcher):
     if len(operation.operands) == 0:
         if len(expressions) == 0:
             yield subst

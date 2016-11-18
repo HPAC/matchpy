@@ -3,8 +3,8 @@ import inspect
 from abc import ABCMeta, abstractmethod
 from typing import Callable, Optional, Set
 
-from patternmatcher.expressions import Substitution
-from patternmatcher.utils import get_short_lambda_source
+from .expressions import Substitution
+from .utils import get_short_lambda_source
 
 
 class Constraint(object, metaclass=ABCMeta):
@@ -119,9 +119,3 @@ class CustomConstraint(Constraint):
 
     def __hash__(self):
         return hash(self.constraint)
-
-
-if __name__ == '__main__':
-    import doctest
-    doctest.testmod(exclude_empty=True)
-
