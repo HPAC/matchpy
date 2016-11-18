@@ -1,5 +1,19 @@
-patternmatcher.matching module
-==============================
+patternmatcher.matching package
+===============================
+
+Submodules
+----------
+
+.. toctree::
+
+   patternmatcher.matching.bipartite
+   patternmatcher.matching.common
+   patternmatcher.matching.many_to_one
+   patternmatcher.matching.one_to_one
+   patternmatcher.matching.syntactic
+
+Module contents
+---------------
 
 .. automodule:: patternmatcher.matching
     :members:

@@ -1,17 +1,21 @@
 patternmatcher package
 ======================
 
+Subpackages
+-----------
+
+.. toctree::
+
+    patternmatcher.matching
+
 Submodules
 ----------
 
 .. toctree::
 
-   patternmatcher.bipartite
    patternmatcher.constraints
    patternmatcher.expressions
    patternmatcher.functions
-   patternmatcher.matching
-   patternmatcher.syntactic
    patternmatcher.utils
 
 Module contents
