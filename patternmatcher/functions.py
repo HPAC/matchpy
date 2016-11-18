@@ -2,7 +2,7 @@
 import itertools
 from typing import Callable, List, NamedTuple, Sequence, Tuple, Union
 
-from .expressions import Expression, Operation, Substitution, Variable
+from .expressions import Expression, Operation, Substitution, Variable, freeze
 from .matching.one_to_one import match
 
 
@@ -82,9 +82,10 @@ def replace(expression: Expression, position: Sequence[int], replacement: Union[
     op_class = type(expression)
     pos = position[0]
     subexpr = replace(expression.operands[pos], position[1:], replacement)
-    if isinstance(subexpr, list):
-        return op_class.from_args(*(expression.operands[:pos] + subexpr + expression.operands[pos+1:]))
-    operands = expression.operands.copy()
+    if isinstance(subexpr, Sequence):
+        new_operands = tuple(expression.operands[:pos]) + tuple(subexpr) + tuple(expression.operands[pos+1:])
+        return op_class.from_args(*new_operands)
+    operands = list(expression.operands)
     operands[pos] = subexpr
     return op_class.from_args(*operands)
 
@@ -92,29 +93,24 @@ ReplacementRule = NamedTuple('ReplacementRule', [('pattern', Expression), ('repl
 
 
 def replace_all(expression: Expression, rules: Sequence[ReplacementRule]) -> Union[Expression, List[Expression]]:
-    grouped = itertools.groupby(rules, lambda r: r.pattern.head)
-    heads, tmp_groups = map(list, zip(*[(h, list(g)) for h, g in grouped]))
-    groups = [list(g) for g in tmp_groups]
+    rules = [ReplacementRule(freeze(pattern), replacement) for pattern, replacement in rules]
+    expression = freeze(expression)
+    grouped = dict((h, list(g)) for h, g in itertools.groupby(rules, lambda r: r.pattern.head))
     replaced = True
     while replaced:
         replaced = False
-        for head, group in zip(heads, groups):
-            predicate = None
-            if head is not None:
-                predicate = lambda e: e.head == head
-            for subexpr, pos in expression.preorder_iter(predicate):
-                for pattern, replacement in group:
+        for subexpr, pos in expression.preorder_iter():
+            if subexpr.head in grouped:
+                for pattern, replacement in grouped[subexpr.head]:
                     try:
                         subst = next(match(subexpr, pattern))
                         result = replacement(**subst)
-                        expression = replace(expression, pos, result)
+                        expression = freeze(replace(expression, pos, result))
                         replaced = True
                         break
                     except StopIteration:
                         pass
                 if replaced:
                     break
-            if replaced:
-                break
 
     return expression

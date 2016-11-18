@@ -157,60 +157,6 @@ def fixed_sum_vector_iter(min_vect: Sequence[int], max_vect: Sequence[int], tota
                 break
 
 
-def _count(values: Sequence[T]) -> Iterator[Tuple[T, int]]:
-    if len(values) == 0:
-        return
-    sorted_values = sorted(values)
-    last_value = sorted_values[0]
-    last_count = 1
-    for value in sorted_values[1:]:
-        if value != last_value:
-            yield last_value, last_count
-            last_value = value
-            last_count = 1
-        else:
-            last_count += 1
-    yield last_value, last_count
-
-
-ListT = List[T]
-
-def commutative_partition_iter(values: Sequence[T], min_vect: Sequence[int], max_vect: Sequence[int]) \
-        -> Iterator[Tuple[List[T], ...]]:
-    counts = list(_count(values))
-    value_count = len(counts)
-    iterators = [None] * value_count  # type: List[Optional[Iterator[List[int]]]]
-    pvalues = [None] * value_count  # type: List[Optional[List[int]]]
-    new_min = tuple(0 for _ in min_vect)
-    iterators[0] = fixed_sum_vector_iter(new_min, max_vect, counts[0][1])
-    try:
-        pvalues[0] = iterators[0].__next__()
-    except IndexError:
-        return
-    i = 1
-    while True:
-        try:
-            while i < value_count:
-                if iterators[i] is None:
-                    iterators[i] = fixed_sum_vector_iter(new_min, max_vect, counts[i][1])
-                pvalues[i] = iterators[i].__next__()
-                i += 1
-            sums = tuple(map(sum, zip(*pvalues)))  # type: Tuple[int, ...]
-            if all(minc <= s and s <= maxc for minc, s, maxc in zip(min_vect, sums, max_vect)):
-                # cast is needed for mypy, as it can't infer the type of the empty list otherwise
-                partiton = tuple(cast(ListT, []) for _ in range(len(min_vect)))  # type: Tuple[List[T], ...]
-                for cs, (v, _) in zip(pvalues, counts):
-                    for j, c in enumerate(cs):
-                        partiton[j].extend([v] * c)
-                yield partiton
-            i -= 1
-        except StopIteration:
-            iterators[i] = None
-            i -= 1
-            if i < 0:
-                return
-
-
 def _make_iter_factory(value, total, variables: List[VariableWithCount]):
     var_counts = [v.count for v in variables]
 
@@ -238,6 +184,8 @@ def commutative_sequence_variable_partition_iter(values: Multiset[T], variables:
                 valid = False
                 break
         if valid:
+            if None in subst:
+                del subst[None]
             yield subst
 
 

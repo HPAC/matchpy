@@ -3,7 +3,7 @@ import pytest
 
 from patternmatcher.constraints import CustomConstraint, MultiConstraint
 from patternmatcher.expressions import Operation, Symbol, Variable, Arity, Wildcard, freeze
-from patternmatcher.matching.many_to_one import CommutativePatternsParts
+from patternmatcher.matching.common import CommutativePatternsParts
 
 f = Operation.new('f', Arity.variadic)
 f2 = Operation.new('f2', Arity.variadic)
@@ -58,8 +58,13 @@ class TestCommutativePatternsParts:
             ([fc(a)],                       [fc(a)],        [],             [],                     [],                     []),
             ([fc(a), fc(b)],                [fc(a), fc(b)], [],             [],                     [],                     []),
             ([a, x_, x__, f(x_), fc(x_)],   [a],            [f(x_)],        [('x', 1)],             [('x', 1)],             [fc(x_)]),
-            ([__],                          [],             [],             [(None, 1)],            [],                     []),
-            ([_],                           [],             [],             [],                     [(None, 1)],            []),
+            ([__],                          [],             [],             [],                     [],                     []),
+            ([_],                           [],             [],             [],                     [],                     []),
+            ([_, _],                        [],             [],             [],                     [],                     []),
+            ([___],                         [],             [],             [],                     [],                     []),
+            ([___, __, _],                  [],             [],             [],                     [],                     []),
+            ([__, x_],                      [],             [],             [],                     [('x', 1)],             []),
+            ([__, x__],                     [],             [],             [('x', 1)],             [],             []),
         ]
     )
     def test_parts(self, expressions, constant, syntactic, sequence_variables, fixed_variables, rest):
@@ -84,6 +89,16 @@ class TestCommutativePatternsParts:
 
         assert sum(c for _, c in sequence_variables) == parts.sequence_variable_min_length
         assert sum(c for _, c in fixed_variables) == parts.fixed_variable_length
+
+        if any(isinstance(o, Wildcard) for o in expressions):
+            fixed = all(wc.fixed_size for wc in expressions if isinstance(wc, Wildcard))
+            length = sum(wc.min_count for wc in expressions if isinstance(wc, Wildcard))
+
+            assert parts.wildcard_fixed is fixed
+            assert parts.wildcard_min_length == length
+        else:
+            assert parts.wildcard_fixed is None
+
 
     @pytest.mark.parametrize(
         '   constraints,                        result_constraint',

@@ -772,7 +772,7 @@ class Substitution(Dict[str, VariableReplacement]):
 
         Raises:
             ValueError:
-                if a variable occures in multiple substitutions but cannot be merged because the
+                if a variable occurs in multiple substitutions but cannot be merged because the
                 substitutions conflict.
         """
         new_subst = Substitution(self)
