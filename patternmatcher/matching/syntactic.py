@@ -5,9 +5,8 @@ from typing import (Any, Dict, FrozenSet, Generic, Iterator, List, Optional,
 
 from graphviz import Digraph
 
-from patternmatcher.expressions import (Arity, Expression, Operation,
-                                        Substitution, Symbol, SymbolWildcard,
-                                        Variable, Wildcard, freeze)
+from ..expressions import (Arity, Expression, Operation, Substitution, Symbol,
+                           SymbolWildcard, Variable, Wildcard, freeze)
 
 T = TypeVar('T')
 

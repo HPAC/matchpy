@@ -2,8 +2,8 @@
 import pytest
 
 from patternmatcher.expressions import Operation, Symbol, Variable, Arity, Wildcard
-from patternmatcher.matching import ManyToOneMatcher
-from patternmatcher.functions import match as match_one_to_one
+from patternmatcher.matching.many_to_one import ManyToOneMatcher
+from patternmatcher.matching.one_to_one import match as match_one_to_one
 
 
 @pytest.fixture(autouse=True)

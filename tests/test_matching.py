@@ -3,7 +3,7 @@ import pytest
 
 from patternmatcher.constraints import CustomConstraint, MultiConstraint
 from patternmatcher.expressions import Operation, Symbol, Variable, Arity, Wildcard, freeze
-from patternmatcher.matching import CommutativePatternsParts
+from patternmatcher.matching.many_to_one import CommutativePatternsParts
 
 f = Operation.new('f', Arity.variadic)
 f2 = Operation.new('f2', Arity.variadic)

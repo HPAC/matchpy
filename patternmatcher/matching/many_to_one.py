@@ -5,17 +5,15 @@ from typing import (Any, Dict, Generic,  # pylint: disable=unused-import
 
 from multiset import Multiset
 
-from patternmatcher.bipartite import (BipartiteGraph,
-                                      enum_maximum_matchings_iter)
-from patternmatcher.constraints import Constraint, MultiConstraint
-from patternmatcher.expressions import (Expression, Operation, Substitution,
-                                        Symbol, Variable, Wildcard)
-from patternmatcher.functions import (_match_operation, _match_variable,
-                                      _match_wildcard)
-from patternmatcher.syntactic import DiscriminationNet
-from patternmatcher.utils import (VariableWithCount,
-                                  commutative_sequence_variable_partition_iter,
-                                  fixed_integer_vector_iter, iterator_chain)
+from ..constraints import Constraint, MultiConstraint
+from ..expressions import (Expression, Operation, Substitution, Symbol,
+                           Variable, Wildcard)
+from ..utils import (VariableWithCount,
+                     commutative_sequence_variable_partition_iter,
+                     fixed_integer_vector_iter, iterator_chain)
+from .bipartite import BipartiteGraph, enum_maximum_matchings_iter
+from .common import _match_operation, _match_variable, _match_wildcard
+from .syntactic import DiscriminationNet
 
 VarInfo = NamedTuple('VarInfo', [('min_count', int), ('constraint', Constraint)])
 
@@ -418,8 +416,3 @@ def _split_expressions(expressions: Multiset[Expression]) -> Tuple[Multiset[Expr
             constants[expression] = count
 
     return constants, syntactics
-
-
-if __name__ == '__main__':
-    import doctest
-    doctest.testmod(exclude_empty=True)

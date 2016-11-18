@@ -7,9 +7,11 @@ import pytest
 
 from patternmatcher.expressions import (Arity, Operation, Symbol, Variable,
                                         Wildcard, freeze)
-from patternmatcher.functions import (ReplacementRule, match_anywhere,
-                                      replace, replace_all, substitute)
+from patternmatcher.functions import (ReplacementRule, replace, replace_all,
+                                      substitute)
+from patternmatcher.matching.one_to_one import match_anywhere
 from patternmatcher.utils import match_repr_str
+
 
 class SpecialSymbol(Symbol):
     pass
@@ -433,7 +435,7 @@ class TestMatch:
         constraint4.assert_called_once_with({'x': a, 'y': b})
 
     def test_wildcard_internal_match(self):
-        from patternmatcher.functions import _match
+        from patternmatcher.matching.common import match as _match
 
         matches = list(_match([a, b], x_, {}))
         assert matches == []

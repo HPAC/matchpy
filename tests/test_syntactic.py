@@ -7,11 +7,11 @@ import pytest
 
 from patternmatcher.expressions import (Arity, Atom, Operation, Symbol,
                                         Variable, Wildcard, freeze)
-from patternmatcher.functions import match
-from patternmatcher.syntactic import OPERATION_END as OP_END
-from patternmatcher.syntactic import (DiscriminationNet, FlatTerm,
-                                      SequenceMatcher, is_operation,
-                                      is_symbol_wildcard)
+from patternmatcher.matching.one_to_one import match
+from patternmatcher.matching.syntactic import OPERATION_END as OP_END
+from patternmatcher.matching.syntactic import (DiscriminationNet, FlatTerm,
+                                               SequenceMatcher, is_operation,
+                                               is_symbol_wildcard)
 
 
 class SpecialSymbol(Symbol): pass
