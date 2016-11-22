@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 import pytest
 
-from patternmatcher.expressions import Operation, Symbol, Variable, Arity, Wildcard
+from patternmatcher.expressions import Operation, Symbol, Variable, Arity, Wildcard, freeze
 from patternmatcher.matching.many_to_one import ManyToOneMatcher
 from patternmatcher.matching.one_to_one import match as match_one_to_one
-
 
 @pytest.fixture(autouse=True)
 def add_default_expressions(doctest_namespace):
@@ -13,9 +12,11 @@ def add_default_expressions(doctest_namespace):
     doctest_namespace['b'] = Symbol('b')
     doctest_namespace['c'] = Symbol('c')
     doctest_namespace['x_'] = Variable.dot('x')
+    doctest_namespace['y_'] = Variable.dot('y')
     doctest_namespace['_'] = Wildcard.dot()
     doctest_namespace['__'] = Wildcard.plus()
     doctest_namespace['___'] = Wildcard.star()
+    doctest_namespace['freeze'] = freeze
     doctest_namespace['__name__'] = '__main__'
 
 def pytest_generate_tests(metafunc):

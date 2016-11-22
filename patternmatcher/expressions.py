@@ -91,6 +91,11 @@ class Expression(object):
     def _is_linear(self, variables: Set[str]) -> bool:
         return True
 
+    @property
+    def without_constraints(self):
+        """A copy of the expression without constraints"""
+        raise NotImplementedError()
+
     def preorder_iter(self, predicate: ExprPredicate=None, position: Tuple[int, ...]=()) -> ExpressionsWithPos:
         """Iterates over all subexpressions that match the (optional) `predicate`."""
         if predicate is None or predicate(self):
@@ -227,11 +232,11 @@ class Operation(Expression, metaclass=_OperationMeta):
         var_iters = [o.preorder_iter(lambda e: isinstance(e, Variable)) for o in operands]
         for var, _ in itertools.chain.from_iterable(var_iters):
             if var.name in variables:
-                if variables[var.name] != var:
+                if variables[var.name] != var.without_constraints:
                     raise ValueError("Conflicting versions of variable {!s}: {!r} vs {!r}".format(
                         var.name, var, variables[var.name]))
             else:
-                variables[var.name] = var
+                variables[var.name] = var.without_constraints
 
         self.operands = list(operands)
         self.head = type(self)
@@ -307,10 +312,11 @@ class Operation(Expression, metaclass=_OperationMeta):
         return False
 
     def __eq__(self, other):
-        return isinstance(self, other.__class__) and \
-               self.constraint == other.constraint and \
-               len(self.operands) == len(other.operands) and \
-               all(x == y for x, y in zip(self.operands, other.operands))
+        if not isinstance(self, type(other)):
+            return NotImplemented
+        return (self.constraint == other.constraint
+                and len(self.operands) == len(other.operands)
+                and all(x == y for x, y in zip(self.operands, other.operands)))
 
     def __getitem__(self, key: Tuple[int, ...]) -> Expression:
         if len(key) == 0:
@@ -336,6 +342,10 @@ class Operation(Expression, metaclass=_OperationMeta):
     def symbols(self) -> Multiset[str]:
         return sum((x.symbols for x in self.operands), Multiset([self.name]))
 
+    @property
+    def without_constraints(self):
+        return self.from_args(*self.operands)
+
     def _is_linear(self, variables: Set[str]) -> bool:
         return all(o._is_linear(variables) for o in self.operands)
 
@@ -346,7 +356,7 @@ class Operation(Expression, metaclass=_OperationMeta):
             yield from operand.preorder_iter(predicate, position + (i, ))
 
     def _compute_hash(self):
-        return hash((self.name, ) + tuple(self.operands))
+        return hash((self.name, self.constraint) + tuple(self.operands))
 
 
 class Atom(Expression):
@@ -371,16 +381,22 @@ class Symbol(Atom):
     def symbols(self):
         return Multiset([self.name])
 
+    @property
+    def without_constraints(self):
+        return type(self)(self.name)
+
     def __lt__(self, other):
         if isinstance(other, Symbol):
             return self.name < other.name
         return True
 
     def __eq__(self, other):
-        return (isinstance(self, type(other)) or isinstance(other, type(self))) and self.name == other.name
+        if not isinstance(self, type(other)):
+            return NotImplemented
+        return self.name == other.name and self.constraint == other.constraint
 
     def _compute_hash(self):
-        return hash((Symbol, self.name))
+        return hash((Symbol, self.name, self.constraint))
 
 
 class Variable(Expression):
@@ -433,6 +449,10 @@ class Variable(Expression):
     @property
     def symbols(self) -> Multiset[str]:
         return self.expression.symbols
+
+    @property
+    def without_constraints(self):
+        return type(self)(self.name, self.expression.without_constraints)
 
     @staticmethod
     def dot(name: str, constraint: Optional[Constraint]=None) -> 'Variable':
@@ -500,7 +520,10 @@ class Variable(Expression):
         return '{!s}({!r}, {!r})'.format(type(self).__name__, self.name, self.expression)
 
     def __eq__(self, other):
-        return isinstance(other, Variable) and self.name == other.name and self.expression == other.expression
+        return (isinstance(other, Variable)
+                and self.name == other.name
+                and self.expression == other.expression
+                and self.constraint == other.constraint)
 
     def __lt__(self, other):
         if isinstance(other, Symbol):
@@ -517,7 +540,7 @@ class Variable(Expression):
         return self.expression[key[1:]]
 
     def _compute_hash(self):
-        return hash((Variable, self.name, self.expression))
+        return hash((Variable, self.name, self.expression, self.constraint))
 
 
 class Wildcard(Atom):
@@ -525,6 +548,17 @@ class Wildcard(Atom):
 
     The wildcard will match any number of expressions between `min_count` and `fixed_size`.
     Optionally, the wildcard can also be constrained to only match expressions satisfying a predicate.
+
+    Attributes:
+        min_count
+            The minimum number of expressions this wildcard will match.
+        fixed_size
+            If `True`, the wildcard matches exactly `min_count` expressions.
+            If `False`, the wildcard is a sequence wildcard and can match `min_count` or more expressions.
+        constraint
+            An optional constraint for expressions to be considered a match. If set, this
+            callback is invoked for every match and the return value is utilized to decide
+            whether the match is valid.
     """
 
     def __init__(self, min_count: int, fixed_size: bool, constraint: Optional[Constraint]=None) -> None:
@@ -559,6 +593,10 @@ class Wildcard(Atom):
     @property
     def is_syntactic(self) -> bool:
         return self.fixed_size
+
+    @property
+    def without_constraints(self):
+        return type(self)(self.min_count, self.fixed_size)
 
     @staticmethod
     def dot(length: int=1) -> 'Wildcard':
@@ -614,11 +652,12 @@ class Wildcard(Atom):
     def __eq__(self, other):
         if not isinstance(other, type(self)):
             return NotImplemented
-        return (other.min_count == self.min_count and
-                other.fixed_size == self.fixed_size)
+        return (other.min_count == self.min_count
+                and other.fixed_size == self.fixed_size
+                and other.constraint == self.constraint)
 
     def _compute_hash(self):
-        return hash((Wildcard, self.min_count, self.fixed_size))
+        return hash((Wildcard, self.min_count, self.fixed_size, self.constraint))
 
 
 class SymbolWildcard(Wildcard):
@@ -645,11 +684,17 @@ class SymbolWildcard(Wildcard):
 
         self.symbol_type = symbol_type
 
+    @property
+    def without_constraints(self):
+        return type(self)(self.symbol_type)
+
     def __eq__(self, other):
-        return isinstance(other, SymbolWildcard) and self.symbol_type == other.symbol_type
+        return (isinstance(other, SymbolWildcard)
+                and self.symbol_type == other.symbol_type
+                and other.constraint == self.constraint)
 
     def _compute_hash(self):
-        return hash((SymbolWildcard, self.symbol_type))
+        return hash((SymbolWildcard, self.symbol_type, self.constraint))
 
     def __repr__(self):
         if self.constraint:
@@ -864,6 +909,10 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):
     @cached_property
     def is_linear(self) -> bool:
         return super().is_linear
+
+    @cached_property
+    def without_constraints(self) -> 'FrozenExpression':
+        return super().without_constraints
 
     def __hash__(self):
         # pylint: disable=no-member

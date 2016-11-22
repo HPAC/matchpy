@@ -25,16 +25,15 @@ def fixed_integer_vector_iter(maxVect: Tuple[int, ...], vector_sum: int) -> Iter
 
     The iterator yields the vectors in lexicographical order.
 
-    Examples
-    --------
+    Examples:
 
-    List all vectors that are between (0, 0) and (2, 2) componentwise, where the sum of components is 2:
+        List all vectors that are between (0, 0) and (2, 2) componentwise, where the sum of components is 2:
 
-    >>> vectors = list(fixed_integer_vector_iter([2, 2], 2))
-    >>> vectors
-    [(0, 2), (1, 1), (2, 0)]
-    >>> list(map(sum, vectors))
-    [2, 2, 2]
+        >>> vectors = list(fixed_integer_vector_iter([2, 2], 2))
+        >>> vectors
+        [(0, 2), (1, 1), (2, 0)]
+        >>> list(map(sum, vectors))
+        [2, 2, 2]
     """
     if len(maxVect) == 0:
         yield tuple()

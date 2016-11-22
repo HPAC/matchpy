@@ -34,8 +34,8 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.mathjax',
     'sphinx.ext.intersphinx',
-    'sphinx.ext.napoleon',
     'sphinx_autodoc_napoleon_typehints',
+    'sphinx.ext.napoleon',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -338,8 +338,21 @@ texinfo_documents = [
 #
 # texinfo_no_detailmenu = False
 
-intersphinx_mapping = {'python': ('https://docs.python.org/3.5', None)}
+intersphinx_mapping = {
+    'python': ('https://docs.python.org/3.5', None),
+    'multiset': ('http://multiset.readthedocs.io/en/latest/', None),
+}
 
 napoleon_use_ivar = False
 napoleon_google_docstring = True
 napoleon_numpy_docstring = False
+napoleon_include_private_with_doc = True
+napoleon_include_special_with_doc = True
+
+def skip(app, what, name, obj, skip, options):
+    if name == "__init__":
+        return False
+    return skip
+
+def setup(app):
+    app.connect("autodoc-skip-member", skip)

@@ -1,16 +1,19 @@
 # -*- coding: utf-8 -*-
-import math
-from typing import Callable, Iterator, List, Tuple, Union, cast, Iterable, NamedTuple, Type, Sequence
+from typing import (Callable, Dict, Iterable, Iterator, List, NamedTuple,
+                    Optional, Sequence, Tuple, Type, Union, cast)
 
 from multiset import Multiset
 
 from ..constraints import Constraint, MultiConstraint
-from ..expressions import (Expression, Operation, Substitution, Symbol,
-                           SymbolWildcard, Variable, Wildcard)
-from ..utils import (fixed_integer_vector_iter,
-                     integer_partition_vector_iter, iterator_chain, commutative_sequence_variable_partition_iter, VariableWithCount)
+from ..expressions import (Expression, FrozenExpression, Operation,
+                           Substitution, Symbol, SymbolWildcard, Variable,
+                           Wildcard)
+from ..utils import (VariableWithCount,
+                     commutative_sequence_variable_partition_iter,
+                     fixed_integer_vector_iter, integer_partition_vector_iter,
+                     iterator_chain)
 
-Matcher = Callable[[List[Expression], Expression, Substitution], Iterator[Substitution]]
+Matcher = Callable[[Sequence[FrozenExpression], FrozenExpression, Substitution], Iterator[Substitution]]
 VarInfo = NamedTuple('VarInfo', [('min_count', int), ('constraint', Constraint)])
 
 
@@ -20,10 +23,8 @@ class CommutativePatternsParts(object):
     This data structure contains all the operands of a commutative operation pattern.
     They are distinguished by how they need to be matched against an expression.
 
-    All parts are represented by a :class:`~patternmatcher.multiset.Multiset`. This is essentially
-    equivalent to a multiset. It is used, because the order of operands does not matter
-    in a commutative operation. The count (value) represents how many times the expression (key)
-    occurred in the operation.
+    All parts are represented by a :class:`.Multiset`, because the order of operands does not matter
+    in a commutative operation.
 
     In addition, some lengths are precalculated during the initialization of this data structure
     so that they do not have to be recalculated later.
@@ -31,12 +32,12 @@ class CommutativePatternsParts(object):
     This data structure is meant to be immutable, so do not change any of its attributes!
 
     Attributes:
-        operation (typing.Type[Operation]):
+        operation (Type[Operation]):
             The type of of the original pattern expression. Must be a subclass of
             :class:`.Operation`.
 
         constant (Multiset[Expression]):
-            A :class:`~patternmatcher.multiset.Multiset` representing the constant operands of the pattern.
+            A :class:`~.Multiset` representing the constant operands of the pattern.
             An expression is constant, if it does not contain variables or wildcards.
         syntactic (Multiset[Operation]):
             A :class:`.Multiset` representing the syntactic operands of the pattern.
@@ -47,18 +48,18 @@ class CommutativePatternsParts(object):
             A :class:`.Multiset` representing the sequence variables of the pattern.
             Variables are represented by their name. Additional information is stored in
             ``sequence_variable_infos``. For wildcards without variable, the name will be ``None``.
-        sequence_variable_infos (typing.Dict[str, VarInfo]):
+        sequence_variable_infos (Dict[str, VarInfo]):
             A dictionary mapping sequence variable names to more information about the variable, i.e. its
             ``min_count`` and ``constraint``.
         fixed_variables (Multiset[VarInfo]):
-            A :class:`~patternmatcher.multiset.Multiset` representing the fixed length variables of the pattern.
+            A :class:`.Multiset` representing the fixed length variables of the pattern.
             Here the key is a tuple of the form `(name, length)` of the variable.
             For wildcards without variable, the name will be `None`.
-        fixed_variable_infos (typing.Dict[str, VarInfo]):
+        fixed_variable_infos (Dict[str, VarInfo]):
             A dictionary mapping fixed variable names to more information about the variable, i.e. its
             ``min_count`` and ``constraint``.
         rest (Multiset[Expression]):
-            A :class:`~patternmatcher.multiset.Multiset` representing the operands of the pattern that do not fall
+            A :class:`.Multiset` representing the operands of the pattern that do not fall
             into one of the previous categories. That means it contains operation expressions, which
             are not syntactic.
 
@@ -72,9 +73,25 @@ class CommutativePatternsParts(object):
             The total combined length of all fixed length variables in the commutative
             operation pattern. This is the sum of the `min_count` attributes of the
             variables.
+        wildcard_fixed (Optional[bool]):
+            Iff none of the operands is an unnamed wildcards (i.e. a :class:`.Wildcard` not wrapped in as
+            :class:`.Variable`), it is ``None``. Iff there are any unnamed sequence wildcards, it is
+            ``True``. Otherwise, it is ``False``.
+        wildcard_min_length (int):
+            If :attr:`wildcard_fixed` is not ``None``, this is the total combined minimum length of all unnamed
+            wildcards.
     """
 
-    def __init__(self, operation: Type[Operation], *expressions: Expression) -> None:
+    def __init__(self, operation: Type[Operation], *expressions: FrozenExpression) -> None:
+        """Create a CommutativePatternsParts instance.
+
+        Args:
+            operation:
+                The type of the commutative operation. Must be a subclass of :class:`.Operation` with
+                :attr:`~.Operation.commutative` set to ``True``.
+            *expressions:
+                The operands of the commutative operation.
+        """
         self.operation = operation
         self.length = len(expressions)
 
@@ -91,7 +108,7 @@ class CommutativePatternsParts(object):
         self.wildcard_min_length = 0
         self.wildcard_fixed = None
 
-        for expression in sorted(expressions):
+        for expression in expressions:
             if expression.is_constant:
                 self.constant[expression] += 1
             elif expression.head is None:
@@ -141,7 +158,7 @@ def match(expressions: List[Expression], pattern: Expression, subst: Substitutio
         yield from match_wildcard(expressions, pattern, subst)
 
     elif isinstance(pattern, Symbol):
-        if len(expressions) == 1 and expressions[0] == pattern:
+        if len(expressions) == 1 and isinstance(expressions[0], type(pattern)) and expressions[0].name == pattern.name:
             if pattern.constraint is None or pattern.constraint(subst):
                 yield subst
 
@@ -168,7 +185,7 @@ def match_variable(expressions: List[Expression], variable: Variable, subst: Sub
                 yield subst
         return
     for new_subst in matcher(expressions, variable.expression, subst):
-        new_subst = new_subst.copy()
+        new_subst = Substitution(new_subst)
         new_subst[variable.name] = expr
         if variable.constraint is None or variable.constraint(new_subst):
             yield new_subst
