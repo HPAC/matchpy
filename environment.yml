@@ -13,6 +13,6 @@ dependencies:
 - pip:
   - Sphinx
   - graphviz
-  - sphinx-autodoc-napoleon-typehints
+  - git+https://github.com/wheerd/sphinx-autodoc-typehints.git@napoleon-master#egg=sphinx-autodoc-napoleon-typehints
   - hopcroftkarp
   - multiset

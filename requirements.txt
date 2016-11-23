@@ -2,6 +2,7 @@ Sphinx>=1.4,<2.0
 pylint>=1.6,<2.0
 graphviz>=0.5,<0.6
 coverage>=4.2,<5.0
+git+https://github.com/wheerd/sphinx-autodoc-typehints.git@napoleon-master#egg=sphinx-autodoc-napoleon-typehints
 sphinx-autodoc-napoleon-typehints>=2.1,<3.0
 hypothesis>=3.6,<4.0
 hopcroftkarp>=1.2,<2.0
