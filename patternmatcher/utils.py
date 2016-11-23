@@ -384,16 +384,17 @@ def iterator_chain(initial_data: tuple, *factories: Callable[..., Iterator[tuple
                 break
 
 
-class cached_property(object):
-    def __init__(self, func):
-        self.__doc__ = getattr(func, '__doc__')
-        self.func = func
+class cached_property(property):
+    def __init__(self, getter):
+        super().__init__(getter)
+        self._name = getter.__name__
 
     def __get__(self, obj, cls):
         if obj is None:
             return self
-        value = obj.__dict__[self.func.__name__] = self.func(obj)
-        return value
+        if self._name not in obj.__dict__:
+            obj.__dict__[self._name] = self.fget(obj)
+        return obj.__dict__[self._name]
 
 
 if __name__ == '__main__':

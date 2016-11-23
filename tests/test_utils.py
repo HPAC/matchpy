@@ -2,16 +2,18 @@
 import itertools
 import math
 import os
+from unittest.mock import MagicMock
 
 import hypothesis.strategies as st
-from hypothesis import example, given, assume
+from hypothesis import assume, example, given
 import pytest
 from multiset import Multiset
 
 from patternmatcher.utils import (VariableWithCount, base_solution_linear,
+                                  cached_property,
                                   commutative_sequence_variable_partition_iter,
                                   extended_euclid, fixed_sum_vector_iter,
-                                  solve_linear_diop, get_short_lambda_source)
+                                  get_short_lambda_source, solve_linear_diop)
 
 
 def is_unique_list(l):
@@ -261,6 +263,30 @@ lambda_multiline_example = [
 def test_get_short_lambda_source(lambda_func, expected_source):
     source = get_short_lambda_source(lambda_func)
     assert source == expected_source
+
+
+def test_cached_property():
+    class A:
+        call_count = 0
+        @cached_property
+        def example(self):
+            """Docstring Test"""
+            A.call_count += 1
+            return 42
+
+    a = A()
+    b = A()
+
+    assert A.call_count == 0
+    assert a.example == 42
+    assert A.call_count == 1
+    assert a.example == 42
+    assert A.call_count == 1
+    assert b.example == 42
+    assert A.call_count == 2
+    assert b.example == 42
+    assert A.call_count == 2
+    assert A.example.__doc__ == "Docstring Test"
 
 if __name__ == '__main__':
     import patternmatcher.utils as tested_module
