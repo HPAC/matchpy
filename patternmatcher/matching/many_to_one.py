@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+"""Contains the :class:`ManyToOneMatcher` and other classes related to many-to-one pattern matching."""
+
 from typing import (Any, Dict, FrozenSet, Iterator, List, Sequence, Set, Tuple,
                     Type, cast)
 
@@ -11,9 +13,11 @@ from .common import (CommutativePatternsParts, match_commutative_operation,
                      match_operation, match_variable, match_wildcard, Matcher)
 from .syntactic import DiscriminationNet
 
+__all__ = ['ManyToOneMatcher', 'CommutativeMatcher']
+
 
 class ManyToOneMatcher(object):
-    r"""Pattern matcher that matches a set of patterns against a subject.
+    """Pattern matcher that matches a set of patterns against a subject.
 
     It does so more efficiently than using one-to-one matching for each pattern individually
     by reusing structural similarities of the patterns.
@@ -146,9 +150,11 @@ class ManyToOneMatcher(object):
             subexpressions.setdefault(op_type, set()).update(expressions)
         return subexpressions
 
+Subgraph = BipartiteGraph[Tuple[FrozenExpression, int], Tuple[FrozenExpression, int], Substitution]
+SubgraphMatching = Dict[Tuple[Tuple[Expression, int], Tuple[Expression, int]], Substitution]
 
 class CommutativeMatcher(object):
-    r"""A matcher for commutative patterns.
+    """A matcher for commutative patterns.
 
     Creates a :class:`.DiscriminationNet` from the patterns and uses it to populate a
     :class:`.BipartiteGraph` connecting patterns and matching expressions. This graph is then
@@ -168,12 +174,19 @@ class CommutativeMatcher(object):
             A discrimination net constructed from the pattern set.
         bipartite (BipartiteGraph[FrozenExpression, FrozenExpression, Substitution]):
             A bipartite graph connecting expressions and patterns. An edge represents a match between the expression
-            and pattern and is labeled with the match substitution.
+            and pattern and is labeled with the match substitution. This graph contains all the subexpressions and
+            subpatterns from :attr:`expressions` and :attr:`patterns`.
         matcher (Matcher):
             The matching function that is used for recursive matching, i.e. for every non-syntactic expression.
 
     """
+
     def __init__(self, matcher: Matcher) -> None:
+        """Create a CommutativeMatcher instance.
+
+        Args:
+            matcher: The parent matcher that recursive matching for non-:term:`syntactic` expressions is delegated to.
+        """
         self.patterns = set()  # type: Set[FrozenExpression]
         self.expressions = set()  # type: Set[FrozenExpression]
         self.net = DiscriminationNet()
@@ -181,6 +194,14 @@ class CommutativeMatcher(object):
         self.matcher = matcher
 
     def add_pattern(self, pattern: FrozenExpression) -> None:
+        """Add a new syntactic pattern to be matched later.
+
+        Args:
+            pattern: The pattern to add.
+
+        Raises:
+            ValueError: If the given pattern is not syntactic.
+        """
         if not pattern.is_syntactic:
             raise ValueError("Can only add syntactic subpatterns.")
         if pattern not in self.patterns:
@@ -188,6 +209,14 @@ class CommutativeMatcher(object):
             self.net.add(pattern)
 
     def add_expression(self, expression: FrozenExpression) -> None:
+        """Add a new constant syntactic expression to be matched later.
+
+        Args:
+            expression: The expression to add.
+
+        Raises:
+            ValueError: If the given expression is not syntactic or not constant.
+        """
         if not expression.is_constant or not expression.is_syntactic:
             raise ValueError("The expression must be syntactic and constant.")
         if expression not in self.expressions:
@@ -197,49 +226,144 @@ class CommutativeMatcher(object):
                 if subst.extract_substitution(expression, pattern):
                     self.bipartite[expression, pattern] = subst
 
-    def match(self, expression: List[Expression], pattern: CommutativePatternsParts, substitution: Substitution=None) -> Iterator[Substitution]:
+    def match(self, expression: List[Expression], pattern: CommutativePatternsParts, substitution: Substitution=None) \
+            -> Iterator[Substitution]:
+        """Match the expression against the pattern and yield each valid substitution.
+
+        Uses :func:`.match_commutative_operation` with this matcher's parent :attr:`matcher` to recursively match
+        non-:term:`syntactic` expressions. All syntactic expressions are first tried to match using the matcher's
+        :attr:`bipartite` graph.
+
+        Args:
+            expression:
+                A list of operands of the commutative operation expression to match.
+            pattern:
+                The operands of the commutative operation pattern to match.
+            substitution:
+                The initial substitution as it might already be filled by previous matching steps.
+                If not given, an empty substitution is used instead.
+
+        Yields:
+            Each substitution that is a valid match for the pattern and expression.
+        """
         yield from match_commutative_operation(expression, pattern, substitution, self.matcher, self._syntactic_match)
 
-    def _syntactic_match(self, syntactics, patterns) -> Iterator[Substitution]:
-        subgraph = self._build_bipartite(syntactics, patterns)
-        match_iter = enum_maximum_matchings_iter(subgraph)
+    def _syntactic_match(self, expressions: Multiset[FrozenExpression], patterns: Multiset[FrozenExpression]) \
+            -> Iterator[Tuple[Substitution, Multiset[FrozenExpression]]]:
+        """Match the multiset of expressions against the multiset of patterns using the bipartite graph.
+
+        Because more expressions than patterns can be given, not all expression might be covered by a match.
+        The remaining expressions are yielded along with the match substitution for every match.
+
+        Args:
+            expressions:
+                A multiset of syntactic constant expressions. The cardinality of the expression multiset can be
+                higher than that of the pattern multiset.
+            patterns:
+                A multiset of syntactic patterns.
+
+        Yields:
+            For every match, the corresponding substitution as well as the remaining expressions not covered by the
+            match as a tuple.
+        """
+        subgraph = self._build_bipartite(expressions, patterns)
+        matching_iter = enum_maximum_matchings_iter(subgraph)
         try:
-            matching = next(match_iter)
-        except StopIteration:
+            matching = next(matching_iter)
+        except StopIteration:  # no matching found
             return
-        if len(matching) < len(patterns):
+        if len(matching) < len(patterns):  # not all patterns covered by matching
             return
 
+        for result, matched_expressions in self._substitution_from_matching(subgraph, matching):
+            yield result, expressions - matched_expressions
+        for matching in matching_iter:
+            for result, matched_expressions in self._substitution_from_matching(subgraph, matching):
+                yield result, expressions - matched_expressions
+
+    def _substitution_from_matching(self, subgraph: Subgraph, matching: SubgraphMatching) \
+            -> Iterator[Tuple[Substitution, Multiset[FrozenExpression]]]:
+        """Create a match substitution from a bipartite matching.
+
+        Args:
+            subgraph:
+                The bipartite subgraph used for matching.
+            matching:
+                The matching to create a substitution from if possible.
+
+        Yields:
+            If the matching is canonical and results in a valid substitution, that substitution is yielded along with
+            the multiset of matched expressions.
+        """
+        # Limiting the matchings to canonical ones eliminates duplicate substitutions being yielded.
         if self._is_canonical_matching(matching):
-            substitutions = (subgraph[s] for s in matching.items())
+            # The substitutions on each edge in the matching need to be unified
+            # Only if they can be, it is a valid match
+            substitutions = (subgraph[edge] for edge in matching.items())
             try:
                 first_subst = next(substitutions)
                 result = first_subst.union(*substitutions)
-                matched = Multiset(e for e, _ in matching)
-                yield result, syntactics - matched
+                matched_expressions = Multiset(subexpression for subexpression, _ in matching)
+                yield result, matched_expressions
             except (ValueError, StopIteration):
                 pass
-        for matching in match_iter:
-            if self._is_canonical_matching(matching):
-                substitutions = (subgraph[s] for s in matching.items())
-                try:
-                    first_subst = next(substitutions)
-                    result = first_subst.union(*substitutions)
-                    matched = Multiset(e for e, _ in matching)
-                    yield result, syntactics - matched
-                except (ValueError, StopIteration):
-                    pass
 
-    def _build_bipartite(self, syntactics: Multiset, patterns: Multiset):
-        bipartite = BipartiteGraph()  # type: BipartiteGraph
+    def _build_bipartite(self, expressions: Multiset[FrozenExpression], patterns: Multiset[FrozenExpression]) \
+            -> Subgraph:
+        """Construct the bipartite graph for the specific match situation.
+
+        For the concrete matching, the bipartite graph must be limited to subexpressions and subpatterns actually
+        occurring in the concrete expression and pattern. This is equivalent to taking the subgraph induced by the
+        occurring subexpression and subpattern nodes.
+
+        However, since the same subexpression and subpatterns can occur multiple times (hence the multisets), their
+        corresponding nodes have to be multiplied by the number of occurrences. These nodes are labeled with a number
+        as well as the original expression, resulting in a tuple.
+
+        Args:
+            expressions:
+                The multiset of subexpressions of the concrete commutative expression.
+            patterns:
+                The multiset of subpatterns of the concrete commutative pattern.
+
+        Returns:
+            The multiplied induced bipartite subgraph for the concrete match situation.
+        """
+        bipartite = BipartiteGraph()  # type: Subgraph
         for (expr, patt), m in self.bipartite.items():
-            for i in range(syntactics[expr]):
+            for i in range(expressions[expr]):
                 for j in range(patterns[patt]):
                     bipartite[(expr, i), (patt, j)] = m
         return bipartite
 
     @staticmethod
-    def _is_canonical_matching(matching: Dict[Tuple[Tuple[Expression, int], Tuple[Expression, int]], Any]) -> bool:
+    def _is_canonical_matching(matching: SubgraphMatching) -> bool:
+        r"""Check if a matching is canonical.
+
+        In the bipartite graph build by :meth:`_build_bipartite`, nodes for expressions and patterns are labeled with
+        a number in addition to the expression or pattern itself. This is to handle multiple occurrences correctly.
+        Consider this example::
+
+            Expressions:    (g(a), 0)   (g(a), 1)
+                                |    \  /    |
+                                |     \/     |
+                                |     /\     |
+                                |    /  \    |
+            Patterns:       (g(x_), 0)  (g(x_), 1)
+
+        Here, there are two matchings in the bipartite graph, but both are equivalent. One matching uses the
+        diagonal edges, the other the straight ones. However, if we define a unique canonical matching then we can avoid
+        such duplications.
+
+        A canonical matching has only edges where the number on the expression is lower than or equal to the number on
+        the pattern. In the above example that applies to the matching with the straight edges only.
+
+        Args:
+            matching: The matching to check.
+
+        Returns:
+            ``True``, iff the matching is canonical.
+        """
         for (_, i), (_, j) in matching.items():
             if i > j:
                 return False
