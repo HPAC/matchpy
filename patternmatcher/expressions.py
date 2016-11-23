@@ -10,6 +10,13 @@ from multiset import Multiset
 from .utils import cached_property
 
 
+__all__ = [
+    'Arity',
+    'Expression', 'Atom', 'Symbol', 'Variable', 'Wildcard', 'Operation',
+    'FrozenExpression', 'freeze', 'unfreeze'
+]
+
+
 # This class is needed so that Tuple and Enum play nicely with each other
 class _ArityMeta(TupleMeta, EnumMeta):
     @classmethod
@@ -41,8 +48,7 @@ class Arity(_ArityBase, Enum, metaclass=_ArityMeta, _root=True):
     def __repr__(self):
         return "{!s}.{!s}".format(type(self).__name__, self._name_)
 
-Match = Dict[str, Union['Expression', List['Expression']]]
-Constraint = Callable[[Match], bool]
+Constraint = Callable[['Substitution'], bool]
 ExprPredicate = Optional[Callable[['Expression'], bool]]
 ExpressionsWithPos = Iterator[Tuple['Expression', Tuple[int, ...]]]
 
@@ -50,54 +56,86 @@ ExpressionsWithPos = Iterator[Tuple['Expression', Tuple[int, ...]]]
 class Expression(object):
     """Base class for all expressions.
 
-    All expressions are immutable, i.e. their attributes should not be changed,
-    as several attributes are computed at instantiation and are not refreshed.
+    Do not subclass this class directly but rather :class:`Symbol` or :class:`Operation`.
+    Creating a direct subclass of Expression might break several (matching) algorithms.
 
     Attributes:
-        constraint
+        constraint (Constraint):
             An optional constraint expression, which is checked for each match
             to verify it.
+        head (Optional[Union[type, Atom]]):
+            The head of the expression. For an operation, it is the type of the operation (i.e. a subclass of
+            :class:`Operation`). For wildcards, it is ``None``. For symbols, it is the symbol itself. For a variable,
+            it is the variable's inner :attr:`~Variable.expression`.
     """
 
     def __init__(self, constraint: Optional[Constraint] = None) -> None:
+        """Create a new expression.
+
+        Args:
+            constraint (Constraint):
+                An optional constraint expression, which is checked for each match
+                to verify it.
+        """
         self.constraint = constraint
         self.head = None  # type: Union[type, Atom]
 
     @property
     def variables(self) -> Multiset[str]:
-        """TODO"""
+        """A multiset of the variable names occurring in the expression."""
         return Multiset()
 
     @property
     def symbols(self) -> Multiset[str]:
-        """TODO"""
+        """A multiset of the symbol names occurring in the expression."""
         return Multiset()
 
     @property
     def is_constant(self) -> bool:
-        """True, if the expression does not contain any wildcards."""
+        """True, iff the expression does not contain any wildcards."""
         return True
 
     @property
     def is_syntactic(self) -> bool:
-        """True, if the expression does not contain any associative or commutative operations or sequence wildcards."""
+        """True, iff the expression does not contain any associative or commutative operations or sequence wildcards."""
         return True
 
     @property
     def is_linear(self) -> bool:
-        """True, if the expression is linear, i.e. every variable may occur at most once."""
+        """True, iff the expression is linear, i.e. every variable may occur at most once."""
         return self._is_linear(set())
 
     def _is_linear(self, variables: Set[str]) -> bool:
         return True
 
     @property
-    def without_constraints(self):
-        """A copy of the expression without constraints"""
+    def without_constraints(self) -> 'Expression':
+        """A copy of the expression without constraints."""
         raise NotImplementedError()
 
-    def preorder_iter(self, predicate: ExprPredicate=None, position: Tuple[int, ...]=()) -> ExpressionsWithPos:
-        """Iterates over all subexpressions that match the (optional) `predicate`."""
+    def preorder_iter(self, predicate: ExprPredicate=None) -> ExpressionsWithPos:
+        """Iterates over all subexpressions that match the (optional) `predicate`.
+
+        Args:
+            predicate:
+                A predicate to filter what expressions are yielded. It gets the expression and if it returns ``True``,
+                the expression is yielded.
+
+        Yields:
+            Every subexpression along with a position tuple. Each item in the tuple is the position of an operation
+            operand:
+
+                - ``()`` is the position of the root element
+                - ``(0, )`` that of its first operand
+                - ``(0, 1)`` the position of the second operand of the root's first operand.
+                - etc.
+
+            A variable's expression always has the position ``0`` relative to the variable, i.e. if the root is a
+            variable, then its expression has the position ``(0, )``.
+        """
+        yield from self._preorder_iter(predicate, ())
+
+    def _preorder_iter(self, predicate: ExprPredicate, position: Tuple[int, ...]) -> ExpressionsWithPos:
         if predicate is None or predicate(self):
             yield self, position
 
@@ -257,7 +295,9 @@ class Operation(Expression, metaclass=_OperationMeta):
         return '{!s}({!s})'.format(type(self).__name__, operand_str)
 
     @staticmethod
-    def new(name: str, arity: Arity, class_name: str = None, **attributes) -> Type['Operation']:
+    def new(name: str, arity: Arity, class_name: str = None, *, associative: bool=False, commutative: bool=False,
+            one_identity: bool=False, infix: bool=False) \
+        -> Type['Operation']:
         """Utility method to create a new operation type.
 
         Example:
@@ -269,17 +309,24 @@ class Operation(Expression, metaclass=_OperationMeta):
         '*(a, b)'
 
         Args:
-            name
+            name:
                 Name or symbol for the operator. Will be used as name for the new class if
                 `class_name` is not specified.
-            arity
+            arity:
                 The arity of the operator as explained in the documentation of :class:`Operation`.
-            class_name
+            class_name:
                 Name for the new operation class to be used instead of name. This argument
                 is required if `name` is not a valid python identifier.
-            attributes
-                Attributes to set in the new class. For a list of possible attributes see the
-                docstring of :class:`Operation`.
+
+        Keyword Args:
+            associative:
+                See :attr:`~Operation.associative`.
+            commutative:
+                See :attr:`~Operation.commutative`.
+            one_identity:
+                See :attr:`~Operation.one_identity`.
+            infix:
+                See :attr:`~Operation.infix`.
 
         Raises:
             ValueError: if the class name of the operation is not a valid class identifier.
@@ -288,10 +335,14 @@ class Operation(Expression, metaclass=_OperationMeta):
         if not class_name.isidentifier() or keyword.iskeyword(class_name):
             raise ValueError("Invalid identifier for new operator class.")
 
-        return type(class_name, (Operation,), dict({
+        return type(class_name, (Operation, ), {
             'name': name,
-            'arity': arity
-        }, **attributes))
+            'arity': arity,
+            'associative': associative,
+            'commutative': commutative,
+            'one_identity': one_identity,
+            'infix': infix
+        })
 
     def __lt__(self, other):
         if isinstance(other, Symbol):
@@ -349,11 +400,11 @@ class Operation(Expression, metaclass=_OperationMeta):
     def _is_linear(self, variables: Set[str]) -> bool:
         return all(o._is_linear(variables) for o in self.operands)
 
-    def preorder_iter(self, predicate: ExprPredicate=None, position: Tuple[int, ...]=()) -> ExpressionsWithPos:
+    def _preorder_iter(self, predicate: ExprPredicate=None, position: Tuple[int, ...]=()) -> ExpressionsWithPos:
         if predicate is None or predicate(self):
             yield self, position
         for i, operand in enumerate(self.operands):
-            yield from operand.preorder_iter(predicate, position + (i, ))
+            yield from operand._preorder_iter(predicate, position + (i, ))
 
     def _compute_hash(self):
         return hash((self.name, self.constraint) + tuple(self.operands))
@@ -404,6 +455,18 @@ class Variable(Expression):
 
     Wraps another pattern expression that is used to match. On match, the matched
     value is captured for the variable.
+
+    Attributes:
+        name (str):
+            The name of the variable that is used to capture its value in the match.
+            Can be used to access its value in constraints or for replacement.
+        expression (Expression):
+            The expression that is used for matching. On match, its value will be
+            assigned to the variable. Usually, a :class:`Wildcard` is used to match
+            any expression.
+        constraint (Optional[Constraint]):
+            See :attr:`Expression.constraint`.
+
     """
 
     def __init__(self, name: str, expression: Expression, constraint: Optional[Constraint]=None) -> None:
@@ -492,10 +555,10 @@ class Variable(Expression):
         """Creates a `Variable` with :class:`Wildcard` that matches exactly `length` expressions."""
         return Variable(name, Wildcard.dot(length), constraint)
 
-    def preorder_iter(self, predicate: ExprPredicate=None, position: Tuple[int, ...]=()) -> ExpressionsWithPos:
+    def _preorder_iter(self, predicate: ExprPredicate=None, position: Tuple[int, ...]=()) -> ExpressionsWithPos:
         if predicate is None or predicate(self):
             yield self, position
-        yield from self.expression.preorder_iter(predicate, position + (0, ))
+        yield from self.expression._preorder_iter(predicate, position + (0, ))
 
     def _is_linear(self, variables: Set[str]) -> bool:
         if self.name in variables:
@@ -550,12 +613,12 @@ class Wildcard(Atom):
     Optionally, the wildcard can also be constrained to only match expressions satisfying a predicate.
 
     Attributes:
-        min_count
+        min_count (int):
             The minimum number of expressions this wildcard will match.
-        fixed_size
+        fixed_size (bool):
             If `True`, the wildcard matches exactly `min_count` expressions.
             If `False`, the wildcard is a sequence wildcard and can match `min_count` or more expressions.
-        constraint
+        constraint (Optional[Constraint]):
             An optional constraint for expressions to be considered a match. If set, this
             callback is invoked for every match and the return value is utilized to decide
             whether the match is valid.
@@ -564,12 +627,12 @@ class Wildcard(Atom):
     def __init__(self, min_count: int, fixed_size: bool, constraint: Optional[Constraint]=None) -> None:
         """
         Args:
-            min_count
+            min_count:
                 The minimum number of expressions this wildcard will match. Must be a non-negative number.
-            fixed_size
+            fixed_size:
                 If `True`, the wildcard matches exactly `min_count` expressions.
                 If `False`, the wildcard is a sequence wildcard and can match `min_count` or more expressions.
-            constraint
+            constraint:
                 An optional constraint for expressions to be considered a match. If set, this
                 callback is invoked for every match and the return value is utilized to decide
                 whether the match is valid.
@@ -600,9 +663,15 @@ class Wildcard(Atom):
 
     @staticmethod
     def dot(length: int=1) -> 'Wildcard':
-        """Creates a :class:`Wildcard` that matches a fixed number `length` of arguments.
+        """Create a :class:`Wildcard` that matches a fixed number `length` of arguments.
 
-        Defaults to matching only a single argument."""
+        Defaults to matching only a single argument.
+
+        Args:
+            length: The fixed number of arguments to match.
+
+        Returns:
+            A wildcard with a fixed size."""
         return Wildcard(min_count=length, fixed_size=True)
 
     @staticmethod
@@ -894,25 +963,37 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):
     def variables(self) -> Multiset[str]:
         return super().variables
 
+    variables.__doc__ = Expression.variables.__doc__
+
     @cached_property
     def symbols(self) -> Multiset[str]:
         return super().symbols
+
+    symbols.__doc__ = Expression.symbols.__doc__
 
     @cached_property
     def is_constant(self) -> bool:
         return super().is_constant
 
+    is_constant.__doc__ = Expression.is_constant.__doc__
+
     @cached_property
     def is_syntactic(self) -> bool:
         return super().is_syntactic
+
+    is_syntactic.__doc__ = Expression.is_syntactic.__doc__
 
     @cached_property
     def is_linear(self) -> bool:
         return super().is_linear
 
+    is_linear.__doc__ = Expression.is_linear.__doc__
+
     @cached_property
     def without_constraints(self) -> 'FrozenExpression':
         return super().without_constraints
+
+    without_constraints.__doc__ = Expression.without_constraints.__doc__
 
     def __hash__(self):
         # pylint: disable=no-member

@@ -344,6 +344,7 @@ intersphinx_mapping = {
 }
 
 napoleon_use_ivar = False
+napoleon_use_rtype = False
 napoleon_google_docstring = True
 napoleon_numpy_docstring = False
 napoleon_include_private_with_doc = True
