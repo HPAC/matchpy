@@ -4,6 +4,7 @@ from unittest.mock import Mock
 import hypothesis.strategies as st
 from hypothesis import assume, given
 import pytest
+from multiset import Multiset
 
 from patternmatcher.expressions import (Arity, Operation, Symbol, Variable,
                                         Wildcard, freeze)
@@ -24,12 +25,13 @@ fa = Operation.new('fa', Arity.variadic, associative=True)
 fa2 = Operation.new('fa2', Arity.variadic, associative=True)
 fac1 = Operation.new('fac1', Arity.variadic, associative=True, commutative=True)
 fac2 = Operation.new('fac2', Arity.variadic, associative=True, commutative=True)
-a = Symbol('a')
-b = Symbol('b')
-c = Symbol('c')
+a = freeze(Symbol('a'))
+b = freeze(Symbol('b'))
+c = freeze(Symbol('c'))
 s = SpecialSymbol('s')
 _ = Wildcard.dot()
 x_ = Variable.dot('x')
+x2_ = Variable.fixed('x', 2)
 y_ = Variable.dot('y')
 z_ = Variable.dot('z')
 s_ = Variable.symbol('s')
@@ -376,6 +378,43 @@ class TestMatch:
         expression = freeze(expression)
         pattern = freeze(pattern)
         result = list(match(expression, pattern))
+        for expected_match in expected_matches:
+            assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(expression, pattern, match_repr_str(expected_match))
+        for result_match in result:
+            assert result_match in expected_matches, "Expression {!s} and {!s} yielded the unexpected match {!s}".format(expression, pattern, match_repr_str(result_match))
+
+    @pytest.mark.parametrize(
+        '   expression,             pattern,                        expected_matches',
+        [
+            (fc(a, b, a, a, b),     fc(x_, x_, x_, y_, y_),         [{'x': a, 'y': b}]),
+            (fc(a, b, a, b),        fc(x_, x_, y_, y_),             [{'x': a, 'y': b},
+                                                                     {'x': b, 'y': a}]),
+            (fc(a, b, a, b),        fc(x_, x_, x_, y_, y_),         []),
+            (fc(a, b, a, b),        fc(x_, y_, y_),                 []),
+            (fc(a, b, a, b),        fc(x_, a, y_, y_),              [{'x': a, 'y': b}]),
+            (fc(a, b, b, b),        fc(x_, b, y_, y_),              [{'x': a, 'y': b}]),
+            (fc(a, b, a, a, b),     fc(_, _, _, y_, y_),            [{'y': a},
+                                                                     {'y': b}]),
+            (fc(a, b, a, b),        fc(_, _, y_, y_),               [{'y': b},
+                                                                     {'y': a}]),
+            (fc(a, b, a, b),        fc(_, _, _, y_, y_),            []),
+            (fc(a, b, a, b),        fc(_, y_, y_),                  []),
+            (fc(a, b, b, b),        fc(_, _, y_, y_),               [{'y': b}]),
+            (fc(a, b, a, b),        fc(_, a, y_, y_),               [{'y': b}]),
+            (fc(a, b, a, b),        fc(_, b, y_, y_),               [{'y': a}]),
+            (fc(a, b, b, b),        fc(_, b, y_, y_),               [{'y': b}]),
+            (fc(a, b, a, a),        fc(x2_, _, _),                  [{'x': Multiset([a, b])},
+                                                                     {'x': Multiset([a, a])}]),
+            (fc(a, b, b, a),        fc(x2_, _, _),                  [{'x': Multiset([a, b])},
+                                                                     {'x': Multiset([a, a])},
+                                                                     {'x': Multiset([b, b])}]),
+        ]
+    )
+    def test_commutative_multiple_fixed_vars(self, match, expression, pattern, expected_matches):
+        expression = freeze(expression)
+        pattern = freeze(pattern)
+        result = list(match(expression, pattern))
+        assert len(result) == len(expected_matches), 'Unexpected number of matches'
         for expected_match in expected_matches:
             assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(expression, pattern, match_repr_str(expected_match))
         for result_match in result:

@@ -424,7 +424,7 @@ def _fixed_var_iter_factory(variable, count, length, constraint=None):
                     sub_counter = Multiset(dict((exprs_with_counts[i][0], c * count) for i, c in enumerate(subset)))
                     if variable is not None:
                         new_substitution = Substitution(substitution)
-                        new_substitution[variable] = list(sub_counter)
+                        new_substitution[variable] = sub_counter
                         if constraint is None or constraint(new_substitution):
                             yield expressions - sub_counter, new_substitution
                     else:

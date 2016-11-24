@@ -12,7 +12,7 @@ from multiset import Multiset
 from patternmatcher.utils import (VariableWithCount, base_solution_linear,
                                   cached_property,
                                   commutative_sequence_variable_partition_iter,
-                                  extended_euclid, fixed_sum_vector_iter,
+                                  extended_euclid, fixed_integer_vector_iter,
                                   get_short_lambda_source, solve_linear_diop)
 
 
@@ -23,51 +23,13 @@ def is_unique_list(l):
                 return False
     return True
 
+class TestFixedIntegerVectorIterator:
+    @given(st.lists(st.integers(min_value=0, max_value=10), max_size=5), st.integers(50))
+    def test_correctness(self, vector, length):
+        vector = tuple(vector)
 
-class TestFixedSumVectorIterator:
-    limits = [(0, 1), (1, 1), (0, 2), (1, 2), (2, 2), (0, math.inf), (1, math.inf), (2, math.inf)]
-    max_partition_count = 3
-
-    def test_correctness(self):
-        for m in range(self.max_partition_count + 1):
-            for limits in itertools.product(self.limits, repeat=m):
-                for n in range(3 * m + 1):
-                    minVect, maxVect = limits and zip(*limits) or (tuple(), tuple())
-                    for vect in fixed_sum_vector_iter(minVect, maxVect, n):
-                        assert len(vect) == m, "Incorrect size of vector"
-                        assert sum(vect) == n, "Incorrect sum of vector"
-
-                        for v, l in zip(vect, limits):
-                            assert v >= l[0], "Value {!r} out of range {!r} in vector {!r}".format(v, l, vect)
-                            assert v <= l[1], "Value {!r} out of range {!r} in vector {!r}".format(v, l, vect)
-
-
-
-
-    def test_completeness(self):
-        for m in range(self.max_partition_count + 1):
-            for limits in itertools.product(self.limits, repeat=m):
-                for n in range(3 * m + 1):
-                    minVect, maxVect = limits and zip(*limits) or (tuple(), tuple())
-                    results = list(fixed_sum_vector_iter(minVect, maxVect, n))
-                    assert is_unique_list(results), "Got duplicate vector"
-
-                    realLimits = [(minimum, min(maximum, n)) for minimum, maximum in limits]
-                    ranges = [list(range(minimum, maximum + 1)) for minimum, maximum in realLimits]
-                    for possibleResult in itertools.product(*ranges):
-                        if sum(possibleResult) != n:
-                            continue
-                        assert list(possibleResult) in results, "Missing expected vector {!r}".format(possibleResult)
-
-    def test_order(self):
-        for m in range(self.max_partition_count + 1):
-            for limits in itertools.product(self.limits, repeat=m):
-                for n in range(3 * m + 1):
-                    minVect, maxVect = limits and zip(*limits) or (tuple(), tuple())
-                    last_vect = [-1] * m
-                    for vect in fixed_sum_vector_iter(minVect, maxVect, n):
-                        assert vect >= last_vect, "Vectors are not in lexical order"
-                        last_vect = vect
+        for result in fixed_integer_vector_iter(vector, length):
+            assert sum(result) == length, '{}, {}, {}'.format(vector, length, result)
 
 
 @given(st.integers(min_value=1, max_value=1000), st.integers(min_value=1, max_value=1000))

@@ -15,11 +15,11 @@ T = TypeVar('T')
 VariableWithCount = NamedTuple('VariableWithCount', [('name', str), ('count', int), ('minimum', int)])
 
 
-def fixed_integer_vector_iter(maxVect: Tuple[int, ...], vector_sum: int) -> Iterator[Tuple[int, ...]]:
+def fixed_integer_vector_iter(max_vect: Tuple[int, ...], vector_sum: int) -> Iterator[Tuple[int, ...]]:
     """
     Return an iterator over the integer vectors which
 
-    - are componentwise less than or equal to `maxVect`, and
+    - are componentwise less than or equal to `max_vect`, and
     - are non-negative, and where
     - the sum of their components is exactly `vector_sum`.
 
@@ -35,33 +35,19 @@ def fixed_integer_vector_iter(maxVect: Tuple[int, ...], vector_sum: int) -> Iter
         >>> list(map(sum, vectors))
         [2, 2, 2]
     """
-    if len(maxVect) == 0:
-        yield tuple()
+    if len(max_vect) == 0:
+        if vector_sum == 0:
+            yield tuple()
         return
 
-    total = sum(maxVect)
+    total = sum(max_vect)
     if vector_sum <= total:
         vector_sum = min(vector_sum, total)
-        start = max(maxVect[0] + vector_sum - total, 0)
-        end = min(maxVect[0], vector_sum)
+        start = max(max_vect[0] + vector_sum - total, 0)
+        end = min(max_vect[0], vector_sum)
 
         for j in range(start, end + 1):
-            for vec in fixed_integer_vector_iter(maxVect[1:], vector_sum - j):
-                yield (j, ) + vec
-
-
-def minimum_integer_vector_iter(maxVect: Tuple[int, ...], minSum: int=0) -> Iterator[Tuple[int, ...]]:
-    if len(maxVect) == 0:
-        yield tuple()
-        return
-
-    total = sum(maxVect)
-    if minSum <= total:
-        start = max(maxVect[0] + minSum - total, 0)
-
-        for j in range(start, maxVect[0] + 1):
-            newmin = max(0, minSum - j)
-            for vec in minimum_integer_vector_iter(maxVect[1:], newmin):
+            for vec in fixed_integer_vector_iter(max_vect[1:], vector_sum - j):
                 yield (j, ) + vec
 
 
@@ -82,78 +68,6 @@ def integer_partition_vector_iter(n: int, m: int) -> Iterator[List[int]]:
     for i in range(0, n + 1):
         for vec in integer_partition_vector_iter(n - i, m - 1):
             yield (i, ) + vec
-
-
-def fixed_sum_vector_iter(min_vect: Sequence[int], max_vect: Sequence[int], total: int) -> Iterator[List[int]]:
-    assert len(min_vect) == len(max_vect), "len(min_vect) != len(max_vect)"
-    assert all(min_value <= max_value for min_value, max_value in zip(min_vect, max_vect)), "min_vect > max_vect"
-
-    min_sum = sum(min_vect)
-    max_sum = sum(max_vect)
-
-    if min_sum > total or max_sum < total:
-        return
-
-    count = len(max_vect)
-
-    if count <= 1:
-        if len(max_vect) == 1:
-            yield [total]
-        else:
-            yield []
-        return
-
-    remaining = total - min_sum
-
-    real_mins = list(min_vect)
-    real_maxs = list(max_vect)
-
-    for i, (minimum, maximum) in enumerate(zip(min_vect, max_vect)):
-        left_over_sum = sum(max_vect[:i]) + sum(max_vect[i+1:])
-        if left_over_sum != math.inf:
-            real_mins[i] = max(total - left_over_sum, minimum)
-        real_maxs[i] = min(remaining + minimum, maximum)
-
-    values = list(real_mins)
-
-    remaining = total - sum(real_mins)
-
-    if remaining == 0:
-        yield values
-        return
-
-    j = count - 1
-    while remaining > 0:
-        to_add = min(real_maxs[j] - real_mins[j], remaining)
-        values[j] += to_add
-        remaining -= to_add
-        j -= 1
-
-    while True:
-        pos = count - 2
-        yield values[:]
-        while True:
-            values[pos] += 1
-            values[-1] -= 1
-            if values[-1] < real_mins[-1] or values[pos] > real_maxs[pos]:
-                if pos == 0:
-                    return
-                variable_amount = values[pos] - real_mins[pos]
-                values[pos] = real_mins[pos]  # reset current position
-                values[-1] += variable_amount  # reset last position
-
-                if values[-1] > real_maxs[-1]:
-                    remaining = values[-1] - real_maxs[-1] - 1
-                    values[-1] = real_maxs[-1] + 1
-                    j = count - 2
-                    while remaining > 0:
-                        to_add = min(real_maxs[j] - values[j], remaining)
-                        values[j] += to_add
-                        remaining -= to_add
-                        j -= 1
-                pos -= 1
-            else:
-                break
 
 
 def _make_iter_factory(value, total, variables: List[VariableWithCount]):
@@ -351,13 +265,6 @@ def _match_value_repr_str(value):  # pragma: no cover
 
 def match_repr_str(match):  # pragma: no cover
     return ', '.join('{!s}: {!s}'.format(k, _match_value_repr_str(v)) for k, v in match.items())
-
-
-def is_sorted(l):
-    for i, el in enumerate(l[1:]):
-        if el > l[i]:
-            return False
-    return True
 
 
 def iterator_chain(initial_data: tuple, *factories: Callable[..., Iterator[tuple]]) -> Iterator[tuple]:
