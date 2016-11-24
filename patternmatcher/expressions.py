@@ -83,21 +83,33 @@ class Expression(object):
     @property
     def variables(self) -> Multiset[str]:
         """A multiset of the variable names occurring in the expression."""
+        return self._variables()
+
+    def _variables(self) -> Multiset[str]:
         return Multiset()
 
     @property
     def symbols(self) -> Multiset[str]:
         """A multiset of the symbol names occurring in the expression."""
+        return self._symbols()
+
+    def _symbols(self) -> Multiset[str]:
         return Multiset()
 
     @property
     def is_constant(self) -> bool:
         """True, iff the expression does not contain any wildcards."""
+        return self._is_constant()
+
+    def _is_constant(self) -> bool:
         return True
 
     @property
     def is_syntactic(self) -> bool:
         """True, iff the expression does not contain any associative or commutative operations or sequence wildcards."""
+        return self._is_syntactic()
+
+    def _is_syntactic(self) -> bool:
         return True
 
     @property
@@ -111,6 +123,9 @@ class Expression(object):
     @property
     def without_constraints(self) -> 'Expression':
         """A copy of the expression without constraints."""
+        return self._without_constraints()
+
+    def _without_constraints(self) -> 'Expression':
         raise NotImplementedError()
 
     def preorder_iter(self, predicate: ExprPredicate=None) -> ExpressionsWithPos:
@@ -139,13 +154,31 @@ class Expression(object):
         if predicate is None or predicate(self):
             yield self, position
 
-    def __getitem__(self, key: Tuple[int, ...]) -> 'Expression':
-        if len(key) == 0:
+    def __getitem__(self, position: Tuple[int, ...]) -> 'Expression':
+        """Return the subexpression at the given position.
+
+        Args:
+            position: The position as a tuple. See :meth:`preorder_iter` for its format.
+
+        Returns:
+            The subexpression at the given position.
+
+        Raises:
+            IndexError: If the position is invalid, i.e. it refers to a non-existing subexpression.
+        """
+        if len(position) == 0:
             return self
         raise IndexError("Invalid position")
 
 
 class _OperationMeta(type):
+    """Metaclass for :class:`Operation`
+
+    This metaclass is mainly used to override :meth:`__call__` to provide simplification when creating a
+    new operation expression. This is done to avoid problems when overriding ``__new__`` of the operation class
+    and clashes with the :class:`FrozenOperation` class.
+    """
+
     def __repr__(cls):
         return 'Operation[{!r}, arity={!r}, associative={!r}, commutative={!r}, one_identity={!r}]'.format(
             cls.name, cls.arity, cls.associative, cls.commutative, cls.one_identity)
@@ -196,62 +229,84 @@ class _OperationMeta(type):
         return True
 
     def from_args(cls, *args, **kwargs):
+        """Create a new instance of the class using the given arguments.
+
+        This is used so that it can be overridden by :class:`_FrozenOperationMeta`. Use this to create a new instance
+        of an operation with changed operands instead of using the instantiation operation directly.
+        Because the  :class:`FrozenExpression` has a different initializer, this would break for :term:`frozen`
+        operations otherwise.
+
+        Args:
+            *args:
+                Positional arguments.
+            **kwargs:
+                Keyword arguments.
+        """
         return cls(*args, **kwargs)
 
 
 class Operation(Expression, metaclass=_OperationMeta):
-    """Base class for all operations."""
+    """Base class for all operations.
+
+    Do not instantiate this class directly, but create a subclass for every operation in your domain.
+    You can use :meth:`new` as a shortcut for doing so.
+    """
 
     name = None  # type: str
-    """Name or symbol for the operator."""
+    """str: Name or symbol for the operator.
+
+    This needs to be overridden in the subclass.
+    """
 
     arity = Arity.variadic  # type: Arity
-    """The arity of the operator as (`int`, `int`) tuple.
+    """Arity: The arity of the operator.
 
-    The first component represents
-    the minimum number of operands, the second the maximum number. See the :class:`Arity` enum.
+    Trying to construct an operation expression with a number of operands that does not fit its
+    operation's arity will result in an error.
     """
 
     associative = False
-    """True if the operation is associative, i.e. `f(a, f(b, c)) = f(f(a, b), c)`.
+    """bool: True if the operation is associative, i.e. `f(a, f(b, c)) = f(f(a, b), c)`.
 
-    This property is used to flatten nested associative operations of the same type.
-    Therefore, the `arity` of an associative operation has to have an unconstraint maximum
+    This attribute is used to flatten nested associative operations of the same type.
+    Therefore, the `arity` of an associative operation has to have an unconstrained maximum
     number of operand.
     """
 
     commutative = False
-    """True if the operation is commutative, i.e. `f(a, b) = f(b, a)`.
+    """bool: True if the operation is commutative, i.e. `f(a, b) = f(b, a)`.
 
     Note that commutative operations will always be converted into canonical
     form with sorted operands.
     """
 
     one_identity = False
-    """True if the operation with a single argument is equivalent to the identity function.
+    """bool: True if the operation with a single argument is equivalent to the identity function.
 
-    This property is used to simplify expressions, e.g. for `f` with `f.one_identity = True`
-    the expression `f(a)` if simplified to `a`.
+    This property is used to simplify expressions, e.g. for ``f`` with ``f.one_identity = True``
+    the expression ``f(a)`` if simplified to ``a``.
     """
 
     infix = False
-    """True if the name of the operation should be used as an infix operator by str()."""
+    """bool: True if the name of the operation should be used as an infix operator by str()."""
 
-    def __init__(self, *operands: Expression, constraint: Optional[Constraint]=None) -> None:
-        """Base class for all expressions.
-
-        All expressions are immutable, i.e. their attributes should not be changed,
-        as several attributes are computed at instantiation and are not refreshed.
+    def __init__(self, *operands: Expression, constraint: Constraint=None) -> None:
+        """Create an operation expression.
 
         Args:
-            operands
+            *operands
                 The operands for the operation expression.
             constraint
                 An optional constraint expression, which is checked for each match
                 to verify it.
 
         Raises:
-            ValueError: if the operand count does not match the operation's arity.
+            ValueError:
+                if the operand count does not match the operation's arity.
+            ValueError:
+                if the operation contains conflicting variables, i.e. variables with the same name that match
+                different things. A common example would be mixing sequence and fixed variables with the same name in
+                one expression.
         """
         super().__init__(constraint)
 
@@ -375,26 +430,23 @@ class Operation(Expression, metaclass=_OperationMeta):
         head, *remainder = key
         return self.operands[head][remainder]
 
-    @property
-    def is_constant(self) -> bool:
+    __getitem__.__doc__ = Expression.__getitem__.__doc__
+
+    def _is_constant(self) -> bool:
         return all(x.is_constant for x in self.operands)
 
-    @property
-    def is_syntactic(self) -> bool:
+    def _is_syntactic(self) -> bool:
         if self.associative or self.commutative:
             return False
         return all(o.is_syntactic for o in self.operands)
 
-    @property
-    def variables(self) -> Multiset[str]:
+    def _variables(self) -> Multiset[str]:
         return sum((x.variables for x in self.operands), Multiset())
 
-    @property
-    def symbols(self) -> Multiset[str]:
+    def _symbols(self) -> Multiset[str]:
         return sum((x.symbols for x in self.operands), Multiset([self.name]))
 
-    @property
-    def without_constraints(self):
+    def _without_constraints(self):
         return self.from_args(*self.operands)
 
     def _is_linear(self, variables: Set[str]) -> bool:
@@ -428,12 +480,10 @@ class Symbol(Atom):
             return '{!s}({!r}, constraint={!r})'.format(type(self).__name__, self.name, self.constraint)
         return '{!s}({!r})'.format(type(self).__name__, self.name)
 
-    @property
-    def symbols(self):
+    def _symbols(self):
         return Multiset([self.name])
 
-    @property
-    def without_constraints(self):
+    def _without_constraints(self):
         return type(self)(self.name)
 
     def __lt__(self, other):
@@ -497,24 +547,19 @@ class Variable(Expression):
         self.expression = expression
         self.head = expression.head
 
-    @property
-    def is_constant(self) -> bool:
+    def _is_constant(self) -> bool:
         return self.expression.is_constant
 
-    @property
-    def is_syntactic(self) -> bool:
+    def _is_syntactic(self) -> bool:
         return self.expression.is_syntactic
 
-    @property
-    def variables(self) -> Multiset[str]:
+    def _variables(self) -> Multiset[str]:
         return Multiset([self.name])
 
-    @property
-    def symbols(self) -> Multiset[str]:
+    def _symbols(self) -> Multiset[str]:
         return self.expression.symbols
 
-    @property
-    def without_constraints(self):
+    def _without_constraints(self):
         return type(self)(self.name, self.expression.without_constraints)
 
     @staticmethod
@@ -649,16 +694,13 @@ class Wildcard(Atom):
         self.min_count = min_count
         self.fixed_size = fixed_size
 
-    @property
-    def is_constant(self) -> bool:
+    def _is_constant(self) -> bool:
         return False
 
-    @property
-    def is_syntactic(self) -> bool:
+    def _is_syntactic(self) -> bool:
         return self.fixed_size
 
-    @property
-    def without_constraints(self):
+    def _without_constraints(self):
         return type(self)(self.min_count, self.fixed_size)
 
     @staticmethod
@@ -748,13 +790,15 @@ class SymbolWildcard(Wildcard):
         """
         super().__init__(1, True, constraint)
 
+        if symbol_type is None:
+            symbol_type = Symbol
+
         if not issubclass(symbol_type, Symbol):
             raise TypeError("The type constraint must be a subclass of Symbol")
 
         self.symbol_type = symbol_type
 
-    @property
-    def without_constraints(self):
+    def _without_constraints(self):
         return type(self)(self.symbol_type)
 
     def __eq__(self, other):
@@ -963,37 +1007,25 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):
     def variables(self) -> Multiset[str]:
         return super().variables
 
-    variables.__doc__ = Expression.variables.__doc__
-
     @cached_property
     def symbols(self) -> Multiset[str]:
         return super().symbols
-
-    symbols.__doc__ = Expression.symbols.__doc__
 
     @cached_property
     def is_constant(self) -> bool:
         return super().is_constant
 
-    is_constant.__doc__ = Expression.is_constant.__doc__
-
     @cached_property
     def is_syntactic(self) -> bool:
         return super().is_syntactic
-
-    is_syntactic.__doc__ = Expression.is_syntactic.__doc__
 
     @cached_property
     def is_linear(self) -> bool:
         return super().is_linear
 
-    is_linear.__doc__ = Expression.is_linear.__doc__
-
     @cached_property
     def without_constraints(self) -> 'FrozenExpression':
         return super().without_constraints
-
-    without_constraints.__doc__ = Expression.without_constraints.__doc__
 
     def __hash__(self):
         # pylint: disable=no-member
