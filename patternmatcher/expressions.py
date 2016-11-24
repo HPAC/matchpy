@@ -238,9 +238,9 @@ class _OperationMeta(type):
 
         Args:
             *args:
-                Positional arguments.
+                Positional arguments for the operation initializer.
             **kwargs:
-                Keyword arguments.
+                Keyword arguments for the operation initializer.
         """
         return cls(*args, **kwargs)
 
@@ -896,6 +896,23 @@ class Substitution(Dict[str, VariableReplacement]):
         return new_subst
 
     def extract_substitution(self, expression: Expression, pattern: Expression) -> bool:
+        """Extract the variable substitution for the given pattern and expression.
+
+        This assumes that expression and pattern already match when being considered as linear.
+        Also, they both must be :term:`syntactic`, as sequence variables cannot be handled here.
+        All that this method does is checking whether all the substitutions for the variables can be unified.
+        Also, this method mutates the substitution and might even do so in case the unification fails.
+        So, in case it returns ``False``, the substitution is invalid for the match.
+
+        Args:
+            expression:
+                A :term:`syntactic` expression that matches the pattern.
+            pattern:
+                A :term:`syntactic` pattern that matches the expression.
+
+        Returns:
+            ``True`` iff the substitution could be extracted successfully.
+        """
         if isinstance(pattern, Variable):
             try:
                 self.try_add_variable(pattern.name, expression)
@@ -904,6 +921,7 @@ class Substitution(Dict[str, VariableReplacement]):
             return self.extract_substitution(expression, pattern.expression)
         elif isinstance(pattern, Operation):
             assert isinstance(expression, type(pattern))
+            assert len(expression.operands) == len(pattern.operands)
             op_expression = cast(Operation, expression)
             for expr, patt in zip(op_expression.operands, pattern.operands):
                 if not self.extract_substitution(expr, patt):
@@ -950,15 +968,33 @@ class Substitution(Dict[str, VariableReplacement]):
 
 
 class _FrozenMeta(type):
+    """Metaclass for :class:`FrozenExpression`."""
     __call__ = type.__call__
 
 
 class _FrozenOperationMeta(_FrozenMeta, _OperationMeta):
+    """Metaclass that mixes :class:`_FrozenMeta` and :class:`_OperationMeta`.
+
+    Used to override the :meth:`from_args` to create modified frozen operations easily.
+    """
+
     def from_args(cls, *args, **kwargs):
+        """Create a new :term:`frozen` instance of the class using the given arguments.
+
+        Overrides :meth:`_OperationMeta.from_args`.
+        This will first create a new instance of the unfrozen base operation and then freeze that using the
+        :class:`FrozenExpression` initializer.
+
+        Args:
+            *args:
+                Positional arguments for the operation initializer.
+            **kwargs:
+                Keyword arguments for the operation initializer.
+        """
         for base in cls.__mro__:
             if isinstance(base, _OperationMeta) and not isinstance(base, _FrozenMeta):
                 return cls(base(*args, **kwargs))
-        raise AssertionError
+        raise AssertionError  # unreachable, unless an invalid frozen operation subclass was created manually
 
     def __repr__(cls):
         return 'FrozenOperation[{!r}, arity={!r}, associative={!r}, commutative={!r}, one_identity={!r}]'.format(
@@ -966,7 +1002,16 @@ class _FrozenOperationMeta(_FrozenMeta, _OperationMeta):
 
 
 class FrozenExpression(Expression, metaclass=_FrozenMeta):
+    """Base class for :term:`frozen` expressions.
+
+    DO NOT instantiate this class directly, use :func:`freeze` instead!
+    Only use this class for :func:`isinstance` checks.
+    """
+
     def __new__(cls, expr: Expression):
+        # This is a bit of a hack...
+        # Copy all attributes of the original expression over to this instance
+        # Use the _frozen attribute to lock changing attributes after the copying is done
         self = Expression.__new__(cls)
         object.__setattr__(self, '_frozen', False)
         self.constraint = expr.constraint
@@ -988,7 +1033,7 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):
             if isinstance(expr, SymbolWildcard):
                 self.symbol_type = expr.symbol_type
         else:
-            raise AssertionError
+            raise AssertionError  # Unreachable, unless new types of expressions are added
 
         object.__setattr__(self, '_frozen', True)
 
@@ -999,32 +1044,38 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):
 
     def __setattr__(self, name, value):
         if self._frozen:  # pylint: disable=no-member
-            raise TypeError("Cannot modifiy a FrozenExpression")
+            raise TypeError("Cannot modify a FrozenExpression")
         else:
             object.__setattr__(self, name, value)
 
     @cached_property
     def variables(self) -> Multiset[str]:
+        """Cached version of :attr:`Expression.variables`."""
         return super().variables
 
     @cached_property
     def symbols(self) -> Multiset[str]:
+        """Cached version of :attr:`Expression.symbols`."""
         return super().symbols
 
     @cached_property
     def is_constant(self) -> bool:
+        """Cached version of :attr:`Expression.is_constant`."""
         return super().is_constant
 
     @cached_property
     def is_syntactic(self) -> bool:
+        """Cached version of :attr:`Expression.is_syntactic`."""
         return super().is_syntactic
 
     @cached_property
     def is_linear(self) -> bool:
+        """Cached version of :attr:`Expression.is_linear`."""
         return super().is_linear
 
     @cached_property
     def without_constraints(self) -> 'FrozenExpression':
+        """Cached version of :attr:`Expression.without_constraints`."""
         return super().without_constraints
 
     def __hash__(self):
@@ -1036,27 +1087,49 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):
 _frozen_type_cache = {}
 
 
-def freeze(expr: Expression) -> FrozenExpression:
-    if isinstance(expr, FrozenExpression):
-        return expr
-    base = type(expr)
+def freeze(expression: Expression) -> FrozenExpression:
+    """Return a :term:`frozen` version of the expression.
+
+    The new type for the frozen expression is created dynamically as a subclass of both :class:`FrozenExpression`
+    and the type of the original expression. If the expression is already frozen, it is returned unchanged.
+
+    Args:
+        expression: The expression to freeze.
+
+    Returns:
+        The frozen expression.
+    """
+    if isinstance(expression, FrozenExpression):
+        return expression
+    base = type(expression)
     if base not in _frozen_type_cache:
-        meta = isinstance(base, _OperationMeta) and _FrozenOperationMeta or _FrozenMeta
+        meta = _FrozenOperationMeta if isinstance(base, _OperationMeta) else _FrozenMeta
         _frozen_type_cache[base] = meta('Frozen' + base.__name__, (FrozenExpression, base), {'_original_base': base})
-    return _frozen_type_cache[base](expr)
+    return _frozen_type_cache[base](expression)
 
 
-def unfreeze(expr: FrozenExpression) -> Expression:
-    if not isinstance(expr, FrozenExpression):
-        return expr
-    if isinstance(expr, SymbolWildcard):
-        return SymbolWildcard(expr.symbol_type, expr.constraint)
-    if isinstance(expr, Wildcard):
-        return Wildcard(expr.min_count, expr.fixed_size, expr.constraint)
-    if isinstance(expr, Variable):
-        return Variable(expr.name, unfreeze(expr.expression), expr.constraint)
-    if isinstance(expr, Symbol):
-        return Symbol(expr.name, expr.constraint)
-    if isinstance(expr, Operation):
-        return expr._original_base.from_args(*map(unfreeze, expr.operands), constraint=expr.constraint)
-    raise AssertionError
+def unfreeze(expression: FrozenExpression) -> Expression:
+    """Return a non-:term:`frozen` version of the expression.
+
+    This function reverts :func:`freeze`. A mutable version is created from the expression using its original class
+    without the FrozenExpression mixin. If the given expression is not frozen, it is returned unchanged.
+
+    Args:
+        expression: The expression to unfreeze.
+
+    Returns:
+        The unfrozen expression.
+    """
+    if not isinstance(expression, FrozenExpression):
+        return expression
+    if isinstance(expression, SymbolWildcard):
+        return SymbolWildcard(expression.symbol_type, expression.constraint)
+    if isinstance(expression, Wildcard):
+        return Wildcard(expression.min_count, expression.fixed_size, expression.constraint)
+    if isinstance(expression, Variable):
+        return Variable(expression.name, unfreeze(expression.expression), expression.constraint)
+    if isinstance(expression, Symbol):
+        return expression._original_base(expression.name, expression.constraint)
+    if isinstance(expression, Operation):
+        return expression._original_base.from_args(*map(unfreeze, expression.operands), constraint=expression.constraint)
+    raise AssertionError  # Unreachable, unless new types of expressions are added
