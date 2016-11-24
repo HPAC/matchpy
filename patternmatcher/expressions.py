@@ -336,7 +336,7 @@ class Operation(Expression, metaclass=_OperationMeta):
 
     def __str__(self):
         if self.infix:
-            value = '({!s})'.format(' {!s} '.format(self.name)).join(str(o) for o in self.operands)
+            value = '({!s})'.format((' {!s} '.format(self.name)).join(str(o) for o in self.operands))
         else:
             value = '{!s}({!s})'.format(self.name, ', '.join(str(o) for o in self.operands))
         if self.constraint:
@@ -789,9 +789,6 @@ class SymbolWildcard(Wildcard):
             TypeError: if ``symbol_type`` is not a subclass of :class:`Symbol`.
         """
         super().__init__(1, True, constraint)
-
-        if symbol_type is None:
-            symbol_type = Symbol
 
         if not issubclass(symbol_type, Symbol):
             raise TypeError("The type constraint must be a subclass of Symbol")
