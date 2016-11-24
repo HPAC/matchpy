@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import itertools
-from typing import Callable, List, NamedTuple, Sequence, Tuple, Union
+import math
+from typing import Callable, List, NamedTuple, Sequence, Tuple, Union, Iterable
 
 from .expressions import Expression, Operation, Substitution, Variable, freeze
 from .matching.one_to_one import match
@@ -49,8 +50,8 @@ def substitute(expression: Expression, substitution: Substitution) -> Tuple[Unio
     return expression, False
 
 
-def replace(expression: Expression, position: Sequence[int], replacement: Union[Expression, List[Expression]]) \
-        -> Union[Expression, List[Expression]]:
+def replace(expression: Expression, position: Sequence[int], replacement: Union[Expression, Sequence[Expression]]) \
+        -> Union[Expression, Sequence[Expression]]:
     r"""Replaces the subexpression of `expression` at the given `position` with the given `replacement`.
 
     The original `expression` itself is not modified, but a modified copy is returned. If the replacement
@@ -92,12 +93,39 @@ def replace(expression: Expression, position: Sequence[int], replacement: Union[
 ReplacementRule = NamedTuple('ReplacementRule', [('pattern', Expression), ('replacement', Callable[..., Expression])])
 
 
-def replace_all(expression: Expression, rules: Sequence[ReplacementRule]) -> Union[Expression, List[Expression]]:
+def replace_all(expression: Expression, rules: Iterable[ReplacementRule], max_count: int=math.inf) \
+        -> Union[Expression, Sequence[Expression]]:
+    """Replace all occurrences of the patterns according to the replacement rules.
+
+    A replacement rule consists of a *pattern*, that is matched against any subexpression
+    of the expression. If a match is found, the *replacement* callback of the rule is called with
+    the variables from the match substitution. Whatever the callback returns is used as a replacement for the
+    matched subexpression. This can either be a single expression or a sequence of expressions, which is then
+    integrated into the surrounding operation in place of the subexpression.
+
+    Note that the pattern can therefore not be a single sequence variable/wildcard, because only single expressions
+    will be matched.
+
+    Args:
+        expression:
+            The expression to which the replacement rules are applied.
+        rules:
+            A collection of replacement rules that are applied to the expression.
+        max_count:
+            If given, at most *max_count* applications of the rules are performed. Otherwise, the rules
+            are applied until there is no more match. If the set of replacement rules is not confluent,
+            the replacement might not terminate without a *max_count* set.
+
+    Returns:
+        The resulting expression after the application of the replacement rules. This can also be a sequence of
+        expressions, if the root expression is replaced with a sequence of expressions by a rule.
+    """
     rules = [ReplacementRule(freeze(pattern), replacement) for pattern, replacement in rules]
     expression = freeze(expression)
     grouped = dict((h, list(g)) for h, g in itertools.groupby(rules, lambda r: r.pattern.head))
     replaced = True
-    while replaced:
+    replace_count = 0
+    while replaced and replace_count < max_count:
         replaced = False
         for subexpr, pos in expression.preorder_iter():
             if subexpr.head in grouped:
@@ -112,5 +140,6 @@ def replace_all(expression: Expression, rules: Sequence[ReplacementRule]) -> Uni
                         pass
                 if replaced:
                     break
+        replace_count += 1
 
     return expression
