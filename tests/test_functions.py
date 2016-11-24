@@ -520,7 +520,7 @@ def test_randomized_match(match, expression, pattern):
     # exclude non-matching pairs
     assume(len(results) > 0)
     for result in results:
-        reverse, replaced = substitute(pattern, result)
+        reverse, _ = substitute(pattern, result)
         if isinstance(reverse, list) and len(reverse) == 1:
             reverse = reverse[0]
         assert expression == reverse

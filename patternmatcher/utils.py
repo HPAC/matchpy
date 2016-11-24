@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import inspect
 import math
-import re
 import ast
 import os
 from typing import (Callable, Dict, Iterator,  # pylint: disable=unused-import

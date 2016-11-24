@@ -114,7 +114,7 @@ class FlatTerm(Sequence[TermAtom]):
     def __init__(self, expression: Union[Expression, Sequence[TermAtom]]=()) -> None:
         if isinstance(expression, Expression):
             expression = self._combined_wildcards_iter(self._flatterm_iter(expression))
-        terms = self._terms = tuple(expression)
+        self._terms = tuple(expression)
 
     def __getitem__(self, index):
         return self._terms[index]
@@ -389,7 +389,7 @@ class DiscriminationNet(Generic[T]):
                             fail_state = _State()
                             states[fail_state.id] = fail_state
                             new_fail_states = [fail_state]
-                            for i in range(term.arity.min_count):
+                            for _ in range(term.arity.min_count):
                                 new_fail_state = _State()
                                 states[new_fail_state.id] = new_fail_state
                                 fail_state[Wildcard] = new_fail_state

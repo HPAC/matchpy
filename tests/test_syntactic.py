@@ -100,11 +100,12 @@ def test_flatterm_getitem():
         flatterm[3]
 
 def test_flatterm_eq():
-    flatterm = FlatTerm(f(a))
-
     assert FlatTerm(a) == FlatTerm(a)
     assert not FlatTerm(a) == FlatTerm(b)
-    assert FlatTerm(a) != [a]
+    assert not FlatTerm(a) == [a]
+    assert not FlatTerm(a) == FlatTerm(f(a))
+    assert FlatTerm(f(a)) == FlatTerm(f(a))
+    assert not FlatTerm(f(a)) == FlatTerm(f(b))
 
 
 def test_is_operation():
@@ -270,8 +271,6 @@ def test_randomized_product_net(patterns):
         if not flatterm:
             flatterm = [random.choice(CONSTANT_EXPRESSIONS)]
         exprs.append(flatterm)
-
-    net_id = hash(frozenset(patterns))
 
     for pattern, expr in zip(patterns, exprs):
         result = net.match(expr)

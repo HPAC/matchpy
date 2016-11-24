@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 import itertools
-import math
 import os
-from unittest.mock import MagicMock
 
 import hypothesis.strategies as st
 from hypothesis import assume, example, given
