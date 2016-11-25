@@ -291,16 +291,33 @@ def iterator_chain(initial_data: tuple, *factories: Callable[..., Iterator[tuple
 
 
 class cached_property(property):
-    def __init__(self, getter):
+    def __init__(self, getter, slot=None):
         super().__init__(getter)
         self._name = getter.__name__
+        self._slot = slot
 
     def __get__(self, obj, cls):
         if obj is None:
             return self
-        if self._name not in obj.__dict__:
-            obj.__dict__[self._name] = self.fget(obj)
-        return obj.__dict__[self._name]
+        if self._slot is not None:
+            attribute = cls.__dict__[self._slot]
+            try:
+                return attribute.__get__(obj, cls)
+            except AttributeError:
+                value = self.fget(obj)
+                attribute.__set__(obj, value)
+                return value
+        else:
+            if self._name not in obj.__dict__:
+                obj.__dict__[self._name] = self.fget(obj)
+            return obj.__dict__[self._name]
+
+
+def slot_cached_property(slot):
+    def wrapper(getter):
+        return cached_property(getter, slot)
+
+    return wrapper
 
 
 if __name__ == '__main__':

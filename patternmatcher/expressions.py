@@ -69,6 +69,8 @@ class Expression(object):
             it is the variable's inner :attr:`~Variable.expression`.
     """
 
+    __slots__ = 'constraint', 'head'
+
     def __init__(self, constraint: Optional[Constraint] = None) -> None:
         """Create a new expression.
 
@@ -290,6 +292,8 @@ class Operation(Expression, metaclass=_OperationMeta):
     infix = False
     """bool: True if the name of the operation should be used as an infix operator by str()."""
 
+    __slots__ = 'operands',
+
     def __init__(self, *operands: Expression, constraint: Constraint=None) -> None:
         """Create an operation expression.
 
@@ -467,6 +471,8 @@ class Atom(Expression):
 
 
 class Symbol(Atom):
+    __slots__ = 'name',
+
     def __init__(self, name: str, constraint: Optional[Constraint]=None) -> None:
         super().__init__(constraint)
         self.name = name
@@ -518,6 +524,8 @@ class Variable(Expression):
             See :attr:`Expression.constraint`.
 
     """
+
+    __slots__ = 'name', 'expression'
 
     def __init__(self, name: str, expression: Expression, constraint: Optional[Constraint]=None) -> None:
         """
@@ -669,6 +677,8 @@ class Wildcard(Atom):
             whether the match is valid.
     """
 
+    __slots__ = 'min_count', 'fixed_size'
+
     def __init__(self, min_count: int, fixed_size: bool, constraint: Optional[Constraint]=None) -> None:
         """
         Args:
@@ -773,6 +783,8 @@ class Wildcard(Atom):
 
 class SymbolWildcard(Wildcard):
     """A special :class:`Wildcard` that matches a :class:`Symbol`."""
+
+    __slots__ = 'symbol_type',
 
     def __init__(self, symbol_type: Type[Symbol]=Symbol, constraint: Optional[Constraint]=None) -> None:
         """
@@ -1013,38 +1025,29 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):
         object.__setattr__(self, '_frozen', False)
         self.constraint = expr.constraint
 
-        attributes = set(vars(expr).keys())
-        attributes.discard('constraint')
-        attributes.discard('head')
-
         if isinstance(expr, Operation):
             self.operands = tuple(freeze(e) for e in expr.operands)
-            attributes.discard('operands')
             self.head = expr.head
         elif isinstance(expr, Symbol):
             self.name = expr.name
-            attributes.discard('name')
             self.head = self
         elif isinstance(expr, Variable):
             self.name = expr.name
-            attributes.discard('name')
             self.expression = freeze(expr.expression)
-            attributes.discard('expression')
             self.head = self.expression.head
         elif isinstance(expr, Wildcard):
             self.min_count = expr.min_count
-            attributes.discard('min_count')
             self.fixed_size = expr.fixed_size
-            attributes.discard('fixed_size')
             self.head = None
             if isinstance(expr, SymbolWildcard):
                 self.symbol_type = expr.symbol_type
-                attributes.discard('symbol_type')
         else:
             raise AssertionError  # Unreachable, unless new types of expressions are added
 
-        for attribute in attributes:
-            setattr(self, attribute, getattr(expr, attribute))
+        if hasattr(expr, '__dict__'):
+            for attribute in expr.__dict__:
+                if attribute != '__dict__':
+                    setattr(self, attribute, getattr(expr, attribute))
 
         object.__setattr__(self, '_frozen', True)
 

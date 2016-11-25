@@ -312,6 +312,10 @@ class TestExpression:
         with pytest.raises(TypeError):
             _ = SymbolWildcard(object)
 
+class CustomSymbol(Symbol):
+    def __init__(self, name, constraint=None):
+        super().__init__(name, constraint)
+        self.custom = 42
 
 class TestFrozenExpression:
     BUILTIN_PROPERTIES = ['is_constant', 'is_syntactic', 'is_linear', 'symbols', 'variables']
@@ -323,14 +327,19 @@ class TestFrozenExpression:
         x_,
         ___,
         Variable('x', f(_)),
-        xs_
+        xs_,
+        CustomSymbol('custom')
     ]
 
     @pytest.mark.parametrize('expression', SIMPLE_EXPRESSIONS)
     def test_freeze_equivalent(self, expression):
         frozen_expr = freeze(expression)
         assert expression == frozen_expr
-        for attr in itertools.chain(vars(expression), self.BUILTIN_PROPERTIES):
+        slots = set().union(*(getattr(cls, '__slots__', []) for cls in type(expression).__mro__))
+        if hasattr(expression, '__dict__'):
+            slots.update(expression.__dict__.keys())
+        print(slots)
+        for attr in itertools.chain(slots, self.BUILTIN_PROPERTIES):
             if attr == 'operands':
                 assert getattr(frozen_expr, attr) == tuple(getattr(expression, attr)), "Operands of frozen instance differs"
             else:
