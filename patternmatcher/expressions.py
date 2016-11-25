@@ -181,9 +181,20 @@ class _OperationMeta(type):
     and clashes with the :class:`FrozenOperation` class.
     """
 
+    def _repr(cls, name):
+        flags = []
+        if cls.associative:
+            flags.append('associative')
+        if cls.commutative:
+            flags.append('commutative')
+        if cls.one_identity:
+            flags.append('one_identity')
+        if cls.infix:
+            flags.append('infix')
+        return '{}[{!r}, {!r}, {}]'.format(name, cls.name, cls.arity, ', '.join(flags))
+
     def __repr__(cls):
-        return 'Operation[{!r}, arity={!r}, associative={!r}, commutative={!r}, one_identity={!r}]'.format(
-            cls.name, cls.arity, cls.associative, cls.commutative, cls.one_identity)
+        return cls._repr('Operation')
 
     def __str__(cls):
         return cls.name
@@ -363,7 +374,7 @@ class Operation(Expression, metaclass=_OperationMeta):
 
         >>> Times = Operation.new('*', Arity.polyadic, 'Times', associative=True, commutative=True, one_identity=True)
         >>> Times
-        Operation['*', arity=Arity.polyadic, associative=True, commutative=True, one_identity=True]
+        Operation['*', Arity.polyadic, associative, commutative, one_identity]
         >>> str(Times(Symbol('a'), Symbol('b')))
         '*(a, b)'
 
@@ -1006,9 +1017,9 @@ class _FrozenOperationMeta(_FrozenMeta, _OperationMeta):
                 return cls(base(*args, **kwargs), attributes_to_copy)
         raise AssertionError  # unreachable, unless an invalid frozen operation subclass was created manually
 
+
     def __repr__(cls):
-        return 'FrozenOperation[{!r}, arity={!r}, associative={!r}, commutative={!r}, one_identity={!r}]'.format(
-            cls.name, cls.arity, cls.associative, cls.commutative, cls.one_identity)
+        return cls._repr('FrozenOperation')
 
 
 class FrozenExpression(Expression, metaclass=_FrozenMeta):
