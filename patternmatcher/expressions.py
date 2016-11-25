@@ -1013,24 +1013,38 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):
         object.__setattr__(self, '_frozen', False)
         self.constraint = expr.constraint
 
+        attributes = set(vars(expr).keys())
+        attributes.discard('constraint')
+        attributes.discard('head')
+
         if isinstance(expr, Operation):
             self.operands = tuple(freeze(e) for e in expr.operands)
+            attributes.discard('operands')
             self.head = expr.head
         elif isinstance(expr, Symbol):
             self.name = expr.name
+            attributes.discard('name')
             self.head = self
         elif isinstance(expr, Variable):
             self.name = expr.name
+            attributes.discard('name')
             self.expression = freeze(expr.expression)
+            attributes.discard('expression')
             self.head = self.expression.head
         elif isinstance(expr, Wildcard):
             self.min_count = expr.min_count
+            attributes.discard('min_count')
             self.fixed_size = expr.fixed_size
+            attributes.discard('fixed_size')
             self.head = None
             if isinstance(expr, SymbolWildcard):
                 self.symbol_type = expr.symbol_type
+                attributes.discard('symbol_type')
         else:
             raise AssertionError  # Unreachable, unless new types of expressions are added
+
+        for attribute in attributes:
+            setattr(self, attribute, getattr(expr, attribute))
 
         object.__setattr__(self, '_frozen', True)
 
