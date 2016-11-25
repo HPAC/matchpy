@@ -312,7 +312,14 @@ class TestExpression:
         with pytest.raises(TypeError):
             _ = SymbolWildcard(object)
 
-class CustomSymbol(Symbol):
+class CustomSymbolWithDict(Symbol):
+    def __init__(self, name, constraint=None):
+        super().__init__(name, constraint)
+        self.custom = 42
+
+class CustomSymbolWithoutDict(Symbol):
+    __slots__ = ('custom', )
+
     def __init__(self, name, constraint=None):
         super().__init__(name, constraint)
         self.custom = 42
@@ -328,7 +335,8 @@ class TestFrozenExpression:
         ___,
         Variable('x', f(_)),
         xs_,
-        CustomSymbol('custom')
+        CustomSymbolWithDict('custom1'),
+        CustomSymbolWithoutDict('custom2')
     ]
 
     @pytest.mark.parametrize('expression', SIMPLE_EXPRESSIONS)
