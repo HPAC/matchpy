@@ -325,13 +325,15 @@ class Operation(Expression, metaclass=_OperationMeta):
         """
         super().__init__(constraint)
 
-        if len(operands) < self.arity.min_count:
+        operand_count, variable_count = self._count_operands(operands)
+
+        if not variable_count and operand_count < self.arity.min_count:
             raise ValueError("Operation {!s} got arity {!s}, but got {:d} operands.".format(
                 type(self).__name__, self.arity, len(operands)))
 
-        if self.arity.fixed_size and len(operands) > self.arity.min_count:
+        if self.arity.fixed_size and operand_count > self.arity.min_count:
             msg = "Operation {!s} got arity {!s}, but got {:d} operands.".format(
-                type(self).__name__, self.arity, len(operands))
+                type(self).__name__, self.arity, operand_count)
             if self.associative:
                 msg += " Associative operations should have a variadic/polyadic arity."
             raise ValueError(msg)
@@ -348,6 +350,21 @@ class Operation(Expression, metaclass=_OperationMeta):
 
         self.operands = list(operands)
         self.head = type(self)
+
+    @staticmethod
+    def _count_operands(operands):
+        operand_count = 0
+        for operand in operands:
+            if isinstance(operand, Variable):
+                operand = operand.expression
+            if isinstance(operand, Wildcard):
+                if operand.fixed_size:
+                    operand_count += operand.min_count
+                else:
+                    return 0, True
+            else:
+                operand_count += 1
+        return operand_count, False
 
     def __str__(self):
         if self.infix:
@@ -634,7 +651,7 @@ class Variable(Expression):
         if isinstance(self.expression, Wildcard):
             value = self.name + str(self.expression)
         else:
-            value = '{!s}_: {!s}'.format(self.name, self.expression)
+            value = '{!s}: {!s}'.format(self.name, self.expression)
         if self.constraint:
             value += ' /; {!s}'.format(str(self.constraint))
 
@@ -957,7 +974,7 @@ class Substitution(Dict[str, VariableReplacement]):
         >>> subst1 = Substitution({'x': {'a', 'b'}})
         >>> subst2 = Substitution({'x': ('a', 'b'), 'y': ('c', )})
         >>> str(subst1.union(subst2))
-        'x ← (a, b), y ← (c)'
+        'x <- (a, b), y <- (c)'
 
         Args:
             others:
@@ -984,7 +1001,7 @@ class Substitution(Dict[str, VariableReplacement]):
         return str(value)
 
     def __str__(self):
-        return ', '.join('{!s} ← {!s}'.format(k, self._match_value_repr_str(v)) for k, v in sorted(self.items()))
+        return ', '.join('{!s} <- {!s}'.format(k, self._match_value_repr_str(v)) for k, v in sorted(self.items()))
 
 
 class _FrozenMeta(type):

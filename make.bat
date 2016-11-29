@@ -11,7 +11,7 @@ goto :eof
 goto :eof
 
 :test
-	py.test tests\ --doctest-modules patternmatcher\
+	py.test tests\ --doctest-modules patternmatcher\ README.rst
 goto :eof
 
 :check

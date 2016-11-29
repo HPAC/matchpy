@@ -66,8 +66,8 @@ class ManyToOneMatcher(object):
             >>> matcher = ManyToOneMatcher(pattern1, pattern2)
             >>> for pattern, match in sorted(matcher.match(freeze(f(a, b)))):
             ...     print(pattern, ':', match)
-            f(a, x_) : x ← b
-            f(y_, b) : y ← a
+            f(a, x_) : x <- b
+            f(y_, b) : y <- a
 
         Args:
             expression: The expression to match.
