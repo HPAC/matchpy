@@ -167,6 +167,8 @@ def match(expressions: List[Expression], pattern: Expression, subst: Substitutio
         if len(expressions) != 1 or not isinstance(expressions[0], pattern.__class__):
             return
         op_expr = cast(Operation, expressions[0])
+        if not op_expr.symbols >= pattern.symbols:
+            return
         for result in match_operation(op_expr.operands, pattern, subst, match):
             if pattern.constraint is None or pattern.constraint(result):
                 yield result

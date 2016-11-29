@@ -10,7 +10,7 @@ from ..expressions import (Expression, FrozenExpression, Operation,
                            Substitution, Symbol, Variable, Wildcard, freeze)
 from .bipartite import BipartiteGraph, enum_maximum_matchings_iter
 from .common import (CommutativePatternsParts, match_commutative_operation,
-                     match_operation, match_variable, match_wildcard, Matcher)
+                     _non_commutative_match, match_variable, match_wildcard, Matcher)
 from .syntactic import DiscriminationNet
 
 __all__ = ['ManyToOneMatcher', 'CommutativeMatcher']
@@ -110,13 +110,15 @@ class ManyToOneMatcher(object):
             if len(expressions) != 1 or not isinstance(expressions[0], pattern.__class__):
                 return
             op_expr = cast(Operation, expressions[0])
+            if not op_expr.symbols >= pattern.symbols:
+                return
 
             if op_expr.commutative:
                 matcher = self.commutative_matchers[type(op_expr)]
                 parts = CommutativePatternsParts(type(pattern), *pattern.operands)
                 yield from matcher.match(op_expr.operands, parts, subst)
             else:
-                for result in match_operation(op_expr.operands, pattern, subst, self._match):
+                for result in _non_commutative_match(op_expr.operands, pattern, subst, self._match):
                     if pattern.constraint is None or pattern.constraint(result):
                         yield result
 
