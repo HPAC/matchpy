@@ -518,6 +518,8 @@ class Symbol(Atom):
         return Multiset([self.name])
 
     def _without_constraints(self):
+        if hasattr(self, '_original_base'):
+            return freeze(self._original_base(self.name))
         return type(self)(self.name)
 
     def __lt__(self, other):
@@ -596,7 +598,7 @@ class Variable(Expression):
         return self.expression.symbols
 
     def _without_constraints(self):
-        return type(self)(self.name, self.expression.without_constraints)
+        return Variable(self.name, self.expression.without_constraints)
 
     @staticmethod
     def dot(name: str, constraint: Optional[Constraint]=None) -> 'Variable':
@@ -739,7 +741,7 @@ class Wildcard(Atom):
         return self.fixed_size
 
     def _without_constraints(self):
-        return type(self)(self.min_count, self.fixed_size)
+        return Wildcard(self.min_count, self.fixed_size)
 
     @staticmethod
     def dot(length: int=1) -> 'Wildcard':
@@ -779,15 +781,19 @@ class Wildcard(Atom):
         return Wildcard(min_count=1, fixed_size=False)
 
     def __str__(self):
+        value = None
         if not self.fixed_size:
             if self.min_count == 0:
-                return '___'
+                value = '___'
             elif self.min_count == 1:
-                return '__'
-        if self.min_count == 1:
-            return '_'
-        else:
-            return '_[{:d}{!s}]'.format(self.min_count, '' if self.fixed_size else '+')
+                value = '__'
+        elif self.min_count == 1:
+            value = '_'
+        if value is None:
+            value = '_[{:d}{!s}]'.format(self.min_count, '' if self.fixed_size else '+')
+        if self.constraint:
+            value += ' /; {!s}'.format(str(self.constraint))
+        return value
 
     def __repr__(self):
         if self.constraint:
@@ -836,7 +842,7 @@ class SymbolWildcard(Wildcard):
         self.symbol_type = symbol_type
 
     def _without_constraints(self):
-        return type(self)(self.symbol_type)
+        return SymbolWildcard(self.symbol_type)
 
     def __eq__(self, other):
         return (isinstance(other, SymbolWildcard)
@@ -852,6 +858,8 @@ class SymbolWildcard(Wildcard):
         return '{!s}({!r})'.format(type(self).__name__, self.symbol_type)
 
     def __str__(self):
+        if self.constraint:
+            return '_[{!s}] /; {!s}'.format(self.symbol_type.__name__, self.constraint)
         return '_[{!s}]'.format(self.symbol_type.__name__)
 
 VariableReplacement = Union[Tuple[Expression, ...], Set[Expression], Expression]
@@ -1031,7 +1039,7 @@ class _FrozenOperationMeta(_FrozenMeta, _OperationMeta):
         for base in cls.__mro__:
             if isinstance(base, _OperationMeta) and not isinstance(base, _FrozenMeta):
                 attributes_to_copy = _frozen_type_cache[base][1]
-                return cls(base(*args, **kwargs), attributes_to_copy)
+                return FrozenExpression.__new__(cls, base(*args, **kwargs), attributes_to_copy)
         raise AssertionError  # unreachable, unless an invalid frozen operation subclass was created manually
 
 
@@ -1135,7 +1143,7 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):
     @slot_cached_property('cached_without_constraints')
     def without_constraints(self) -> 'FrozenExpression':
         """Cached version of :attr:`Expression.without_constraints`."""
-        return super().without_constraints
+        return freeze(super().without_constraints)
 
     def __hash__(self):
         # pylint: disable=no-member
@@ -1145,6 +1153,9 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):
 
 _frozen_type_cache = {}
 
+
+def _frozen_new(cls, *args, **kwargs):
+    return freeze(cls._original_base(*args, **kwargs))
 
 def freeze(expression: Expression) -> FrozenExpression:
     """Return a :term:`frozen` version of the expression.
@@ -1165,7 +1176,8 @@ def freeze(expression: Expression) -> FrozenExpression:
         meta = _FrozenOperationMeta if isinstance(base, _OperationMeta) else _FrozenMeta
         frozen_class = meta('Frozen' + base.__name__, (FrozenExpression, base), {
             '_original_base': base,
-            '__slots__': FrozenExpression._actual_slots
+            '__slots__': FrozenExpression._actual_slots,
+            '__new__': _frozen_new
         })
 
         attributes_to_copy = set()
@@ -1175,7 +1187,7 @@ def freeze(expression: Expression) -> FrozenExpression:
     else:
         frozen_class, attributes_to_copy = _frozen_type_cache[base]
 
-    return frozen_class(expression, attributes_to_copy)
+    return FrozenExpression.__new__(frozen_class, expression, attributes_to_copy)
 
 
 def unfreeze(expression: FrozenExpression) -> Expression:

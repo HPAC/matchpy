@@ -681,6 +681,23 @@ class SequenceMatcher(DiscriminationNet):
 
         return name
 
+    @classmethod
+    def can_match(cls, pattern):
+        if not isinstance(pattern, Operation) or pattern.commutative:
+            return False
+
+        if len(pattern.operands) < 3:
+            return False
+
+        try:
+            cls._check_wildcard_and_get_name(pattern.operands[0])
+            cls._check_wildcard_and_get_name(pattern.operands[-1])
+        except ValueError:
+            return False
+
+        return True
+
+
 
     def match(self, expression: Expression) -> Iterator[Substitution]:
         if not isinstance(expression, self.operation):
@@ -712,4 +729,4 @@ class SequenceMatcher(DiscriminationNet):
                     except ValueError:
                         continue
 
-                    yield subst, pattern
+                    yield pattern, subst

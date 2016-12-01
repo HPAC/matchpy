@@ -18,6 +18,9 @@ class DummyConstraint(Constraint):
     def __hash__(self):
         return id(self)
 
+    def with_renamed_vars(self, renaming):
+        return self
+
 C_dummy1 = DummyConstraint()
 C_dummy2 = DummyConstraint()
 

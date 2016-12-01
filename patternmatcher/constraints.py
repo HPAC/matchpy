@@ -2,6 +2,7 @@
 import inspect
 from abc import ABCMeta, abstractmethod
 from typing import Callable, Optional, Set
+from collections import OrderedDict
 
 from .expressions import Substitution
 from .utils import get_short_lambda_source
@@ -20,6 +21,10 @@ class Constraint(object, metaclass=ABCMeta):
 
     @abstractmethod
     def __hash__(self):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def with_renamed_vars(self, renaming):
         raise NotImplementedError()
 
 
@@ -43,6 +48,9 @@ class MultiConstraint(Constraint):
 
         return cls(*flat_constraints)
 
+    def with_renamed_vars(self, renaming):
+        return MultiConstraint(*(c.with_renamed_vars(renaming) for c in self.constraints))
+
     def __call__(self, match: Substitution) -> bool:
         return all(c(match) for c in self.constraints)
 
@@ -62,6 +70,9 @@ class MultiConstraint(Constraint):
 class EqualVariablesConstraint(Constraint):
     def __init__(self, *variables: str) -> None:
         self.variables = frozenset(variables)
+
+    def with_renamed_vars(self, renaming):
+        return EqualVariablesConstraint(*(renaming[v] for v in self.variables))
 
     def __call__(self, match: Substitution) -> bool:
         subst = Substitution()
@@ -91,20 +102,26 @@ class CustomConstraint(Constraint):
         signature = inspect.signature(constraint)
 
         self.allow_any = False
-        self.variables = set()  # type: Set[str]
+        self.variables = OrderedDict()
 
         for param in signature.parameters.values():
             if param.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD or param.kind == inspect.Parameter.KEYWORD_ONLY:
-                self.variables.add(param.name)
+                self.variables[param.name] = param.name
             elif param.kind == inspect.Parameter.VAR_KEYWORD:
                 self.allow_any = True
             else:
                 raise ValueError("constraint cannot have positional-only or variable positional arguments (*args)")
 
+    def with_renamed_vars(self, renaming):
+        cc = CustomConstraint(self.constraint)
+        for param_name, old_name in cc.variables.items():
+            cc.variables[param_name] = renaming[old_name]
+        return cc
+
     def __call__(self, match: Substitution) -> bool:
         if self.allow_any:
             return self.constraint(**match)
-        args = dict((name, match[name]) for name in self.variables)
+        args = dict((name, match[var_name]) for name, var_name in self.variables.items())
 
         return self.constraint(**args)
 

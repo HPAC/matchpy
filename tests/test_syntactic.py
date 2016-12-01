@@ -332,10 +332,10 @@ def test_sequence_matcher_match():
     matches = list(matcher.match(expr))
 
     assert len(matches) == 4
-    assert ({'x': a}, PATTERNS[0]) in matches
-    assert ({'z': ()}, PATTERNS[1]) in matches
-    assert ({'z': (a, b, c, a)}, PATTERNS[1]) in matches
-    assert ({'z': (b, )}, PATTERNS[2]) in matches
+    assert (PATTERNS[0], {'x': a}) in matches
+    assert (PATTERNS[1], {'z': ()}) in matches
+    assert (PATTERNS[1], {'z': (a, b, c, a)}) in matches
+    assert (PATTERNS[2], {'z': (b, )}) in matches
 
     assert list(matcher.match(freeze(a))) == []
 
@@ -360,8 +360,3 @@ def test_sequence_matcher_match():
 def test_sequence_matcher_errors(patterns, expected_error):
     with pytest.raises(expected_error):
         SequenceMatcher(*patterns)
-
-
-if __name__ == '__main__':
-    import patternmatcher.syntactic as tested_module
-    pytest.main(['--doctest-modules', __file__, tested_module.__file__])
