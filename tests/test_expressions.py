@@ -346,7 +346,6 @@ class TestFrozenExpression:
         slots = set().union(*(getattr(cls, '__slots__', []) for cls in type(expression).__mro__))
         if hasattr(expression, '__dict__'):
             slots.update(expression.__dict__.keys())
-        print(slots)
         for attr in itertools.chain(slots, self.BUILTIN_PROPERTIES):
             if attr == 'operands':
                 assert getattr(frozen_expr, attr) == tuple(getattr(expression, attr)), "Operands of frozen instance differs"
