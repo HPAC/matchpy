@@ -7,49 +7,18 @@ from graphviz import Digraph
 
 from ..expressions import (Expression, Operation, Substitution, Symbol,
                            SymbolWildcard, Variable, Wildcard, freeze)
+from ..utils import cached_property
 
 __all__ = ['FlatTerm', 'is_operation', 'is_symbol_wildcard', 'DiscriminationNet', 'SequenceMatcher']
 
 T = TypeVar('T')
 
 
-class _OperationEnd(object):
-    """Represents the end of an operation expression in a :class:`FlatTerm`.
+OPERATION_END = ')'
+"""Constant used to represent the end of an operation in a :class:`FlatTerm` and :class:`DiscriminationNet`."""
 
-    Used for :const:`OPERATION_END` as a singleton. Could also be a plain object,
-    but the string representation is customized.
-    """
-
-    def __str__(self):
-        return ')'
-
-    __repr__ = __str__
-
-OPERATION_END = _OperationEnd()
-"""Constant used to represent the end of an operation in a :class:`FlatTerm`.
-
-This is a singleton object that has *)* as representation.
-Is is also used by the :class:`DiscriminationNet`.
-"""
-
-
-class _Epsilon(object):
-    """Represents an epsilon transition label for the :class:`DiscriminationNet`.
-
-    Used for :const:`EPSILON` as a singleton. Could also be a plain object,
-    but the string representation is customized.
-    """
-
-    def __str__(self):
-        return 'ε'
-
-    __repr__ = __str__
-
-EPSILON = _Epsilon()
-"""Constant used to label an epsilon transition for the :class:`DiscriminationNet`.
-
-This is a singleton object that has *ε* as representation.
-"""
+EPSILON = 'ε'
+"""Constant used to label an epsilon transition for the :class:`DiscriminationNet`."""
 
 
 def is_operation(term: Any) -> bool:
@@ -69,9 +38,9 @@ def _get_symbol_wildcard_label(state: '_State', symbol: Symbol) -> Type[Symbol]:
 # Broken without latest version of the typing package
 # TermAtom = Union[Symbol, Type[Operation], Type[Symbol], _OperationEnd]
 # So for now use the non-generic version
-TermAtom = Union[Symbol, Wildcard, type, _OperationEnd]
+TermAtom = Union[Symbol, Wildcard, type, type(OPERATION_END)]
 # TransitionLabel = Union[Symbol, Type[Operation], Type[Symbol], Type[Wildcard], _OperationEnd, _Epsilon]
-TransitionLabel = Union[Symbol, type, _OperationEnd, _Epsilon]
+TransitionLabel = Union[Symbol, type, type(OPERATION_END), type(EPSILON)]
 
 class FlatTerm(Sequence[TermAtom]):
     """A flattened representation of an :class:`.Expression`.
@@ -141,6 +110,15 @@ class FlatTerm(Sequence[TermAtom]):
         if isinstance(other, FlatTerm):
             return self._terms == other._terms
         return NotImplemented
+
+    @cached_property
+    def is_syntactic(self):
+        for term in self._terms:
+            if isinstance(term, Wildcard) and not term.fixed_size:
+                return False
+            if is_operation(term) and (term.commutative or term.associative):
+                return False
+        return True
 
     @classmethod
     def merged(cls, *flatterms):
@@ -308,12 +286,11 @@ class DiscriminationNet(Generic[T]):
     def __init__(self):
         self._root = _State()
 
-    def add(self, pattern: Expression, final_label: T=None) -> None:
+    def add(self, pattern: Union[Expression, FlatTerm], final_label: T=None) -> None:
         """TODO"""
-        pattern = freeze(pattern)
         if final_label is None:
             final_label = pattern
-        flatterm = FlatTerm(pattern)
+        flatterm = FlatTerm(freeze(pattern)) if not isinstance(pattern, FlatTerm) else pattern
         if pattern.is_syntactic or len(flatterm) == 1:
             net = self._generate_syntactic_net(flatterm, final_label)
         else:
@@ -643,8 +620,9 @@ class DiscriminationNet(Generic[T]):
         return dot
 
 
-class SequenceMatcher(DiscriminationNet):
+class SequenceMatcher:
     def __init__(self, *patterns):
+        self._net = DiscriminationNet()
         super().__init__()
         self.patterns = []
         self.operation = None
@@ -667,9 +645,7 @@ class SequenceMatcher(DiscriminationNet):
             self.patterns.append((pattern, first_name, last_name))
 
             flatterm = FlatTerm.merged(*(FlatTerm(freeze(o)) for o in pattern.operands[1:-1]))
-
-            new_net = self._generate_net(flatterm, i)
-            self._root = self._product_net(self._root, new_net)
+            self._net.add(flatterm, i)
 
     @staticmethod
     def _check_wildcard_and_get_name(operand):
@@ -699,8 +675,6 @@ class SequenceMatcher(DiscriminationNet):
 
         return True
 
-
-
     def match(self, expression: Expression) -> Iterator[Substitution]:
         if not isinstance(expression, self.operation):
             return
@@ -710,7 +684,7 @@ class SequenceMatcher(DiscriminationNet):
         for i in range(len(flatterms)):
             flatterm = FlatTerm.merged(*flatterms[i:])
 
-            for match_index in super().match(flatterm, first=True):
+            for match_index in self._net.match(flatterm, first=True):
                 pattern, first_name, last_name = self.patterns[match_index]
                 operand_count = len(pattern.operands) - 2
                 expr_operands = expression.operands[i:i+operand_count]
@@ -732,3 +706,6 @@ class SequenceMatcher(DiscriminationNet):
                         continue
 
                     yield pattern, subst
+
+    def as_graph(self) -> Digraph:
+        return self._net.as_graph()
