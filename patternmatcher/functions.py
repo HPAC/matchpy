@@ -6,6 +6,8 @@ from typing import Callable, List, NamedTuple, Sequence, Tuple, Union, Iterable
 from .expressions import Expression, Operation, Substitution, Variable, freeze
 from .matching.one_to_one import match
 
+__all__ = ['substitute', 'replace', 'replace_all']
+
 
 def substitute(expression: Expression, substitution: Substitution) -> Tuple[Union[Expression, List[Expression]], bool]:
     """Replaces variables in the given `expression` by the given `substitution`.

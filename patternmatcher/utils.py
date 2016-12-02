@@ -8,6 +8,17 @@ from typing import (Callable, Dict, Iterator,  # pylint: disable=unused-import
 
 from multiset import Multiset
 
+__all__ = [
+    'fixed_integer_vector_iter',
+    'integer_partition_vector_iter',
+    'commutative_sequence_variable_partition_iter',
+    'get_short_lambda_source',
+    'solve_linear_diop',
+    'iterator_chain',
+    'cached_property',
+    'slot_cached_property'
+]
+
 T = TypeVar('T')
 
 
@@ -254,16 +265,6 @@ def solve_linear_diop(total: int, *coeffs: int) -> Iterator[Tuple[int, ...]]:
         # use the solutions for y to solve the remaining variables recursively
         for remainder_solution in solve_linear_diop(remainder_gcd_solution, *new_coeffs):
             yield (coeff0_solution, ) + remainder_solution
-
-
-def _match_value_repr_str(value):  # pragma: no cover
-    if isinstance(value, list):
-        return '({!s})'.format(', '.join(str(x) for x in value))
-    return str(value)
-
-
-def match_repr_str(match):  # pragma: no cover
-    return ', '.join('{!s}: {!s}'.format(k, _match_value_repr_str(v)) for k, v in match.items())
 
 
 def iterator_chain(initial_data: tuple, *factories: Callable[..., Iterator[tuple]]) -> Iterator[tuple]:

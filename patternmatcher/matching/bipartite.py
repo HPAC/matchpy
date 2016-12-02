@@ -6,6 +6,8 @@ from typing import (Dict, Generic, Hashable, Iterator, List, Set, Tuple,
 from graphviz import Digraph, Graph
 from hopcroftkarp import HopcroftKarp
 
+__all__ = ['BipartiteGraph', 'enum_maximum_matchings_iter']
+
 T = TypeVar('T')
 TLeft = TypeVar('TLeft', bound=Hashable)
 TRight = TypeVar('TRight', bound=Hashable)

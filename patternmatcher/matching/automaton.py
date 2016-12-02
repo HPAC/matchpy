@@ -7,6 +7,8 @@ from ..expressions import Operation, Variable, Wildcard, Symbol, SymbolWildcard,
 from .syntactic import OPERATION_END, is_operation, is_symbol_wildcard, FlatTerm
 from ..constraints import MultiConstraint, EqualVariablesConstraint
 
+__all__ = ['Automaton']
+
 def _term_str(term) -> str:  # pragma: no cover
     """Return a string representation of a term atom."""
     if is_operation(term):
@@ -18,15 +20,15 @@ def _term_str(term) -> str:  # pragma: no cover
     else:
         return str(term)
 
-class State:
+class _State:
     def __init__(self):
         self.transitions = {}
         self.patterns = set()
 
     def __repr__(self):
-        return 'State({!r}, {!r})'.format(self.transitions, self.patterns)
+        return '_State({!r}, {!r})'.format(self.transitions, self.patterns)
 
-class Transition:
+class _Transition:
     def __init__(self, label, target, constraint=None, same_var_index=None):
         self.label = label
         self.target = target
@@ -41,7 +43,7 @@ class Automaton:
         self.pattern_vars = []
 
     def _create_state(self):
-        state = State()
+        state = _State()
         self.states.append(state)
         return state
 
@@ -92,7 +94,7 @@ class Automaton:
                             break
                     else:
                         state = self._create_state()
-                        transition = Transition(label, state, constraint, same_var_index)
+                        transition = _Transition(label, state, constraint, same_var_index)
                         transitions.append(transition)
                 index += 1
             else:
@@ -107,7 +109,7 @@ class Automaton:
                             break
                     else:
                         state = self._create_state()
-                        transition = Transition(OPERATION_END, state, constraint, same_var_index)
+                        transition = _Transition(OPERATION_END, state, constraint, same_var_index)
                         transitions.append(transition)
 
         state.patterns.add(pattern_id)

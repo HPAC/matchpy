@@ -11,7 +11,6 @@ from patternmatcher.expressions import (Arity, Operation, Symbol, Variable,
 from patternmatcher.functions import (ReplacementRule, replace, replace_all,
                                       substitute)
 from patternmatcher.matching.one_to_one import match_anywhere
-from patternmatcher.utils import match_repr_str
 
 
 class SpecialSymbol(Symbol):
@@ -187,7 +186,7 @@ class TestMatch:
         pattern = freeze(pattern)
         result = list(match(expression, pattern))
         if expected_match is not None:
-            assert result == [expected_match], "Expression {!s} and {!s} did not match as {!s} but were supposed to".format(expression, pattern, match_repr_str(expected_match))
+            assert result == [expected_match], "Expression {!s} and {!s} did not match as {!s} but were supposed to".format(expression, pattern, expected_match)
         else:
             assert result == [], "Expression {!s} and {!s} did match but were not supposed to".format(expression, pattern)
 
@@ -212,9 +211,9 @@ class TestMatch:
         pattern = freeze(pattern)
         result = list(match(expression, pattern))
         for expected_match in expected_matches:
-            assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(expression, pattern, match_repr_str(expected_match))
+            assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(expression, pattern, expected_match)
         for result_match in result:
-            assert result_match in expected_matches, "Expression {!s} and {!s} yielded the unexpected match {!s}".format(expression, pattern, match_repr_str(result_match))
+            assert result_match in expected_matches, "Expression {!s} and {!s} yielded the unexpected match {!s}".format(expression, pattern, result_match)
 
     @pytest.mark.parametrize(
         '   expression,                 pattern,            expected_matches',
@@ -280,9 +279,9 @@ class TestMatch:
         result = list(match(expression, pattern))
         for expected_match in expected_matches:
             _convert_match_list_to_tuple(expected_match)
-            assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(expression, pattern, match_repr_str(expected_match))
+            assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(expression, pattern, expected_match)
         for result_match in result:
-            assert result_match in expected_matches, "Expression {!s} and {!s} yielded the unexpected match {!s}".format(expression, pattern, match_repr_str(result_match))
+            assert result_match in expected_matches, "Expression {!s} and {!s} yielded the unexpected match {!s}".format(expression, pattern, result_match)
 
     @pytest.mark.parametrize(
         '   expression,                 pattern,            expected_matches',
@@ -333,9 +332,9 @@ class TestMatch:
         result = list(match(expression, pattern))
         for expected_match in expected_matches:
             _convert_match_list_to_tuple(expected_match)
-            assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(expression, pattern, match_repr_str(expected_match))
+            assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(expression, pattern, expected_match)
         for result_match in result:
-            assert result_match in expected_matches, "Expression {!s} and {!s} yielded the unexpected match {!s}".format(expression, pattern, match_repr_str(result_match))
+            assert result_match in expected_matches, "Expression {!s} and {!s} yielded the unexpected match {!s}".format(expression, pattern, result_match)
 
     @pytest.mark.parametrize(
         '   expression,                 pattern,            expected_matches',
@@ -363,9 +362,9 @@ class TestMatch:
         result = list(match(expression, pattern))
         for expected_match in expected_matches:
             _convert_match_list_to_tuple(expected_match)
-            assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(expression, pattern, match_repr_str(expected_match))
+            assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(expression, pattern, expected_match)
         for result_match in result:
-            assert result_match in expected_matches, "Expression {!s} and {!s} yielded the unexpected match {!s}".format(expression, pattern, match_repr_str(result_match))
+            assert result_match in expected_matches, "Expression {!s} and {!s} yielded the unexpected match {!s}".format(expression, pattern, result_match)
 
     @pytest.mark.parametrize(
         '   expression,           pattern,      expected_matches',
@@ -383,9 +382,9 @@ class TestMatch:
         pattern = freeze(pattern)
         result = list(match(expression, pattern))
         for expected_match in expected_matches:
-            assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(expression, pattern, match_repr_str(expected_match))
+            assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(expression, pattern, expected_match)
         for result_match in result:
-            assert result_match in expected_matches, "Expression {!s} and {!s} yielded the unexpected match {!s}".format(expression, pattern, match_repr_str(result_match))
+            assert result_match in expected_matches, "Expression {!s} and {!s} yielded the unexpected match {!s}".format(expression, pattern, result_match)
 
     @pytest.mark.parametrize(
         '   expression,             pattern,                        expected_matches',
@@ -422,9 +421,9 @@ class TestMatch:
         result = list(match(expression, pattern))
         assert len(result) == len(expected_matches), 'Unexpected number of matches'
         for expected_match in expected_matches:
-            assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(expression, pattern, match_repr_str(expected_match))
+            assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(expression, pattern, expected_match)
         for result_match in result:
-            assert result_match in expected_matches, "Expression {!s} and {!s} yielded the unexpected match {!s}".format(expression, pattern, match_repr_str(result_match))
+            assert result_match in expected_matches, "Expression {!s} and {!s} yielded the unexpected match {!s}".format(expression, pattern, result_match)
 
     @staticmethod
     def _make_constraint_mock(value):

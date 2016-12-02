@@ -4,6 +4,8 @@ from typing import Iterator, Tuple
 from ..expressions import Expression, Substitution
 from .common import match as _match
 
+__all__ = ['match', 'match_anywhere']
+
 
 def match(expression: Expression, pattern: Expression) -> Iterator[Substitution]:
     r"""Tries to match the given `pattern` to the given `expression`.

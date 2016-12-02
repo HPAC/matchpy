@@ -2,18 +2,18 @@
 import itertools
 import keyword
 from enum import Enum, EnumMeta
-from typing import (Callable, Dict, Iterator, Iterable, List, NamedTuple, Optional, Set,
-                    Tuple, TupleMeta, Type, Union, cast)
+from typing import (Callable, Dict, Iterable, Iterator, List, NamedTuple,
+                    Optional, Set, Tuple, TupleMeta, Type, Union, cast)
 
 from multiset import Multiset
 
-from .utils import cached_property, slot_cached_property
-
+from .utils import slot_cached_property
 
 __all__ = [
     'Arity',
-    'Expression', 'Atom', 'Symbol', 'Variable', 'Wildcard', 'Operation',
-    'FrozenExpression', 'freeze', 'unfreeze'
+    'Expression', 'Atom', 'Symbol', 'Variable', 'Wildcard', 'Operation', 'SymbolWildcard',
+    'FrozenExpression', 'freeze', 'unfreeze',
+    'Substitution'
 ]
 
 

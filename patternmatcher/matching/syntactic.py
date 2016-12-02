@@ -5,8 +5,10 @@ from typing import (Any, Dict, FrozenSet, Generic, Iterator, List, Optional,
 
 from graphviz import Digraph
 
-from ..expressions import (Arity, Expression, Operation, Substitution, Symbol,
+from ..expressions import (Expression, Operation, Substitution, Symbol,
                            SymbolWildcard, Variable, Wildcard, freeze)
+
+__all__ = ['FlatTerm', 'is_operation', 'is_symbol_wildcard', 'DiscriminationNet', 'SequenceMatcher']
 
 T = TypeVar('T')
 

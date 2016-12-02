@@ -1,15 +1,19 @@
 # -*- coding: utf-8 -*-
 import inspect
 from abc import ABCMeta, abstractmethod
-from typing import Callable, Optional, Set
 from collections import OrderedDict
+from typing import Callable, Optional
 
 from .expressions import Substitution
 from .utils import get_short_lambda_source
 
+__all__ = ['Constraint', 'MultiConstraint', 'EqualVariablesConstraint', 'CustomConstraint']
+
 
 class Constraint(object, metaclass=ABCMeta):
     """Base for pattern constraints.
+
+    TODO
     """
     @abstractmethod
     def __call__(self, match: Substitution) -> bool:

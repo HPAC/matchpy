@@ -13,6 +13,11 @@ from ..utils import (VariableWithCount,
                      fixed_integer_vector_iter, integer_partition_vector_iter,
                      iterator_chain)
 
+__all__ = [
+    'CommutativePatternsParts',
+    'match', 'match_variable', 'match_commutative_operation', 'match_operation', 'match_wildcard'
+]
+
 Matcher = Callable[[Sequence[FrozenExpression], FrozenExpression, Substitution], Iterator[Substitution]]
 VarInfo = NamedTuple('VarInfo', [('min_count', int), ('constraint', Constraint)])
 
