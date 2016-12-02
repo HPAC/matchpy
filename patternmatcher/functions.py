@@ -42,10 +42,10 @@ def substitute(expression: Expression, substitution: Substitution) -> Tuple[Unio
             result, replaced = substitute(operand, substitution)
             if replaced:
                 any_replaced = True
-            if isinstance(result, (list, tuple)):
-                new_operands.extend(result)
-            else:
+            if isinstance(result, Expression):
                 new_operands.append(result)
+            else:
+                new_operands.extend(result)
         if any_replaced:
             return type(expression).from_args(*new_operands), True
 

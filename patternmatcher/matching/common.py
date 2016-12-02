@@ -183,19 +183,16 @@ def match_variable(expressions: List[Expression], variable: Variable, subst: Sub
         -> Iterator[Substitution]:
     inner = variable.expression
     if len(expressions) == 1 and (not isinstance(inner, Wildcard) or inner.fixed_size):
-        expr = expressions[0]  # type: Union[Expression, List[Expression]]
+        expr = next(iter(expressions))  # type: Union[Expression, List[Expression]]
     else:
         expr = tuple(expressions)
-    if variable.name in subst:
-        if expr == subst[variable.name]:
-            if variable.constraint is None or variable.constraint(subst):
-                yield subst
-        return
-    for new_subst in matcher(expressions, variable.expression, subst):
-        new_subst = Substitution(new_subst)
-        new_subst[variable.name] = expr
-        if variable.constraint is None or variable.constraint(new_subst):
-            yield new_subst
+    for new_subst in matcher(expressions, inner, subst):
+        try:
+            new_subst = new_subst.union_with_variable(variable.name, expr)
+            if variable.constraint is None or variable.constraint(new_subst):
+                yield new_subst
+        except ValueError:
+            pass
 
 
 def match_wildcard(expressions: List[Expression], wildcard: Wildcard, subst: Substitution) -> Iterator[Substitution]:
@@ -371,15 +368,18 @@ def _matches_from_matching(subst: Substitution, remaining: Multiset, pattern: Co
         combined_constraint = MultiConstraint.create(*constraints)
 
         for sequence_subst in commutative_sequence_variable_partition_iter(Multiset(rem_expr), sequence_vars):
-            s = Substitution((var, sorted(exprs)) for var, exprs in sequence_subst.items())
+            s = Substitution(sequence_subst)
             if pattern.operation.associative:
                 for v in fixed_vars.keys():
                     l = pattern.fixed_variable_infos[v].min_count
-                    value = cast(list, s[v])
+                    value = cast(Multiset[Expression], s[v])
                     if len(value) > l:
-                        s[v] = pattern.operation.from_args(*value)
+                        normal = Multiset(list(value)[:l-1])
+                        wrapped = pattern.operation.from_args(*(value - normal))
+                        normal.add(wrapped)
+                        s[v] = normal if l > 1 else next(iter(normal))
                     elif l == len(value) and l == 1:
-                        s[v] = value[0]
+                        s[v] = next(iter(value))
             try:
                 result = s.union(subst)
                 if combined_constraint is None or combined_constraint(result):

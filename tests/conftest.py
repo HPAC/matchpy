@@ -31,6 +31,12 @@ def match_many_to_one(expression, pattern):
         yield substitution
 
 def match_automaton(expression, pattern):
+    try:
+        next(p for p in pattern.preorder_iter(lambda e: isinstance(e, Operation) and e.commutative))
+    except StopIteration:
+        pass
+    else:
+        pytest.xfail('Matcher does not support commutative operations (yet)')
     matcher = Automaton()
     matcher.add(pattern)
     for _, substitution in matcher.match(expression):

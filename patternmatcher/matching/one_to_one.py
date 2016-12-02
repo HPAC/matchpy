@@ -24,7 +24,7 @@ def match(expression: Expression, pattern: Expression) -> Iterator[Substitution]
         and the corresponding value is the variables substitution. Applying the substitution to the pattern
         results in the original expression (except for :class:`Wildcard`\s)
     """
-    return _match([expression], pattern, {})
+    return _match([expression], pattern, Substitution())
 
 
 def match_anywhere(expression: Expression, pattern: Expression) -> Iterator[Tuple[Substitution, Tuple[int, ...]]]:
@@ -51,5 +51,5 @@ def match_anywhere(expression: Expression, pattern: Expression) -> Iterator[Tupl
     if pattern.head is not None:
         predicate = lambda x: x.head == pattern.head
     for child, pos in expression.preorder_iter(predicate):
-        for subst in _match([child], pattern, {}):
+        for subst in _match([child], pattern, Substitution()):
             yield subst, pos

@@ -862,7 +862,7 @@ class SymbolWildcard(Wildcard):
             return '_[{!s}] /; {!s}'.format(self.symbol_type.__name__, self.constraint)
         return '_[{!s}]'.format(self.symbol_type.__name__)
 
-VariableReplacement = Union[Tuple[Expression, ...], Set[Expression], Expression]
+VariableReplacement = Union[Tuple[Expression, ...], Multiset[Expression], Expression]
 
 
 class Substitution(Dict[str, VariableReplacement]):
@@ -877,9 +877,9 @@ class Substitution(Dict[str, VariableReplacement]):
         This considers an existing replacement and will only succeed if the new replacement
         can be merged with the old replacement. Merging can occur if either the two replacements
         are equivalent. Replacements can also be merged if the old replacement for the variable was
-        unordered (i.e. a :class:`~typing.Set`) and the new one is an equivalent ordered version of it:
+        unordered (i.e. a :class:`~.Multiset`) and the new one is an equivalent ordered version of it:
 
-        >>> subst = Substitution({'x': {'a', 'b'}})
+        >>> subst = Substitution({'x': Multiset(['a', 'b'])})
         >>> subst.try_add_variable('x', ('a', 'b'))
         >>> subst
         {'x': ('a', 'b')}
@@ -901,15 +901,15 @@ class Substitution(Dict[str, VariableReplacement]):
             existing_value = self[variable]
 
             if isinstance(existing_value, tuple):
-                if isinstance(replacement, set):
-                    if Multiset(existing_value) != Multiset(replacement):
+                if isinstance(replacement, Multiset):
+                    if Multiset(existing_value) != replacement:
                         raise ValueError
                 elif replacement != existing_value:
                     raise ValueError
-            elif isinstance(existing_value, Set):
+            elif isinstance(existing_value, Multiset):
                 compare_value = Multiset(isinstance(replacement, Expression) and [replacement] or replacement)
                 if existing_value == compare_value:
-                    if not isinstance(replacement, Set):
+                    if not isinstance(replacement, Multiset):
                         self[variable] = replacement
                 else:
                     raise ValueError
@@ -979,7 +979,7 @@ class Substitution(Dict[str, VariableReplacement]):
         If a variable occurs in multiple substitutions, try to merge the replacements.
         See :meth:`union_with_variable` to see how replacements are merged.
 
-        >>> subst1 = Substitution({'x': {'a', 'b'}})
+        >>> subst1 = Substitution({'x': Multiset(['a', 'b'])})
         >>> subst2 = Substitution({'x': ('a', 'b'), 'y': ('c', )})
         >>> str(subst1.union(subst2))
         'x <- (a, b), y <- (c)'

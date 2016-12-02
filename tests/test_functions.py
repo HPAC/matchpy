@@ -111,8 +111,6 @@ class TestMatch:
         ]
     )
     def test_commutative_match(self, match, expression, pattern, is_match):
-        if hasattr(match, 'xfail') and match.xfail:
-            pytest.xfail('Matcher does not support commutative (yet)')
         expression = freeze(expression)
         pattern = freeze(pattern)
         result = list(match(expression, pattern))
@@ -140,8 +138,6 @@ class TestMatch:
         ]
     )
     def test_commutative_syntactic_match(self, match, expression, pattern, match_count):
-        if hasattr(match, 'xfail') and match.xfail:
-            pytest.xfail('Matcher does not support commutative (yet)')
         expression = freeze(expression)
         pattern = freeze(pattern)
         result = list(match(expression, pattern))
@@ -414,8 +410,6 @@ class TestMatch:
         ]
     )
     def test_commutative_multiple_fixed_vars(self, match, expression, pattern, expected_matches):
-        if hasattr(match, 'xfail') and match.xfail:
-            pytest.xfail('Matcher does not support commutative (yet)')
         expression = freeze(expression)
         pattern = freeze(pattern)
         result = list(match(expression, pattern))
@@ -424,6 +418,29 @@ class TestMatch:
             assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(expression, pattern, expected_match)
         for result_match in result:
             assert result_match in expected_matches, "Expression {!s} and {!s} yielded the unexpected match {!s}".format(expression, pattern, result_match)
+
+    @pytest.mark.parametrize(
+        '   expression,             pattern,                is_match',
+        [
+            (f(f(a), fc(a)),        f(f(x_), fc(x_)),       True),
+            (f(f(a, b), fc(a, b)),  f(f(x__), fc(x__)),     True),
+            (f(f(a, b), fc(b, a)),  f(f(x__), fc(x__)),     True),
+            (f(f(b, a), fc(b, a)),  f(f(x__), fc(x__)),     True),
+            (f(f(b, a), fc(a, b)),  f(f(x__), fc(x__)),     True),
+            (f(fc(a, b), f(a, b)),  f(fc(x__), f(x__)),     True),
+            (f(fc(b, a), f(a, b)),  f(fc(x__), f(x__)),     True),
+            (f(fc(b, a), f(b, a)),  f(fc(x__), f(x__)),     True),
+            (f(fc(a, b), f(b, a)),  f(fc(x__), f(x__)),     True),
+        ]
+    )
+    def test_mixed_commutative_vars(self, match, expression, pattern, is_match):
+        expression = freeze(expression)
+        pattern = freeze(pattern)
+        result = list(match(expression, pattern))
+        if is_match:
+            assert len(result) > 0
+        else:
+            assert len(result) == 0
 
     @staticmethod
     def _make_constraint_mock(value):
