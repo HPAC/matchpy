@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import itertools
 import keyword
+from abc import ABCMeta
 from enum import Enum, EnumMeta
 from typing import (Callable, Dict, Iterable, Iterator, List, NamedTuple,
                     Optional, Set, Tuple, TupleMeta, Type, Union, cast)
@@ -1017,7 +1018,7 @@ class _FrozenMeta(type):
     __call__ = type.__call__
 
 
-class _FrozenOperationMeta(_FrozenMeta, _OperationMeta):
+class _FrozenOperationMeta(_FrozenMeta, _OperationMeta, ABCMeta):
     """Metaclass that mixes :class:`_FrozenMeta` and :class:`_OperationMeta`.
 
     Used to override the :meth:`from_args` to create modified frozen operations easily.
@@ -1053,9 +1054,12 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):
     DO NOT instantiate this class directly, use :func:`freeze` instead!
     Only use this class for :func:`isinstance` checks.
     """
+    # pylint: disable=assigning-non-slot
 
     __slots__ = ()
 
+    # These are only added in the subclasses, because otherwise they would conflict with the ones of the
+    # Expression (subclasses)
     _actual_slots = (
         '_frozen',
         'cached_variables',
@@ -1169,6 +1173,7 @@ def freeze(expression: Expression) -> FrozenExpression:
     Returns:
         The frozen expression.
     """
+    # pylint: disable=protected-access
     if isinstance(expression, FrozenExpression):
         return expression
     base = type(expression)

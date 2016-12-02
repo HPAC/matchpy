@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# pylint: disable=wildcard-import
 from .automaton import *
 from .bipartite import *
 from .many_to_one import *
