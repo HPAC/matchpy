@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 from collections import deque
+from typing import NamedTuple, Union, Dict, Set, Optional
 
 from graphviz import Digraph
 
-from ..expressions import Operation, Variable, Wildcard, Symbol, SymbolWildcard, freeze, Substitution, FrozenExpression
+from ..expressions import Operation, Variable, Wildcard, Symbol, SymbolWildcard, freeze, Substitution, FrozenExpression, Expression
 from .syntactic import OPERATION_END, is_operation, is_symbol_wildcard, FlatTerm
-from ..constraints import MultiConstraint, EqualVariablesConstraint
+from ..constraints import MultiConstraint, EqualVariablesConstraint, Constraint
 
 __all__ = ['Automaton']
 
@@ -20,20 +21,18 @@ def _term_str(term) -> str:  # pragma: no cover
     else:
         return str(term)
 
-class _State:
-    def __init__(self):
-        self.transitions = {}
-        self.patterns = set()
+LabelType = Union[Expression,type]
+_State = NamedTuple('_State', [
+    ('transitions', Dict[LabelType, '_Transition']),
+    ('patterns', Set[int])
+])
 
-    def __repr__(self):
-        return '_State({!r}, {!r})'.format(self.transitions, self.patterns)
-
-class _Transition:
-    def __init__(self, label, target, constraint=None, same_var_index=None):
-        self.label = label
-        self.target = target
-        self.constraint = constraint
-        self.same_var_index = same_var_index
+_Transition = NamedTuple('_Transition', [
+    ('label', LabelType),
+    ('target', _State),
+    ('constraint', Optional[Constraint]),
+    ('same_var_index', Optional[int])
+])
 
 class Automaton:
     def __init__(self):
@@ -43,7 +42,7 @@ class Automaton:
         self.pattern_vars = []
 
     def _create_state(self):
-        state = _State()
+        state = _State(dict(), set())
         self.states.append(state)
         return state
 
@@ -87,9 +86,8 @@ class Automaton:
                     constraint = constraint.with_renamed_vars(renaming)
                 if label is not None:
                     transitions = state.transitions.setdefault(head, [])
-                    for possible_transition in transitions:
-                        if possible_transition.constraint == constraint and possible_transition.same_var_index == same_var_index:
-                            transition = possible_transition
+                    for transition in transitions:
+                        if transition.constraint == constraint and transition.same_var_index == same_var_index:
                             state = transition.target
                             break
                     else:
@@ -102,9 +100,8 @@ class Automaton:
                 if context_stack:
                     constraint, same_var_index = context_stack.pop()
                     transitions = state.transitions.setdefault(OPERATION_END, [])
-                    for possible_transition in transitions:
-                        if possible_transition.constraint == constraint and possible_transition.same_var_index == same_var_index:
-                            transition = possible_transition
+                    for transition in transitions:
+                        if transition.constraint == constraint and transition.same_var_index == same_var_index:
                             state = transition.target
                             break
                     else:
@@ -220,6 +217,8 @@ class Automaton:
             for head, transitions in state.transitions.items():
                 for transition in transitions:
                     t_label = str(transition.label)
+                    if is_operation(transition.label):
+                        t_label += '('
                     if transition.constraint is not None:
                         t_label += ' ;/ ' + str(transition.constraint)
                     if transition.same_var_index:
