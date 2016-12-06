@@ -131,6 +131,10 @@ class Expression(object):
     def _without_constraints(self) -> 'Expression':
         raise NotImplementedError()
 
+    def with_renamed_vars(self, renaming) -> 'Expression':
+        """Return a copy of the expression with renamed variables."""
+        raise NotImplementedError()
+
     def preorder_iter(self, predicate: ExprPredicate=None) -> ExpressionsWithPos:
         """Iterates over all subexpressions that match the (optional) `predicate`.
 
@@ -480,7 +484,7 @@ class Operation(Expression, metaclass=_OperationMeta):
         return sum((x.symbols for x in self.operands), Multiset([self.name]))
 
     def _without_constraints(self):
-        return self.from_args(*self.operands)
+        return type(self).from_args(*self.operands)
 
     def _is_linear(self, variables: Set[str]) -> bool:
         return all(o._is_linear(variables) for o in self.operands)
@@ -493,6 +497,10 @@ class Operation(Expression, metaclass=_OperationMeta):
 
     def _compute_hash(self):
         return hash((self.name, self.constraint) + tuple(self.operands))
+
+    def with_renamed_vars(self, renaming) -> 'Operation':
+        constraint = self.constraint.with_renamed_vars(renaming) if self.constraint else None
+        return type(self).from_args(*(o.with_renamed_vars(renaming) for o in self.operands), constraint=constraint)
 
 
 class Atom(Expression):
@@ -522,6 +530,12 @@ class Symbol(Atom):
         if hasattr(self, '_original_base'):
             return freeze(self._original_base(self.name))
         return type(self)(self.name)
+
+    def with_renamed_vars(self, renaming) -> 'Symbol':
+        constraint = self.constraint.with_renamed_vars(renaming) if self.constraint else None
+        if hasattr(self, '_original_base'):
+            return freeze(self._original_base(self.name, constraint))
+        return type(self)(self.name, constraint)
 
     def __lt__(self, other):
         if isinstance(other, Symbol):
@@ -600,6 +614,11 @@ class Variable(Expression):
 
     def _without_constraints(self):
         return Variable(self.name, self.expression.without_constraints)
+
+    def with_renamed_vars(self, renaming) -> 'Variable':
+        constraint = self.constraint.with_renamed_vars(renaming) if self.constraint else None
+        name = renaming.get(self.name, self.name)
+        return Variable(name, self.expression.with_renamed_vars(renaming), constraint)
 
     @staticmethod
     def dot(name: str, constraint: Optional[Constraint]=None) -> 'Variable':
@@ -744,6 +763,10 @@ class Wildcard(Atom):
     def _without_constraints(self):
         return Wildcard(self.min_count, self.fixed_size)
 
+    def with_renamed_vars(self, renaming) -> 'Wildcard':
+        constraint = self.constraint.with_renamed_vars(renaming) if self.constraint else None
+        return Wildcard(self.min_count, self.fixed_size, constraint)
+
     @staticmethod
     def dot(length: int=1) -> 'Wildcard':
         """Create a :class:`Wildcard` that matches a fixed number `length` of arguments.
@@ -844,6 +867,10 @@ class SymbolWildcard(Wildcard):
 
     def _without_constraints(self):
         return SymbolWildcard(self.symbol_type)
+
+    def with_renamed_vars(self, renaming) -> 'SymbolWildcard':
+        constraint = self.constraint.with_renamed_vars(renaming) if self.constraint else None
+        return SymbolWildcard(self.symbol_type, constraint)
 
     def __eq__(self, other):
         return (isinstance(other, SymbolWildcard)
@@ -1003,6 +1030,9 @@ class Substitution(Dict[str, VariableReplacement]):
                 new_subst.try_add_variable(variable, replacement)
         return new_subst
 
+    def rename(self, renaming):
+        return Substitution((renaming.get(name, name), value) for name, value in self.items())
+
     @staticmethod
     def _match_value_repr_str(value: Union[List[Expression], Expression]) -> str:  # pragma: no cover
         if isinstance(value, (list, tuple)):
@@ -1148,6 +1178,9 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):
     def without_constraints(self) -> 'FrozenExpression':
         """Cached version of :attr:`Expression.without_constraints`."""
         return freeze(super().without_constraints)
+
+    def with_renamed_vars(self, renaming) -> 'FrozenExpression':
+        return freeze(super().with_renamed_vars(renaming))
 
     def __hash__(self):
         # pylint: disable=no-member

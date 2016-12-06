@@ -19,7 +19,7 @@ __all__ = [
 ]
 
 Matcher = Callable[[Sequence[FrozenExpression], FrozenExpression, Substitution], Iterator[Substitution]]
-VarInfo = NamedTuple('VarInfo', [('min_count', int), ('constraint', Constraint)])
+VarInfo = NamedTuple('VarInfo', [('min_count', int), ('constraint', Constraint), ('type', Optional[type])])
 
 
 class CommutativePatternsParts(object):
@@ -102,9 +102,9 @@ class CommutativePatternsParts(object):
 
         self.constant = Multiset()  # type: Multiset[Expression]
         self.syntactic = Multiset()  # type: Multiset[Expression]
-        self.sequence_variables = Multiset()  # type: Multiset[Tuple[str, int]]
+        self.sequence_variables = Multiset()  # type: Multiset[str]
         self.sequence_variable_infos = dict()
-        self.fixed_variables = Multiset()  # type: Multiset[Tuple[str, int]]
+        self.fixed_variables = Multiset()  # type: Multiset[str]
         self.fixed_variable_infos = dict()
         self.rest = Multiset()  # type: Multiset[Expression]
 
@@ -124,7 +124,8 @@ class CommutativePatternsParts(object):
                     wc = cast(Wildcard, wc.expression)
                     if wc.fixed_size:
                         self.fixed_variables[name] += 1
-                        self._update_var_info(self.fixed_variable_infos, name, wc.min_count, constraint)
+                        symbol_type = getattr(wc, 'symbol_type', None)
+                        self._update_var_info(self.fixed_variable_infos, name, wc.min_count, constraint, symbol_type)
                         self.fixed_variable_length += wc.min_count
                     else:
                         self.sequence_variables[name] += 1
@@ -142,17 +143,32 @@ class CommutativePatternsParts(object):
                 self.rest[expression] += 1
 
     @staticmethod
-    def _update_var_info(infos, name, count, constraint):
+    def _update_var_info(infos, name, count, constraint, symbol_type=None):
         if name not in infos:
-            infos[name] = VarInfo(count, constraint)
+            infos[name] = VarInfo(count, constraint, symbol_type)
         else:
             existing_info = infos[name]
             assert existing_info.min_count == count
+            assert existing_info.type == symbol_type
             if constraint is not None:
                 assert name is not None
                 if existing_info.constraint is not None:
                     constraint = MultiConstraint.create(existing_info.constraint, constraint)
-                infos[name] = VarInfo(count, constraint)
+                infos[name] = VarInfo(count, constraint, symbol_type)
+
+    def __str__(self):
+        parts = []
+        parts.extend(map(str, self.constant))
+        parts.extend(map(str, self.syntactic))
+        parts.extend(map(str, self.rest))
+
+        for name, count in self.sequence_variables.items():
+            parts.extend([name] * count)
+
+        for name, count in self.fixed_variables.items():
+            parts.extend([name] * count)
+
+        return '{}({})'.format(self.operation.name, ', '.join(parts))
 
 
 def match(expressions: List[Expression], pattern: Expression, subst: Substitution) -> Iterator[Substitution]:
@@ -345,13 +361,18 @@ def _matches_from_matching(subst: Substitution, remaining: Multiset, pattern: Co
     if not pattern.operation.associative:
         for name, count in fixed_vars.items():
             info = pattern.fixed_variable_infos[name]
-            factory = _fixed_var_iter_factory(name, count, info.min_count, info.constraint)
+            factory = _fixed_var_iter_factory(name, count, info.min_count, info.constraint, info.type)
             factories.append(factory)
 
         if pattern.wildcard_fixed is True:
             factory = _fixed_var_iter_factory(None, 1, pattern.wildcard_min_length, None)
             factories.append(factory)
-
+    else:
+        for name, count in fixed_vars.items():
+            min_count, constraint, symbol_type = pattern.fixed_variable_infos[name]
+            if symbol_type is not None:
+                factory = _fixed_var_iter_factory(name, count, min_count, constraint, symbol_type)
+                factories.append(factory)
 
     expr_counter = Multiset(remaining)  # type: Multiset[Expression]
 
@@ -371,6 +392,8 @@ def _matches_from_matching(subst: Substitution, remaining: Multiset, pattern: Co
             s = Substitution(sequence_subst)
             if pattern.operation.associative:
                 for v in fixed_vars.keys():
+                    if not v in s:
+                        continue
                     l = pattern.fixed_variable_infos[v].min_count
                     value = cast(Multiset[Expression], s[v])
                     if len(value) > l:
@@ -389,7 +412,7 @@ def _matches_from_matching(subst: Substitution, remaining: Multiset, pattern: Co
 
 
 def _variables_with_counts(variables, infos):
-    return tuple(VariableWithCount(name, count, infos[name].min_count) for name, count in variables.items())
+    return tuple(VariableWithCount(name, count, infos[name].min_count) for name, count in variables.items() if infos[name].type is None)
 
 
 def _fixed_expr_factory(expression, matcher):
@@ -403,7 +426,7 @@ def _fixed_expr_factory(expression, matcher):
     return factory
 
 
-def _fixed_var_iter_factory(variable, count, length, constraint=None):
+def _fixed_var_iter_factory(variable, count, length, constraint=None, symbol_type=None):
     def factory(expressions, substitution):
         if variable in substitution:
             value = ([substitution[variable]] if isinstance(substitution[variable], Expression)
@@ -416,7 +439,7 @@ def _fixed_var_iter_factory(variable, count, length, constraint=None):
         else:
             if length == 1:
                 for expr, expr_count in expressions.items():
-                    if expr_count >= count:
+                    if expr_count >= count and (symbol_type is None or isinstance(expr, symbol_type)):
                         if variable is not None:
                             new_substitution = Substitution(substitution)
                             new_substitution[variable] = expr

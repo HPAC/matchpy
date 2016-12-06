@@ -36,7 +36,7 @@ def match_automaton(expression, pattern):
     except StopIteration:
         pass
     else:
-        pytest.xfail('Matcher does not support commutative operations (yet)')
+        pytest.xfail('Matcher does not fully support commutative operations (yet)')
     matcher = Automaton()
     matcher.add(pattern)
     for _, substitution in matcher.match(expression):

@@ -597,7 +597,7 @@ class DiscriminationNet(Generic[T]):
             if not state.payload:
                 dot.node('n{!s}'.format(state.id), '', {'shape': ('circle' if state else 'doublecircle' )})
             else:
-                dot.node('n{!s}'.format(state.id), str(state.payload), {'shape': 'box'})
+                dot.node('n{!s}'.format(state.id), '\n'.join(map(str, state.payload)), {'shape': 'box'})
 
             for next_state in state.values():
                 if next_state.id not in nodes:
