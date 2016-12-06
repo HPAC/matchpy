@@ -217,7 +217,6 @@ class Automaton:
                                         eventual_subst = self._check_constraint(next_transition, new_subst, matched_expr)
                                         if eventual_subst is not None:
                                             yield from self._match(next_transition.target, new_expressions, eventual_subst, associative)
-                                matcher.bipartite.as_graph().render('tmp/bipartite')
                             else:
                                 for new_state, new_subst in self._match(transition.target, expression.operands, subst, label if label.associative else None):
                                     if OPERATION_END in new_state.transitions:
@@ -385,10 +384,6 @@ class CommutativeMatcher(object):
         for pattern_id, pattern_set, pattern_vars in self.patterns.values():
             if pattern_set:
                 bipartite = self.build_bipartite(subject_ids, pattern_set)
-                tmp = BipartiteGraph()
-                for ((s, i), (p, j)), m in bipartite.items():
-                    tmp[(self.subjects[s], i), (self.automaton.patterns[p], j)] = m
-                tmp.as_graph().render('tmp/bipartite2')
                 for matching in enum_maximum_matchings_iter(bipartite):
                     if len(matching) < len(pattern_set):
                         break
