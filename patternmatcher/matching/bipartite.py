@@ -107,9 +107,11 @@ class BipartiteGraph(Dict[Tuple[TLeft, TRight], TEdge], Generic[TLeft, TRight, T
 
 
 Node = Tuple[int, Union[TLeft, TRight]]
+NodeList = List[Node]
+NodeSet = Set[Node]
 
 
-class _DirectedMatchGraph(Dict[Node, Set[Node]], Generic[TLeft, TRight]):
+class _DirectedMatchGraph(Dict[Node, NodeSet], Generic[TLeft, TRight]):
     def __init__(self, graph: BipartiteGraph[TLeft, TRight, TEdge], matching: Dict[TLeft, TRight]) -> None:
         super(_DirectedMatchGraph, self).__init__()
         for (tail, head) in graph:
@@ -147,33 +149,33 @@ class _DirectedMatchGraph(Dict[Node, Set[Node]], Generic[TLeft, TRight]):
             graph.edge(tail_node, head_node)
         return graph
 
-    def find_cycle(self) -> List[Node]:
-        visited = cast(Set[Node], set())
+    def find_cycle(self) -> NodeList:
+        visited = cast(NodeSet, set())
         for n in self:
-            cycle = self._find_cycle(n, cast(List[Node], []), visited)
+            cycle = self._find_cycle(n, cast(NodeList, []), visited)
             if cycle:
                 return cycle
-        return cast(List[Tuple[int, Union[TLeft, TRight]]], [])
+        return cast(NodeList, [])
 
-    def _find_cycle(self, node: Node, path: List[Node], visited: Set[Node]) -> List[Node]:
+    def _find_cycle(self, node: Node, path: NodeList, visited: NodeSet) -> NodeList:
         if node in visited:
             try:
                 index = path.index(node)
                 return path[index:]
             except ValueError:
-                return cast(List[Node], [])
+                return cast(NodeList, [])
 
         visited.add(node)
 
         if node not in self:
-            return cast(List[Tuple[int, Union[TLeft, TRight]]], [])
+            return cast(NodeList, [])
 
         for other in self[node]:
             cycle = self._find_cycle(other, path + [node], visited)
             if cycle:
                 return cycle
 
-        return cast(List[Tuple[int, Union[TLeft, TRight]]], [])
+        return cast(NodeList, [])
 
 
 def enum_maximum_matchings_iter(graph: BipartiteGraph[TLeft, TRight, TEdge]) -> Iterator[Dict[TLeft, TRight]]:
