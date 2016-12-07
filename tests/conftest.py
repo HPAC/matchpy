@@ -32,11 +32,12 @@ def match_many_to_one(expression, pattern):
 
 def match_automaton(expression, pattern):
     try:
-        next(p for p in pattern.preorder_iter(lambda e: isinstance(e, Operation) and e.commutative))
+        commutative, _ = next(p for p in pattern.preorder_iter(lambda e: isinstance(e, Operation) and e.commutative))
+        next(wc for wc in commutative.preorder_iter(lambda e: isinstance(e, Wildcard) and e.min_count > 1))
     except StopIteration:
         pass
     else:
-        pytest.xfail('Matcher does not fully support commutative operations (yet)')
+        pytest.xfail('Matcher does not support fixed wildcards with length != 1 commutative operations')
     matcher = Automaton()
     matcher.add(pattern)
     for _, substitution in matcher.match(expression):
