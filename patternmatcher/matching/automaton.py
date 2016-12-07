@@ -1,15 +1,17 @@
 # -*- coding: utf-8 -*-
+import math
 from collections import deque
-from typing import Dict, Iterable, NamedTuple, Optional, Set, Union
+from typing import (Dict, Iterable, List, NamedTuple, Optional, Set, Tuple,
+                    Union)
 
 from graphviz import Digraph
 from multiset import Multiset
 
 from ..constraints import Constraint, MultiConstraint
-from ..expressions import (
-    Expression, FrozenExpression, Operation, Substitution, Symbol, SymbolWildcard, Variable, Wildcard, freeze
-)
-from ..utils import (VariableWithCount, commutative_sequence_variable_partition_iter)
+from ..expressions import (FrozenExpression, Operation, Substitution, Symbol,
+                           SymbolWildcard, Variable, Wildcard, freeze)
+from ..utils import (VariableWithCount,
+                     commutative_sequence_variable_partition_iter)
 from .bipartite import BipartiteGraph, enum_maximum_matchings_iter
 from .syntactic import OPERATION_END, is_operation
 
@@ -27,6 +29,12 @@ _Transition = NamedTuple('_Transition', [
     ('target', _State),
     ('constraint', Optional[Constraint]),
     ('variable_name', Optional[str])
+])  # yapf: disable
+
+_MatchContext = NamedTuple('_MatchContext', [
+    ('expressions', Tuple[FrozenExpression]),
+    ('substitution', Substitution),
+    ('associative', Optional[type])
 ])  # yapf: disable
 
 
@@ -65,14 +73,15 @@ class Automaton:
                     variable_name = expr.name
                     expr = expr.expression
                 if isinstance(expr, Operation):
-                    if expr.commutative:
-                        commutative = True
-                    else:
+                    if not expr.commutative:
                         context_stack.append(MultiConstraint.create(constraint, expr.constraint))
                         expressions_stack.append(deque(expr.operands))
                         constraint = None
                 constraint = MultiConstraint.create(constraint, expr.constraint)
-                state = self._create_expression_transition(state, expr, constraint, variable_name, pattern_index)
+                state = self._create_expression_transition(state, expr, constraint, variable_name)
+                if getattr(expr, 'commutative', False):
+                    subpattern_id = state.matcher.add_pattern(expr.operands)
+                    state = self._create_simple_transition(state, subpattern_id, constraint)
                 index += 1
             else:
                 expressions_stack.pop()
@@ -87,40 +96,48 @@ class Automaton:
     def match(self, expression):
         expression = freeze(expression)
 
-        for state, substitution in self._match(self.root, [expression], Substitution()):
+        context = _MatchContext((expression, ), Substitution(), None)
+        for state, substitution in self._match(self.root, context):
             for pattern_index in state.patterns:
                 renaming = self.pattern_vars[pattern_index]
                 substitution = substitution.rename({renamed: original for original, renamed in renaming.items()})
                 yield self.patterns[pattern_index], substitution
 
     def as_graph(self, finals=None) -> Digraph:  # pragma: no cover
-        dot = Digraph()
+        graph = Digraph()
 
+        self._make_graph_nodes(graph, finals)
+        self._make_graph_edges(graph)
+
+        return graph
+
+    def _make_graph_nodes(self, graph: Digraph, finals: Optional[List[str]]) -> None:
         for state in self.states:
             name = 'n{!s}'.format(id(state))
             if finals is not None and not state.transitions:
                 finals.append(name)
             if state.matcher:
-                dot.node(name, 'Sub Matcher', {'shape': 'box'})
+                graph.node(name, 'Sub Matcher', {'shape': 'box'})
                 subfinals = []
-                dot.subgraph(state.matcher.automaton.as_graph(subfinals))
+                graph.subgraph(state.matcher.automaton.as_graph(subfinals))
                 submatch_label = 'Sub Matcher End'
                 for pattern_index, subpatterns, variables in state.matcher.patterns.values():
                     var_formatted = ', '.join('{}[{}]x{}'.format(n, m, c) for n, c, m in variables)
                     submatch_label += '\n{}: {} {}'.format(pattern_index, subpatterns, var_formatted)
-                dot.node(name + '-end', submatch_label, {'shape': 'box'})
+                graph.node(name + '-end', submatch_label, {'shape': 'box'})
                 for f in subfinals:
-                    dot.edge(f, name + '-end')
-                dot.edge(name, 'n{}'.format(id(state.matcher.automaton.root)))
+                    graph.edge(f, name + '-end')
+                graph.edge(name, 'n{}'.format(id(state.matcher.automaton.root)))
             elif not state.patterns:
-                dot.node(name, '', {'shape': ('circle' if state.transitions else 'doublecircle')})
+                graph.node(name, '', {'shape': ('circle' if state.transitions else 'doublecircle')})
             else:
                 variables = ['{}: {}'.format(p, repr(self.pattern_vars[p])) for p in state.patterns]
                 label = '\n'.join(variables)
-                dot.node(name, label, {'shape': 'box'})
+                graph.node(name, label, {'shape': 'box'})
 
+    def _make_graph_edges(self, graph: Digraph) -> None:
         for state in self.states:
-            for head, transitions in state.transitions.items():
+            for _, transitions in state.transitions.items():
                 for transition in transitions:
                     t_label = str(transition.label)
                     if is_operation(transition.label):
@@ -134,11 +151,9 @@ class Automaton:
                     if state.matcher:
                         start += '-end'
                     end = 'n{!s}'.format(id(transition.target))
-                    dot.edge(start, end, t_label)
+                    graph.edge(start, end, t_label)
 
-        return dot
-
-    def _create_expression_transition(self, state, expr, constraint, variable_name, pattern_index):
+    def _create_expression_transition(self, state, expr, constraint, variable_name):
         label, head = self._get_label_and_head(expr)
         transitions = state.transitions.setdefault(head, [])
         commutative = getattr(expr, 'commutative', False)
@@ -157,9 +172,6 @@ class Automaton:
             state = self._create_state(matcher)
             transition = _Transition(label, state, constraint, variable_name)
             transitions.append(transition)
-        if commutative:
-            subpattern_id = matcher.add_pattern(pattern_index, expr.operands)
-            return self._create_simple_transition(state, subpattern_id, constraint)
         return state
 
     def _create_simple_transition(self, state, label, constraint):
@@ -174,7 +186,8 @@ class Automaton:
             transitions.append(transition)
         return state
 
-    def _get_label_and_head(self, expr):
+    @staticmethod
+    def _get_label_and_head(expr):
         if isinstance(expr, Operation):
             label = type(expr)
             head = label._original_base
@@ -185,7 +198,8 @@ class Automaton:
                 head = label.symbol_type
         return label, head
 
-    def _match(self, state, expressions, substitution, associative=None):
+    def _match(self, state, context):
+        expressions, substitution, _ = context
         if not state.transitions:
             if state.patterns and not expressions:
                 yield state, substitution
@@ -195,6 +209,49 @@ class Automaton:
             yield state, substitution
 
         expression = expressions[0] if expressions else None
+        heads = self._get_heads(expression)
+
+        for head in heads:
+            for transition in state.transitions.get(head, []):
+                yield from self._match_transition(transition, context)
+
+    def _match_transition(self, transition, context):
+        expressions, substitution, associative = context
+        label = transition.label
+        expression = expressions[0] if expressions else None
+        matched_expr = expression
+        new_expressions = expressions[1:]
+        if is_operation(label):
+            yield from self._match_operation(transition, context)
+            return
+        elif isinstance(label, Symbol):
+            if label != expression:
+                return
+        elif isinstance(label, SymbolWildcard):
+            if not isinstance(expression, label.symbol_type):
+                return
+        elif isinstance(label, Wildcard):
+            min_count = label.min_count
+            if label.fixed_size and not associative:
+                if min_count == 1:
+                    if expression is None:
+                        return
+                elif len(expressions) >= min_count:
+                    matched_expr = tuple(expressions[:min_count])
+                    new_expressions = expressions[min_count:]
+                else:
+                    return
+            else:
+                yield from self._match_sequence_variable(label, transition, context)
+                return
+
+        new_subst = self._check_constraint(transition, substitution, matched_expr)
+        if new_subst is not None:
+            new_context = _MatchContext(new_expressions, new_subst, associative)
+            yield from self._match(transition.target, new_context)
+
+    @staticmethod
+    def _get_heads(expression):
         heads = [expression.head] if expression else []
         if isinstance(expression, Symbol):
             heads.extend(
@@ -202,84 +259,59 @@ class Automaton:
                 if issubclass(base, Symbol) and not issubclass(base, FrozenExpression)
             )
         heads.append(None)
+        return heads
 
-        for head in heads:
-            if head in state.transitions:
-                for transition in state.transitions[head]:
-                    label = transition.label
-                    matched_expr = None
-                    new_expressions = None
-                    if is_operation(label):
-                        if isinstance(expression, label):
-                            matched_expr = expression
-                            new_expressions = expressions[1:]
-                            matcher = transition.target.matcher
-                            if matcher:
-                                for operand in expression.operands:
-                                    matcher.add_subject(operand)
-                                for matched_pattern, new_subst in matcher.match(expression.operands, substitution):
-                                    transition_set = transition.target.transitions[matched_pattern]
-                                    for next_transition in transition_set:
-                                        eventual_subst = self._check_constraint(
-                                            next_transition, new_subst, matched_expr
-                                        )
-                                        if eventual_subst is not None:
-                                            yield from self._match(
-                                                next_transition.target, new_expressions, eventual_subst, associative
-                                            )
-                            else:
-                                for new_state, new_subst in self._match(
-                                    transition.target, expression.operands, substitution, label
-                                    if label.associative else None
-                                ):
-                                    if OPERATION_END in new_state.transitions:
-                                        for transition in new_state.transitions[OPERATION_END]:
-                                            eventual_subst = self._check_constraint(transition, new_subst, matched_expr)
-                                            if eventual_subst is not None:
-                                                yield from self._match(
-                                                    transition.target, new_expressions, eventual_subst, associative
-                                                )
-                            continue
-                    elif isinstance(label, Symbol):
-                        if label == expression:
-                            matched_expr = expression
-                            new_expressions = expressions[1:]
-                    elif isinstance(label, SymbolWildcard):
-                        if isinstance(expression, label.symbol_type):
-                            matched_expr = expression
-                            new_expressions = expressions[1:]
-                    elif isinstance(label, Wildcard):
-                        min_count = label.min_count
-                        if label.fixed_size and not associative:
-                            if min_count == 1:
-                                if expression is not None:
-                                    matched_expr = expression
-                                    new_expressions = expressions[1:]
-                            elif len(expressions) >= min_count:
-                                matched_expr = tuple(expressions[:min_count])
-                                new_expressions = expressions[min_count:]
-                        else:
-                            for i in range(min_count, len(expressions) + 1):
-                                matched_expr = tuple(expressions[:i])
-                                if associative and label.fixed_size:
-                                    if i > min_count:
-                                        wrapped = associative.from_args(*matched_expr[min_count - 1:])
-                                        if min_count == 1:
-                                            matched_expr = wrapped
-                                        else:
-                                            matched_expr = matched_expr[:min_count - 1] + (wrapped, )
-                                    elif min_count == 1:
-                                        matched_expr = matched_expr[0]
-                                new_expressions = expressions[i:]
-                                new_subst = self._check_constraint(transition, substitution, matched_expr)
-                                if new_subst is not None:
-                                    yield from self._match(transition.target, new_expressions, new_subst, associative)
-                            continue
+    def _match_sequence_variable(self, wildcard, transition, context):
+        expressions, substitution, associative = context
+        min_count = wildcard.min_count
+        for i in range(min_count, len(expressions) + 1):
+            matched_expr = tuple(expressions[:i])
+            if associative and wildcard.fixed_size:
+                if i > min_count:
+                    wrapped = associative.from_args(*matched_expr[min_count - 1:])
+                    if min_count == 1:
+                        matched_expr = wrapped
+                    else:
+                        matched_expr = matched_expr[:min_count - 1] + (wrapped, )
+                elif min_count == 1:
+                    matched_expr = matched_expr[0]
+            new_subst = self._check_constraint(transition, substitution, matched_expr)
+            if new_subst is not None:
+                new_context = _MatchContext(expressions[i:], new_subst, associative)
+                yield from self._match(transition.target, new_context)
 
-                    if new_expressions is not None:
-                        new_subst = self._check_constraint(transition, substitution, matched_expr)
-                        if new_subst is not None:
-                            yield from self._match(transition.target, new_expressions, new_subst, associative)
+    def _match_operation(self, transition, context):
+        expression = context[0][0]
+        if isinstance(expression, transition.label):
+            if transition.target.matcher:
+                yield from self._match_commutative_operation(transition.target, context)
+            else:
+                yield from self._match_regular_operation(transition, context)
+
+    def _match_commutative_operation(self, state, context):
+        (expression, *rest), substitution, associative = context
+        matcher = state.matcher
+        for operand in expression.operands:
+            matcher.add_subject(operand)
+        for matched_pattern, new_subst in matcher.match(expression.operands, substitution):
+            transition_set = state.transitions[matched_pattern]
+            for next_transition in transition_set:
+                eventual_subst = self._check_constraint(next_transition, new_subst, expression)
+                if eventual_subst is not None:
+                    new_context = _MatchContext(rest, eventual_subst, associative)
+                    yield from self._match(next_transition.target, new_context)
+
+    def _match_regular_operation(self, transition, context):
+        (expression, *rest), substitution, associative = context
+        new_associative = transition.label if transition.label.associative else None
+        new_context = _MatchContext(expression.operands, substitution, new_associative)
+        for new_state, new_subst in self._match(transition.target, new_context):
+            if OPERATION_END in new_state.transitions:
+                for transition in new_state.transitions[OPERATION_END]:
+                    eventual_subst = self._check_constraint(transition, new_subst, expression)
+                    if eventual_subst is not None:
+                        new_context = _MatchContext(rest, eventual_subst, associative)
+                        yield from self._match(transition.target, new_context)
 
     def _create_state(self, matcher=None):
         state = _State(dict(), set(), matcher)
@@ -345,7 +377,7 @@ class CommutativeMatcher(object):
         self.bipartite = BipartiteGraph()
         self.associative = associative
 
-    def add_pattern(self, pattern_index: int, operands: Iterable[FrozenExpression]) -> None:
+    def add_pattern(self, operands: Iterable[FrozenExpression]) -> None:
         pattern_set, pattern_vars = self._extract_sequence_wildcards(operands)
         sorted_vars = tuple(sorted(pattern_vars.values()))
         sorted_subpatterns = tuple(sorted(pattern_set))
@@ -361,7 +393,8 @@ class CommutativeMatcher(object):
         if subject not in self.subjects:
             subject_id = self.subjects[subject] = len(self.subjects)
             self.subjects[subject_id] = subject
-            for state, parts in self.automaton._match(self.automaton.root, [subject], Substitution(), self.associative):
+            context = _MatchContext((subject, ), Substitution(), self.associative)
+            for state, parts in self.automaton._match(self.automaton.root, context):
                 for pattern_index in state.patterns:
                     variables = self.automaton.pattern_vars[pattern_index]
                     substitution = Substitution((name, parts[index]) for name, index in variables.items())
@@ -378,7 +411,7 @@ class CommutativeMatcher(object):
                 for bipartite_subst, matched_subjects in bipartite_match_iter:
                     if pattern_vars:
                         remaining_ids = subject_ids - matched_subjects
-                        remaining = Multiset(self.subjects[id] for id in remaining_ids)
+                        remaining = Multiset(self.subjects[id] for id in remaining_ids)  # pylint: disable=not-an-iterable
                         sequence_var_iter = self._match_sequence_variables(remaining, pattern_vars, bipartite_subst)
                         for result_substitution in sequence_var_iter:
                             yield pattern_index, result_substitution
@@ -458,7 +491,7 @@ class CommutativeMatcher(object):
                     return False
                 previous_label = label
         for subject_id, count in subject_ids.items():
-            patterns = iter(matching[subject_id, i] for i in range(count) if (subject_id, i) in matching)
+            patterns = iter(matching.get((subject_id, i), (math.inf, math.inf)) for i in range(count))
             try:
                 last_pattern = next(patterns)
             except StopIteration:
