@@ -1,18 +1,15 @@
 # -*- coding: utf-8 -*-
 from reprlib import recursive_repr
-from typing import (Any, Dict, FrozenSet, Generic, Iterator, List, Optional,
-                    Sequence, Set, Tuple, Type, TypeVar, Union)
+from typing import (Any, Dict, FrozenSet, Generic, Iterator, List, Optional, Sequence, Set, Tuple, Type, TypeVar, Union)
 
 from graphviz import Digraph
 
-from ..expressions import (Expression, Operation, Substitution, Symbol,
-                           SymbolWildcard, Variable, Wildcard, freeze)
+from ..expressions import (Expression, Operation, Substitution, Symbol, SymbolWildcard, Variable, Wildcard, freeze)
 from ..utils import cached_property
 
 __all__ = ['FlatTerm', 'is_operation', 'is_symbol_wildcard', 'DiscriminationNet', 'SequenceMatcher']
 
 T = TypeVar('T')
-
 
 OPERATION_END = ')'
 """Constant used to represent the end of an operation in a :class:`FlatTerm` and :class:`DiscriminationNet`."""
@@ -35,12 +32,14 @@ def _get_symbol_wildcard_label(state: '_State', symbol: Symbol) -> Type[Symbol]:
     """Return the transition target for the given symbol type from the the given state or None if it does not exist."""
     return next((t for t in state.keys() if is_symbol_wildcard(t) and isinstance(symbol, t)), None)
 
+
 # Broken without latest version of the typing package
 # TermAtom = Union[Symbol, Type[Operation], Type[Symbol], _OperationEnd]
 # So for now use the non-generic version
 TermAtom = Union[Symbol, Wildcard, type, type(OPERATION_END)]
 # TransitionLabel = Union[Symbol, Type[Operation], Type[Symbol], Type[Wildcard], _OperationEnd, _Epsilon]
 TransitionLabel = Union[Symbol, type, type(OPERATION_END), type(EPSILON)]
+
 
 class FlatTerm(Sequence[TermAtom]):
     """A flattened representation of an :class:`.Expression`.
@@ -206,9 +205,10 @@ class _State(Dict[TransitionLabel, '_State'], Generic[T]):
 
     @recursive_repr()
     def __repr__(self):
-        return '{{STATE {!s}: {!s}}}'.format(self.payload, ', '.join('{!s}:{!s}'.format(_term_str(term),
-                                                                                        self._target_str(target))
-                                                                     for term, target in self.items()))
+        return '{{STATE {!s}: {!s}}}'.format(
+            self.payload,
+            ', '.join('{!s}:{!s}'.format(_term_str(term), self._target_str(target)) for term, target in self.items())
+        )
 
 
 class _StateQueueItem(Generic[T]):
@@ -228,6 +228,7 @@ class _StateQueueItem(Generic[T]):
     the first automaton is using it. If set to ``2``,  the second automaton is using it. Otherwise it will be set to
     ``0``. :attr:`fixed` can only be non-zero if the depth is greater than zero.
     """
+
     def __init__(self, state1: _State[T], state2: _State[T]) -> None:
         self.state1 = state1
         self.state2 = state2
@@ -254,7 +255,7 @@ class _StateQueueItem(Generic[T]):
         instead. Also, when already in a failed state (one of the states is ``None``), the :const:`OPERATION_END` is
         also included.
         """
-        labels = set() # type: Set[TransitionLabel]
+        labels = set()  # type: Set[TransitionLabel]
         if self.state1 is not None and self.fixed != 1:
             labels.update(self.state1.keys())
         if self.state2 is not None and self.fixed != 2:
@@ -269,7 +270,8 @@ class _StateQueueItem(Generic[T]):
 
     def __repr__(self):
         return 'NQI({!r}, {!r}, {!r}, {!r}, {!r}, {!r})'.format(
-            self.id1, self.id2, self.depth, self.fixed, self.state1, self.state2)
+            self.id1, self.id2, self.depth, self.fixed, self.state1, self.state2
+        )
 
 
 class DiscriminationNet(Generic[T]):
@@ -363,7 +365,10 @@ class DiscriminationNet(Generic[T]):
                 if is_operation(term):
                     fail_state = None
                     if last_wildcards[-1] or fail_states[-1]:
-                        last_fail_state = fail_states[-1] if not isinstance(fail_states[-1], list) else fail_states[-1][operand_counts[-1]]
+                        last_fail_state = (
+                            fail_states[-1]
+                            if not isinstance(fail_states[-1], list) else fail_states[-1][operand_counts[-1]]
+                        )
                         if term.arity.fixed_size:
                             fail_state = _State()
                             states[fail_state.id] = fail_state
@@ -393,9 +398,11 @@ class DiscriminationNet(Generic[T]):
                 if last_wildcards[-1]:
                     state[EPSILON] = last_wildcards[-1]
                 elif fail_states[-1]:
-                    last_fail_state = fail_states[-1] if not isinstance(fail_states[-1], list) else fail_states[-1][operand_counts[-1]]
+                    last_fail_state = (
+                        fail_states[-1]
+                        if not isinstance(fail_states[-1], list) else fail_states[-1][operand_counts[-1]]
+                    )
                     state[EPSILON] = last_fail_state
-
 
         state.payload = [final_label]
 
@@ -409,7 +416,6 @@ class DiscriminationNet(Generic[T]):
             payload.update(states[state].payload)
 
         return _State(list(payload))
-
 
     @classmethod
     def _convert_nfa_to_dfa(cls, root: _State[T], states: Dict[int, _State[T]]) -> _State[T]:
@@ -526,7 +532,7 @@ class DiscriminationNet(Generic[T]):
                         child_state.depth = 1
                         child_state.state2 = current_state.state2
                         child_state.id2 = current_state.id2
-                        child_state.payload =  child_state.state1.payload
+                        child_state.payload = child_state.state1.payload
                 elif label == OPERATION_END and current_state.fixed:
                     child_state.depth -= 1
 
@@ -595,7 +601,7 @@ class DiscriminationNet(Generic[T]):
         while queue:
             state = queue.pop(0)
             if not state.payload:
-                dot.node('n{!s}'.format(state.id), '', {'shape': ('circle' if state else 'doublecircle' )})
+                dot.node('n{!s}'.format(state.id), '', {'shape': ('circle' if state else 'doublecircle')})
             else:
                 dot.node('n{!s}'.format(state.id), '\n'.join(map(str, state.payload)), {'shape': 'box'})
 
@@ -633,8 +639,10 @@ class SequenceMatcher:
             if self.operation is None:
                 self.operation = type(pattern)
             elif not isinstance(pattern, self.operation):
-                raise TypeError("All patterns must be the same operation, expected {} but got {}".format(
-                    self.operation, type(pattern)))
+                raise TypeError(
+                    "All patterns must be the same operation, expected {} but got {}".
+                    format(self.operation, type(pattern))
+                )
 
             if len(pattern.operands) < 3:
                 raise ValueError("Pattern has not enough operands.")
@@ -687,7 +695,7 @@ class SequenceMatcher:
             for match_index in self._net.match(flatterm, first=True):
                 pattern, first_name, last_name = self.patterns[match_index]
                 operand_count = len(pattern.operands) - 2
-                expr_operands = expression.operands[i:i+operand_count]
+                expr_operands = expression.operands[i:i + operand_count]
                 patt_operands = pattern.operands[1:-1]
 
                 subst = Substitution()
@@ -701,7 +709,7 @@ class SequenceMatcher:
                         if first_name is not None:
                             subst.try_add_variable(first_name, tuple(expression.operands[:i]))
                         if last_name is not None:
-                            subst.try_add_variable(last_name, tuple(expression.operands[i+operand_count:]))
+                            subst.try_add_variable(last_name, tuple(expression.operands[i + operand_count:]))
                     except ValueError:
                         continue
 

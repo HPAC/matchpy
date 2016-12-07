@@ -75,6 +75,9 @@ def replace(expression: Expression, position: Sequence[int], replacement: Union[
 
     Returns:
         The resulting expression from the replacement.
+
+    Raises:
+        IndexError: If the position is invalid or out of range.
     """
     if position == ():
         return replacement
@@ -86,11 +89,12 @@ def replace(expression: Expression, position: Sequence[int], replacement: Union[
     pos = position[0]
     subexpr = replace(expression.operands[pos], position[1:], replacement)
     if isinstance(subexpr, Sequence):
-        new_operands = tuple(expression.operands[:pos]) + tuple(subexpr) + tuple(expression.operands[pos+1:])
+        new_operands = tuple(expression.operands[:pos]) + tuple(subexpr) + tuple(expression.operands[pos + 1:])
         return op_class.from_args(*new_operands)
     operands = list(expression.operands)
     operands[pos] = subexpr
     return op_class.from_args(*operands)
+
 
 ReplacementRule = NamedTuple('ReplacementRule', [('pattern', Expression), ('replacement', Callable[..., Expression])])
 

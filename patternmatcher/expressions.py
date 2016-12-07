@@ -1,20 +1,25 @@
 # -*- coding: utf-8 -*-
 import itertools
 import keyword
-from abc import ABCMeta
+from abc import ABCMeta, abstractmethod
 from enum import Enum, EnumMeta
-from typing import (Callable, Dict, Iterable, Iterator, List, NamedTuple,
-                    Optional, Set, Tuple, TupleMeta, Type, Union, cast)
+from typing import (
+    Callable, Dict, Iterable, Iterator, List, NamedTuple, Optional, Set, Tuple, TupleMeta, Type, Union, cast,
+    TYPE_CHECKING
+)
 
 from multiset import Multiset
 
 from .utils import slot_cached_property
 
+if TYPE_CHECKING:
+    from .constraints import Constraint
+else:
+    Constraint = Callable[['Substitution'], bool]
+
 __all__ = [
-    'Arity',
-    'Expression', 'Atom', 'Symbol', 'Variable', 'Wildcard', 'Operation', 'SymbolWildcard',
-    'FrozenExpression', 'freeze', 'unfreeze',
-    'Substitution'
+    'Arity', 'Expression', 'Atom', 'Symbol', 'Variable', 'Wildcard', 'Operation', 'SymbolWildcard', 'FrozenExpression',
+    'freeze', 'unfreeze', 'Substitution'
 ]
 
 
@@ -23,6 +28,7 @@ class _ArityMeta(TupleMeta, EnumMeta):
     @classmethod
     def __prepare__(mcs, cls, bases, **kwargs):
         return super().__prepare__(cls, bases)
+
 
 _ArityBase = NamedTuple('_ArityBase', [('min_count', int), ('fixed_size', bool)])
 
@@ -39,22 +45,22 @@ class Arity(_ArityBase, Enum, metaclass=_ArityMeta, _root=True):
     def __new__(cls, *data):
         return tuple.__new__(cls, data)
 
-    nullary     = (0, True)
-    unary       = (1, True)
-    binary      = (2, True)
-    ternary     = (3, True)
-    polyadic    = (2, False)
-    variadic    = (0, False)
+    nullary = (0, True)
+    unary = (1, True)
+    binary = (2, True)
+    ternary = (3, True)
+    polyadic = (2, False)
+    variadic = (0, False)
 
     def __repr__(self):
         return "{!s}.{!s}".format(type(self).__name__, self._name_)
 
-Constraint = Callable[['Substitution'], bool]
+
 ExprPredicate = Optional[Callable[['Expression'], bool]]
 ExpressionsWithPos = Iterator[Tuple['Expression', Tuple[int, ...]]]
 
 
-class Expression(object):
+class Expression(metaclass=ABCMeta):
     """Base class for all expressions.
 
     Do not subclass this class directly but rather :class:`Symbol` or :class:`Operation`.
@@ -72,7 +78,7 @@ class Expression(object):
 
     __slots__ = 'constraint', 'head'
 
-    def __init__(self, constraint: Optional[Constraint] = None) -> None:
+    def __init__(self, constraint: Constraint=None) -> None:
         """Create a new expression.
 
         Args:
@@ -128,9 +134,11 @@ class Expression(object):
         """A copy of the expression without constraints."""
         return self._without_constraints()
 
+    @abstractmethod
     def _without_constraints(self) -> 'Expression':
         raise NotImplementedError()
 
+    @abstractmethod
     def with_renamed_vars(self, renaming) -> 'Expression':
         """Return a copy of the expression with renamed variables."""
         raise NotImplementedError()
@@ -178,7 +186,7 @@ class Expression(object):
         raise IndexError("Invalid position")
 
 
-class _OperationMeta(type):
+class _OperationMeta(ABCMeta):
     """Metaclass for :class:`Operation`
 
     This metaclass is mainly used to override :meth:`__call__` to provide simplification when creating a
@@ -204,7 +212,7 @@ class _OperationMeta(type):
     def __str__(cls):
         return cls.name
 
-    def __call__(cls, *operands: Expression, constraint: Optional[Constraint]=None):
+    def __call__(cls, *operands: Expression, constraint: Constraint=None):
         # __call__ is overridden, so that for one_identity operations with a single argument
         # that argument can be returned instead
         operands = list(operands)
@@ -333,12 +341,15 @@ class Operation(Expression, metaclass=_OperationMeta):
         operand_count, variable_count = self._count_operands(operands)
 
         if not variable_count and operand_count < self.arity.min_count:
-            raise ValueError("Operation {!s} got arity {!s}, but got {:d} operands.".format(
-                type(self).__name__, self.arity, len(operands)))
+            raise ValueError(
+                "Operation {!s} got arity {!s}, but got {:d} operands.".
+                format(type(self).__name__, self.arity, len(operands))
+            )
 
         if self.arity.fixed_size and operand_count > self.arity.min_count:
             msg = "Operation {!s} got arity {!s}, but got {:d} operands.".format(
-                type(self).__name__, self.arity, operand_count)
+                type(self).__name__, self.arity, operand_count
+            )
             if self.associative:
                 msg += " Associative operations should have a variadic/polyadic arity."
             raise ValueError(msg)
@@ -348,8 +359,10 @@ class Operation(Expression, metaclass=_OperationMeta):
         for var, _ in itertools.chain.from_iterable(var_iters):
             if var.name in variables:
                 if variables[var.name] != var.without_constraints:
-                    raise ValueError("Conflicting versions of variable {!s}: {!r} vs {!r}".format(
-                        var.name, var, variables[var.name]))
+                    raise ValueError(
+                        "Conflicting versions of variable {!s}: {!r} vs {!r}".
+                        format(var.name, var, variables[var.name])
+                    )
             else:
                 variables[var.name] = var.without_constraints
 
@@ -387,9 +400,16 @@ class Operation(Expression, metaclass=_OperationMeta):
         return '{!s}({!s})'.format(type(self).__name__, operand_str)
 
     @staticmethod
-    def new(name: str, arity: Arity, class_name: str = None, *, associative: bool=False, commutative: bool=False,
-            one_identity: bool=False, infix: bool=False) \
-        -> Type['Operation']:
+    def new(
+        name: str,
+        arity: Arity,
+        class_name: str=None,
+        *,
+        associative: bool=False,
+        commutative: bool=False,
+        one_identity: bool=False,
+        infix: bool=False
+    ) -> Type['Operation']:
         """Utility method to create a new operation type.
 
         Example:
@@ -427,14 +447,17 @@ class Operation(Expression, metaclass=_OperationMeta):
         if not class_name.isidentifier() or keyword.iskeyword(class_name):
             raise ValueError("Invalid identifier for new operator class.")
 
-        return type(class_name, (Operation, ), {
-            'name': name,
-            'arity': arity,
-            'associative': associative,
-            'commutative': commutative,
-            'one_identity': one_identity,
-            'infix': infix
-        })
+        return type(
+            class_name, (Operation, ), {
+                'name': name,
+                'arity': arity,
+                'associative': associative,
+                'commutative': commutative,
+                'one_identity': one_identity,
+                'infix': infix,
+                '__slots__': ()
+            }
+        )
 
     def __lt__(self, other):
         if isinstance(other, Symbol):
@@ -457,9 +480,10 @@ class Operation(Expression, metaclass=_OperationMeta):
     def __eq__(self, other):
         if not isinstance(self, type(other)):
             return NotImplemented
-        return (self.constraint == other.constraint
-                and len(self.operands) == len(other.operands)
-                and all(x == y for x, y in zip(self.operands, other.operands)))
+        return (
+            self.constraint == other.constraint and len(self.operands) == len(other.operands) and
+            all(x == y for x, y in zip(self.operands, other.operands))
+        )
 
     def __getitem__(self, key: Tuple[int, ...]) -> Expression:
         if len(key) == 0:
@@ -487,13 +511,13 @@ class Operation(Expression, metaclass=_OperationMeta):
         return type(self).from_args(*self.operands)
 
     def _is_linear(self, variables: Set[str]) -> bool:
-        return all(o._is_linear(variables) for o in self.operands)
+        return all(o._is_linear(variables) for o in self.operands)  # pylint: disable=protected-access
 
     def _preorder_iter(self, predicate: ExprPredicate=None, position: Tuple[int, ...]=()) -> ExpressionsWithPos:
         if predicate is None or predicate(self):
             yield self, position
         for i, operand in enumerate(self.operands):
-            yield from operand._preorder_iter(predicate, position + (i, ))
+            yield from operand._preorder_iter(predicate, position + (i, ))  # pylint: disable=protected-access
 
     def _compute_hash(self):
         return hash((self.name, self.constraint) + tuple(self.operands))
@@ -503,14 +527,14 @@ class Operation(Expression, metaclass=_OperationMeta):
         return type(self).from_args(*(o.with_renamed_vars(renaming) for o in self.operands), constraint=constraint)
 
 
-class Atom(Expression):
+class Atom(Expression):  # pylint: disable=abstract-method
     pass
 
 
 class Symbol(Atom):
     __slots__ = 'name',
 
-    def __init__(self, name: str, constraint: Optional[Constraint]=None) -> None:
+    def __init__(self, name: str, constraint: Constraint=None) -> None:
         super().__init__(constraint)
         self.name = name
         self.head = self
@@ -572,7 +596,7 @@ class Variable(Expression):
 
     __slots__ = 'name', 'expression'
 
-    def __init__(self, name: str, expression: Expression, constraint: Optional[Constraint]=None) -> None:
+    def __init__(self, name: str, expression: Expression, constraint: Constraint=None) -> None:
         """
         Args:
             name
@@ -621,12 +645,12 @@ class Variable(Expression):
         return Variable(name, self.expression.with_renamed_vars(renaming), constraint)
 
     @staticmethod
-    def dot(name: str, constraint: Optional[Constraint]=None) -> 'Variable':
+    def dot(name: str, constraint: Constraint=None) -> 'Variable':
         """Create a :class:`Variable` with a :class:`Wildcard` that matches exactly one argument."""
         return Variable(name, Wildcard.dot(), constraint)
 
     @staticmethod
-    def symbol(name: str, symbol_type: Type[Symbol]=Symbol, constraint: Optional[Constraint]=None) -> 'Variable':
+    def symbol(name: str, symbol_type: Type[Symbol]=Symbol, constraint: Constraint=None) -> 'Variable':
         """Create a :class:`Variable` with a :class:`SymbolWildcard`.
 
         Args:
@@ -644,17 +668,17 @@ class Variable(Expression):
         return Variable(name, Wildcard.symbol(symbol_type), constraint)
 
     @staticmethod
-    def star(name: str, constraint: Optional[Constraint]=None) -> 'Variable':
+    def star(name: str, constraint: Constraint=None) -> 'Variable':
         """Creates a `Variable` with :class:`Wildcard` that matches any number of arguments."""
         return Variable(name, Wildcard.star(), constraint)
 
     @staticmethod
-    def plus(name: str, constraint: Optional[Constraint]=None) -> 'Variable':
+    def plus(name: str, constraint: Constraint=None) -> 'Variable':
         """Creates a `Variable` with :class:`Wildcard` that matches at least one and up to any number of arguments."""
         return Variable(name, Wildcard.plus(), constraint)
 
     @staticmethod
-    def fixed(name: str, length: int, constraint: Optional[Constraint]=None) -> 'Variable':
+    def fixed(name: str, length: int, constraint: Constraint=None) -> 'Variable':
         """Creates a `Variable` with :class:`Wildcard` that matches exactly `length` expressions."""
         return Variable(name, Wildcard.dot(length), constraint)
 
@@ -682,14 +706,15 @@ class Variable(Expression):
     def __repr__(self):
         if self.constraint:
             return '{!s}({!r}, {!r}, constraint={!r})'.format(
-                type(self).__name__, self.name, self.expression, self.constraint)
+                type(self).__name__, self.name, self.expression, self.constraint
+            )
         return '{!s}({!r}, {!r})'.format(type(self).__name__, self.name, self.expression)
 
     def __eq__(self, other):
-        return (isinstance(other, Variable)
-                and self.name == other.name
-                and self.expression == other.expression
-                and self.constraint == other.constraint)
+        return (
+            isinstance(other, Variable) and self.name == other.name and self.expression == other.expression and
+            self.constraint == other.constraint
+        )
 
     def __lt__(self, other):
         if isinstance(other, Symbol):
@@ -729,7 +754,7 @@ class Wildcard(Atom):
 
     __slots__ = 'min_count', 'fixed_size'
 
-    def __init__(self, min_count: int, fixed_size: bool, constraint: Optional[Constraint]=None) -> None:
+    def __init__(self, min_count: int, fixed_size: bool, constraint: Constraint=None) -> None:
         """
         Args:
             min_count:
@@ -822,7 +847,8 @@ class Wildcard(Atom):
     def __repr__(self):
         if self.constraint:
             return '{!s}({!r}, {!r}, constraint={!r})'.format(
-                type(self).__name__, self.min_count, self.fixed_size, self.constraint)
+                type(self).__name__, self.min_count, self.fixed_size, self.constraint
+            )
         return '{!s}({!r}, {!r})'.format(type(self).__name__, self.min_count, self.fixed_size)
 
     def __lt__(self, other):
@@ -831,9 +857,10 @@ class Wildcard(Atom):
     def __eq__(self, other):
         if not isinstance(other, type(self)):
             return NotImplemented
-        return (other.min_count == self.min_count
-                and other.fixed_size == self.fixed_size
-                and other.constraint == self.constraint)
+        return (
+            other.min_count == self.min_count and other.fixed_size == self.fixed_size and
+            other.constraint == self.constraint
+        )
 
     def _compute_hash(self):
         return hash((Wildcard, self.min_count, self.fixed_size, self.constraint))
@@ -844,7 +871,7 @@ class SymbolWildcard(Wildcard):
 
     __slots__ = 'symbol_type',
 
-    def __init__(self, symbol_type: Type[Symbol]=Symbol, constraint: Optional[Constraint]=None) -> None:
+    def __init__(self, symbol_type: Type[Symbol]=Symbol, constraint: Constraint=None) -> None:
         """
         Args:
             symbol_type
@@ -873,9 +900,10 @@ class SymbolWildcard(Wildcard):
         return SymbolWildcard(self.symbol_type, constraint)
 
     def __eq__(self, other):
-        return (isinstance(other, SymbolWildcard)
-                and self.symbol_type == other.symbol_type
-                and other.constraint == self.constraint)
+        return (
+            isinstance(other, SymbolWildcard) and self.symbol_type == other.symbol_type and
+            other.constraint == self.constraint
+        )
 
     def _compute_hash(self):
         return hash((SymbolWildcard, self.symbol_type, self.constraint))
@@ -889,6 +917,7 @@ class SymbolWildcard(Wildcard):
         if self.constraint:
             return '_[{!s}] /; {!s}'.format(self.symbol_type.__name__, self.constraint)
         return '_[{!s}]'.format(self.symbol_type.__name__)
+
 
 VariableReplacement = Union[Tuple[Expression, ...], Multiset[Expression], Expression]
 
@@ -1043,7 +1072,7 @@ class Substitution(Dict[str, VariableReplacement]):
         return ', '.join('{!s} <- {!s}'.format(k, self._match_value_repr_str(v)) for k, v in sorted(self.items()))
 
 
-class _FrozenMeta(type):
+class _FrozenMeta(ABCMeta):
     """Metaclass for :class:`FrozenExpression`."""
     __call__ = type.__call__
 
@@ -1071,8 +1100,7 @@ class _FrozenOperationMeta(_FrozenMeta, _OperationMeta, ABCMeta):
             if isinstance(base, _OperationMeta) and not isinstance(base, _FrozenMeta):
                 attributes_to_copy = _frozen_type_cache[base][1]
                 return FrozenExpression.__new__(cls, base(*args, **kwargs), attributes_to_copy)
-        raise AssertionError  # unreachable, unless an invalid frozen operation subclass was created manually
-
+        assert False, "unreachable, unless an invalid frozen operation subclass was created manually"
 
     def __repr__(cls):
         return cls._repr('FrozenOperation')
@@ -1091,14 +1119,8 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):
     # These are only added in the subclasses, because otherwise they would conflict with the ones of the
     # Expression (subclasses)
     _actual_slots = (
-        '_frozen',
-        'cached_variables',
-        'cached_symbols',
-        'cached_is_constant',
-        'cached_is_syntactic',
-        'cached_is_linear',
-        'cached_without_constraints',
-        '_hash'
+        '_frozen', 'cached_variables', 'cached_symbols', 'cached_is_constant', 'cached_is_syntactic',
+        'cached_is_linear', 'cached_without_constraints', '_hash'
     )
 
     def __new__(cls, expr: Expression, attributes_to_copy: Iterable[str]) -> 'FrozenExpression':
@@ -1106,6 +1128,7 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):
         # Copy all attributes of the original expression over to this instance
         # Use the _frozen attribute to lock changing attributes after the copying is done
         self = Expression.__new__(cls)
+
         object.__setattr__(self, '_frozen', False)
         self.constraint = expr.constraint
 
@@ -1126,7 +1149,7 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):
             if isinstance(expr, SymbolWildcard):
                 self.symbol_type = expr.symbol_type
         else:
-            raise AssertionError  # Unreachable, unless new types of expressions are added
+            assert False, "Unreachable, unless new types of expressions are added which are not supported"
 
         for attribute in attributes_to_copy:
             setattr(self, attribute, getattr(expr, attribute))
@@ -1188,11 +1211,13 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):
             object.__setattr__(self, '_hash', self._compute_hash())
         return self._hash
 
+
 _frozen_type_cache = {}
 
 
 def _frozen_new(cls, *args, **kwargs):
     return freeze(cls._original_base(*args, **kwargs))
+
 
 def freeze(expression: Expression) -> FrozenExpression:
     """Return a :term:`frozen` version of the expression.
@@ -1212,15 +1237,21 @@ def freeze(expression: Expression) -> FrozenExpression:
     base = type(expression)
     if base not in _frozen_type_cache:
         meta = _FrozenOperationMeta if isinstance(base, _OperationMeta) else _FrozenMeta
-        frozen_class = meta('Frozen' + base.__name__, (FrozenExpression, base), {
-            '_original_base': base,
-            '__slots__': FrozenExpression._actual_slots,
-            '__new__': _frozen_new
-        })
+        frozen_class = meta(
+            'Frozen' + base.__name__,
+            (FrozenExpression, base),
+            {
+                '_original_base': base,
+                '__slots__': FrozenExpression._actual_slots,
+                '__new__': _frozen_new
+            }
+        )  # yapf: disable
 
         attributes_to_copy = set()
         if hasattr(type(expression), '__slots__'):
-            attributes_to_copy.update(*(getattr(cls, '__slots__', []) for cls in base.__mro__ if cls.__module__ != __name__))
+            attributes_to_copy.update(
+                *(getattr(cls, '__slots__', []) for cls in base.__mro__ if cls.__module__ != __name__)
+            )
         _frozen_type_cache[base] = (frozen_class, attributes_to_copy)
     else:
         frozen_class, attributes_to_copy = _frozen_type_cache[base]
@@ -1251,5 +1282,7 @@ def unfreeze(expression: FrozenExpression) -> Expression:
     if isinstance(expression, Symbol):
         return expression._original_base(expression.name, expression.constraint)
     if isinstance(expression, Operation):
-        return expression._original_base.from_args(*map(unfreeze, expression.operands), constraint=expression.constraint)
-    raise AssertionError  # Unreachable, unless new types of expressions are added
+        return expression._original_base.from_args(
+            *map(unfreeze, expression.operands), constraint=expression.constraint
+        )
+    assert False, "Unreachable, unless new types of expressions are added that are unsupported"

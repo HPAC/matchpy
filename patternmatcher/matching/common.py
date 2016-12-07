@@ -1,21 +1,20 @@
 # -*- coding: utf-8 -*-
-from typing import (Callable, Dict, Iterable, Iterator, List, NamedTuple,
-                    Optional, Sequence, Tuple, Type, Union, cast)
+from typing import (Callable, Dict, Iterable, Iterator, List, NamedTuple, Optional, Sequence, Tuple, Type, Union, cast)
 
 from multiset import Multiset
 
 from ..constraints import Constraint, MultiConstraint
-from ..expressions import (Expression, FrozenExpression, Operation,
-                           Substitution, Symbol, SymbolWildcard, Variable,
-                           Wildcard)
-from ..utils import (VariableWithCount,
-                     commutative_sequence_variable_partition_iter,
-                     fixed_integer_vector_iter, integer_partition_vector_iter,
-                     iterator_chain)
+from ..expressions import (
+    Expression, FrozenExpression, Operation, Substitution, Symbol, SymbolWildcard, Variable, Wildcard
+)
+from ..utils import (
+    VariableWithCount, commutative_sequence_variable_partition_iter, fixed_integer_vector_iter,
+    integer_partition_vector_iter, iterator_chain
+)
 
 __all__ = [
-    'CommutativePatternsParts',
-    'match', 'match_variable', 'match_commutative_operation', 'match_operation', 'match_wildcard'
+    'CommutativePatternsParts', 'match', 'match_variable', 'match_commutative_operation', 'match_operation',
+    'match_wildcard'
 ]
 
 Matcher = Callable[[Sequence[FrozenExpression], FrozenExpression, Substitution], Iterator[Substitution]]
@@ -264,7 +263,7 @@ def _build_full_partition(sequence_var_partition, expressions, operation):
         else:
             count = 1
 
-        operand_expressions = expressions[i:i+count]
+        operand_expressions = expressions[i:i + count]
         i += count
 
         if wrap_associative and len(operand_expressions) > wrap_associative:
@@ -304,8 +303,13 @@ def match_operation(expressions, operation, subst, matcher):
         yield from match_commutative_operation(expressions, parts, subst, matcher)
 
 
-def match_commutative_operation(operands: Iterable[Expression], pattern: CommutativePatternsParts,
-                                substitution: Substitution, matcher, syntactic_matcher=None) -> Iterator[Substitution]:
+def match_commutative_operation(
+    operands: Iterable[Expression],
+    pattern: CommutativePatternsParts,
+    substitution: Substitution,
+    matcher,
+    syntactic_matcher=None
+) -> Iterator[Substitution]:
     if any(not e.is_constant for e in operands):
         raise ValueError("All given expressions must be constant.")
 
@@ -332,10 +336,13 @@ def match_commutative_operation(operands: Iterable[Expression], pattern: Commuta
         yield from _matches_from_matching(substitution, expressions, pattern, matcher, True)
 
 
-def _matches_from_matching(subst: Substitution, remaining: Multiset, pattern: CommutativePatternsParts, matcher,
-                           include_syntactic: bool) -> Iterator[Substitution]:
+def _matches_from_matching(
+    subst: Substitution, remaining: Multiset, pattern: CommutativePatternsParts, matcher, include_syntactic: bool
+) -> Iterator[Substitution]:
     rest_expr = (pattern.rest + pattern.syntactic) if include_syntactic else pattern.rest
-    needed_length = len(pattern.sequence_variables) + len(pattern.fixed_variables) + len(rest_expr) + pattern.wildcard_min_length
+    needed_length = (
+        len(pattern.sequence_variables) + len(pattern.fixed_variables) + len(rest_expr) + pattern.wildcard_min_length
+    )
 
     if len(remaining) < needed_length:
         return
@@ -392,12 +399,12 @@ def _matches_from_matching(subst: Substitution, remaining: Multiset, pattern: Co
             s = Substitution(sequence_subst)
             if pattern.operation.associative:
                 for v in fixed_vars.keys():
-                    if not v in s:
+                    if v not in s:
                         continue
                     l = pattern.fixed_variable_infos[v].min_count
                     value = cast(Multiset[Expression], s[v])
                     if len(value) > l:
-                        normal = Multiset(list(value)[:l-1])
+                        normal = Multiset(list(value)[:l - 1])
                         wrapped = pattern.operation.from_args(*(value - normal))
                         normal.add(wrapped)
                         s[v] = normal if l > 1 else next(iter(normal))
@@ -412,7 +419,10 @@ def _matches_from_matching(subst: Substitution, remaining: Multiset, pattern: Co
 
 
 def _variables_with_counts(variables, infos):
-    return tuple(VariableWithCount(name, count, infos[name].min_count) for name, count in variables.items() if infos[name].type is None)
+    return tuple(
+        VariableWithCount(name, count, infos[name].min_count)
+        for name, count in variables.items() if infos[name].type is None
+    )
 
 
 def _fixed_expr_factory(expression, matcher):
@@ -429,8 +439,8 @@ def _fixed_expr_factory(expression, matcher):
 def _fixed_var_iter_factory(variable, count, length, constraint=None, symbol_type=None):
     def factory(expressions, substitution):
         if variable in substitution:
-            value = ([substitution[variable]] if isinstance(substitution[variable], Expression)
-                     else substitution[variable])
+            value = ([substitution[variable]]
+                     if isinstance(substitution[variable], Expression) else substitution[variable])
             existing = Multiset(value) * count
             if not existing <= expressions:
                 return
@@ -468,8 +478,9 @@ def _split_expressions(expressions: Multiset[Expression]) -> Tuple[Multiset[Expr
     syntactics = Multiset()  # type: Multiset[Expression]
 
     for expression, count in expressions.items():
-        if expression.is_syntactic or not (isinstance(expression, Operation) and
-                                           (expression.associative or expression.commutative)):
+        if expression.is_syntactic or not (
+            isinstance(expression, Operation) and (expression.associative or expression.commutative)
+        ):
             syntactics[expression] = count
         else:
             constants[expression] = count

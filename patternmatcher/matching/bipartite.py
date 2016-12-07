@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from typing import (Dict, Generic, Hashable, Iterator, List, Set, Tuple,
-                    TypeVar, Union, cast)
+from typing import (Dict, Generic, Hashable, Iterator, List, Set, Tuple, TypeVar, Union, cast)
 
 from graphviz import Digraph, Graph
 from hopcroftkarp import HopcroftKarp
@@ -105,6 +104,7 @@ class BipartiteGraph(Dict[Tuple[TLeft, TRight], TEdge], Generic[TLeft, TRight, T
     def limited_to(self, left: Set[TLeft], right: Set[TRight]) -> 'BipartiteGraph[TLeft, TRight, TEdge]':
         """Returns the induced subgraph where only the nodes from the given sets are included."""
         return BipartiteGraph(((n1, n2), v) for (n1, n2), v in self.items() if n1 in left and n2 in right)
+
 
 Node = Tuple[int, Union[TLeft, TRight]]
 
@@ -219,7 +219,7 @@ def _enum_maximum_matchings_iter(graph: BipartiteGraph[TLeft, TRight, TEdge], ma
         # edges in the circle
         new_match = matching.copy()
         for i in range(0, len(cycle), 2):
-            new_match[cycle[i]] = cycle[i-1]  # type: ignore
+            new_match[cycle[i]] = cycle[i - 1]  # type: ignore
 
         yield new_match
 

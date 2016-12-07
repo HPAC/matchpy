@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 """Contains the :class:`ManyToOneMatcher` and other classes related to many-to-one pattern matching."""
 
-from typing import (Any, Dict, FrozenSet, Iterator, List, Sequence, Set, Tuple,
-                    Type, cast)
+from typing import (Any, Dict, FrozenSet, Iterator, List, Sequence, Set, Tuple, Type, cast)
 
 from multiset import Multiset
 
-from ..expressions import (Expression, FrozenExpression, Operation,
-                           Substitution, Symbol, Variable, Wildcard, freeze)
+from ..expressions import (Expression, FrozenExpression, Operation, Substitution, Symbol, Variable, Wildcard, freeze)
 from .bipartite import BipartiteGraph, enum_maximum_matchings_iter
-from .common import (CommutativePatternsParts, match_commutative_operation,
-                     _non_commutative_match, match_variable, match_wildcard, Matcher)
+from .common import (
+    CommutativePatternsParts, match_commutative_operation, _non_commutative_match, match_variable, match_wildcard,
+    Matcher
+)
 from .syntactic import DiscriminationNet
 
 __all__ = ['ManyToOneMatcher', 'CommutativeMatcher']
@@ -29,6 +29,7 @@ class ManyToOneMatcher(object):
             A dictionary holding a :class:`CommutativeMatcher` instance for every type of commutative operation
             occurring in the patterns.
     """
+
     def __init__(self, *patterns: Expression) -> None:
         """Create a new many-to-one matcher.
 
@@ -87,8 +88,8 @@ class ManyToOneMatcher(object):
             for match in self._match([expression], pattern, Substitution()):
                 yield pattern, match
 
-    def _match(self, expressions: Sequence[FrozenExpression], pattern: FrozenExpression, subst: Substitution) \
-        -> Iterator[Substitution]:
+    def _match(self, expressions: Sequence[FrozenExpression], pattern: FrozenExpression,
+               subst: Substitution) -> Iterator[Substitution]:
         """Delegates the matching of the expressions depending on the type of the pattern.
 
         Compared to the regular one-to-one matching, it uses the CommutativeMatcher instances in
@@ -101,7 +102,10 @@ class ManyToOneMatcher(object):
             yield from match_wildcard(expressions, pattern, subst)
 
         elif isinstance(pattern, Symbol):
-            if len(expressions) == 1 and isinstance(expressions[0], type(pattern)) and expressions[0].name == pattern.name:
+            if (
+                len(expressions) == 1 and isinstance(expressions[0], type(pattern)) and
+                expressions[0].name == pattern.name
+            ):
                 if pattern.constraint is None or pattern.constraint(subst):
                     yield subst
 
@@ -152,8 +156,10 @@ class ManyToOneMatcher(object):
             subexpressions.setdefault(op_type, set()).update(expressions)
         return subexpressions
 
+
 Subgraph = BipartiteGraph[Tuple[FrozenExpression, int], Tuple[FrozenExpression, int], Substitution]
 SubgraphMatching = Dict[Tuple[Tuple[Expression, int], Tuple[Expression, int]], Substitution]
+
 
 class CommutativeMatcher(object):
     """A matcher for commutative patterns.

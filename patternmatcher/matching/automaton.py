@@ -6,11 +6,10 @@ from graphviz import Digraph
 from multiset import Multiset
 
 from ..constraints import Constraint, MultiConstraint
-from ..expressions import (Expression, FrozenExpression, Operation,
-                           Substitution, Symbol, SymbolWildcard, Variable,
-                           Wildcard, freeze)
-from ..utils import (VariableWithCount,
-                     commutative_sequence_variable_partition_iter)
+from ..expressions import (
+    Expression, FrozenExpression, Operation, Substitution, Symbol, SymbolWildcard, Variable, Wildcard, freeze
+)
+from ..utils import (VariableWithCount, commutative_sequence_variable_partition_iter)
 from .bipartite import BipartiteGraph, enum_maximum_matchings_iter
 from .syntactic import OPERATION_END, is_operation
 
@@ -21,14 +20,14 @@ _State = NamedTuple('_State', [
     ('transitions', Dict[LabelType, '_Transition']),
     ('patterns', Set[int]),
     ('matcher', Optional['CommutativeMatcher'])
-])
+])  # yapf: disable
 
 _Transition = NamedTuple('_Transition', [
     ('label', LabelType),
     ('target', _State),
     ('constraint', Optional[Constraint]),
     ('variable_name', Optional[str])
-])
+])  # yapf: disable
 
 
 class Automaton:
@@ -109,15 +108,15 @@ class Automaton:
                 for pattern_index, subpatterns, variables in state.matcher.patterns.values():
                     var_formatted = ', '.join('{}[{}]x{}'.format(n, m, c) for n, c, m in variables)
                     submatch_label += '\n{}: {} {}'.format(pattern_index, subpatterns, var_formatted)
-                dot.node(name+'-end', submatch_label, {'shape': 'box'})
+                dot.node(name + '-end', submatch_label, {'shape': 'box'})
                 for f in subfinals:
-                    dot.edge(f, name+'-end')
+                    dot.edge(f, name + '-end')
                 dot.edge(name, 'n{}'.format(id(state.matcher.automaton.root)))
             elif not state.patterns:
                 dot.node(name, '', {'shape': ('circle' if state.transitions else 'doublecircle')})
             else:
-                vars = ['{}: {}'.format(p, repr(self.pattern_vars[p])) for p in state.patterns]
-                label = '\n'.join(vars)
+                variables = ['{}: {}'.format(p, repr(self.pattern_vars[p])) for p in state.patterns]
+                label = '\n'.join(variables)
                 dot.node(name, label, {'shape': 'box'})
 
         for state in self.states:
@@ -198,7 +197,10 @@ class Automaton:
         expression = expressions[0] if expressions else None
         heads = [expression.head] if expression else []
         if isinstance(expression, Symbol):
-            heads.extend(base for base in type(expression).__mro__ if issubclass(base, Symbol) and not issubclass(base, FrozenExpression))
+            heads.extend(
+                base for base in type(expression).__mro__
+                if issubclass(base, Symbol) and not issubclass(base, FrozenExpression)
+            )
         heads.append(None)
 
         for head in heads:
@@ -218,16 +220,25 @@ class Automaton:
                                 for matched_pattern, new_subst in matcher.match(expression.operands, substitution):
                                     transition_set = transition.target.transitions[matched_pattern]
                                     for next_transition in transition_set:
-                                        eventual_subst = self._check_constraint(next_transition, new_subst, matched_expr)
+                                        eventual_subst = self._check_constraint(
+                                            next_transition, new_subst, matched_expr
+                                        )
                                         if eventual_subst is not None:
-                                            yield from self._match(next_transition.target, new_expressions, eventual_subst, associative)
+                                            yield from self._match(
+                                                next_transition.target, new_expressions, eventual_subst, associative
+                                            )
                             else:
-                                for new_state, new_subst in self._match(transition.target, expression.operands, substitution, label if label.associative else None):
+                                for new_state, new_subst in self._match(
+                                    transition.target, expression.operands, substitution, label
+                                    if label.associative else None
+                                ):
                                     if OPERATION_END in new_state.transitions:
                                         for transition in new_state.transitions[OPERATION_END]:
                                             eventual_subst = self._check_constraint(transition, new_subst, matched_expr)
                                             if eventual_subst is not None:
-                                                yield from self._match(transition.target, new_expressions, eventual_subst, associative)
+                                                yield from self._match(
+                                                    transition.target, new_expressions, eventual_subst, associative
+                                                )
                             continue
                     elif isinstance(label, Symbol):
                         if label == expression:
@@ -252,11 +263,11 @@ class Automaton:
                                 matched_expr = tuple(expressions[:i])
                                 if associative and label.fixed_size:
                                     if i > min_count:
-                                        wrapped = associative.from_args(*matched_expr[min_count-1:])
+                                        wrapped = associative.from_args(*matched_expr[min_count - 1:])
                                         if min_count == 1:
                                             matched_expr = wrapped
                                         else:
-                                            matched_expr = matched_expr[:min_count-1] + (wrapped, )
+                                            matched_expr = matched_expr[:min_count - 1] + (wrapped, )
                                     elif min_count == 1:
                                         matched_expr = matched_expr[0]
                                 new_expressions = expressions[i:]
@@ -366,7 +377,8 @@ class CommutativeMatcher(object):
                 bipartite_match_iter = self._match_with_bipartite(subject_ids, pattern_set, substitution)
                 for bipartite_subst, matched_subjects in bipartite_match_iter:
                     if pattern_vars:
-                        remaining = Multiset(self.subjects[s] for s in (subject_ids - matched_subjects))
+                        remaining_ids = subject_ids - matched_subjects
+                        remaining = Multiset(self.subjects[id] for id in remaining_ids)
                         sequence_var_iter = self._match_sequence_variables(remaining, pattern_vars, bipartite_subst)
                         for result_substitution in sequence_var_iter:
                             yield pattern_index, result_substitution
@@ -417,7 +429,6 @@ class CommutativeMatcher(object):
             except ValueError:
                 continue
             matched_subjects = Multiset(subexpression for subexpression, _ in matching)
-            print(bipartite_substitution, matched_subjects)
             yield bipartite_substitution, matched_subjects
 
     @staticmethod

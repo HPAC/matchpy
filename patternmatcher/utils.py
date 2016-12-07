@@ -3,24 +3,27 @@ import inspect
 import math
 import ast
 import os
-from typing import (Callable, Dict, Iterator,  # pylint: disable=unused-import
-                    List, NamedTuple, Optional, Sequence, Tuple, TypeVar, cast)
+from typing import (
+    Callable,
+    Dict,
+    Iterator,  # pylint: disable=unused-import
+    List,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Tuple,
+    TypeVar,
+    cast
+)
 
 from multiset import Multiset
 
 __all__ = [
-    'fixed_integer_vector_iter',
-    'integer_partition_vector_iter',
-    'commutative_sequence_variable_partition_iter',
-    'get_short_lambda_source',
-    'solve_linear_diop',
-    'iterator_chain',
-    'cached_property',
-    'slot_cached_property'
+    'fixed_integer_vector_iter', 'integer_partition_vector_iter', 'commutative_sequence_variable_partition_iter',
+    'get_short_lambda_source', 'solve_linear_diop', 'iterator_chain', 'cached_property', 'slot_cached_property'
 ]
 
 T = TypeVar('T')
-
 
 VariableWithCount = NamedTuple('VariableWithCount', [('name', str), ('count', int), ('minimum', int)])
 
@@ -134,14 +137,13 @@ def get_short_lambda_source(lambda_func):
         source_ast = ast.parse(os.linesep.join(source_lines))
 
     # Find the first AST node that is a lambda definition
-    lambda_node = next((node for node in ast.walk(source_ast)
-                        if isinstance(node, ast.Lambda)), None)
+    lambda_node = next((node for node in ast.walk(source_ast) if isinstance(node, ast.Lambda)), None)
     if lambda_node is None:  # It is a def fn(): ...
         return None
 
     # Remove everything before the first lambda's body
     # Remove indentation from lines
-    lines = source_lines[lambda_node.lineno-1:]
+    lines = source_lines[lambda_node.lineno - 1:]
     lines[0] = lines[0][lambda_node.body.col_offset:]
     lambda_body_text = os.linesep.join(l.lstrip() for l in lines)
 
@@ -164,7 +166,7 @@ def get_short_lambda_source(lambda_func):
             pass
         lambda_body_text = lambda_body_text[:-1]
         if not lambda_body_text:
-            raise AssertionError # We (should) always get the valid body at some point
+            raise AssertionError  # We (should) always get the valid body at some point
 
 
 def extended_euclid(a: int, b: int) -> Tuple[int, int, int]:
@@ -230,7 +232,8 @@ def base_solution_linear(a: int, b: int, c: int) -> Iterator[Tuple[int, int]]:
 
 
 def solve_linear_diop(total: int, *coeffs: int) -> Iterator[Tuple[int, ...]]:
-    r"""Generator for the solutions of a linear Diophantine equation of the form :math:`c_1 x_1 + \dots + c_n x_n = total`
+    r"""Generator for the solutions of a linear Diophantine equation of the format
+    :math:`c_1 x_1 + \dots + c_n x_n = total`
 
     `coeffs` are the coefficients `c_i`.
 
@@ -324,4 +327,3 @@ def slot_cached_property(slot):
 if __name__ == '__main__':
     import doctest
     doctest.testmod(exclude_empty=True)
-

@@ -47,9 +47,10 @@ def match_anywhere(expression: Expression, pattern: Expression) -> Iterator[Tupl
     Yields:
         All possible substitution and position pairs.
     """
-    predicate = None
-    if pattern.head is not None:
-        predicate = lambda x: x.head == pattern.head
-    for child, pos in expression.preorder_iter(predicate):
+    if pattern.head is None:
+        child_iterator = expression.preorder_iter()
+    else:
+        child_iterator = expression.preorder_iter(lambda child: child.head == pattern.head)
+    for child, pos in child_iterator:
         for subst in _match([child], pattern, Substitution()):
             yield subst, pos

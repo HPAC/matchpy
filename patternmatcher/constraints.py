@@ -15,6 +15,7 @@ class Constraint(object, metaclass=ABCMeta):
 
     TODO
     """
+
     @abstractmethod
     def __call__(self, match: Substitution) -> bool:
         raise NotImplementedError()
