@@ -10,33 +10,69 @@ __all__ = ['BipartiteGraph', 'enum_maximum_matchings_iter']
 T = TypeVar('T')
 TLeft = TypeVar('TLeft', bound=Hashable)
 TRight = TypeVar('TRight', bound=Hashable)
-TEdge = TypeVar('TEdge')
+TEdgeValue = TypeVar('TEdgeValue')
+
+Node = Tuple[int, Union[TLeft, TRight]]
+NodeList = List[Node]
+NodeSet = Set[Node]
+Edge = Tuple[TLeft, TRight]
 
 LEFT = 0
 RIGHT = 1
 
 
-class BipartiteGraph(Dict[Tuple[TLeft, TRight], TEdge], Generic[TLeft, TRight, TEdge]):
+class BipartiteGraph(Generic[TLeft, TRight, TEdgeValue]):
     """A bipartite graph representation.
 
     This class is a specialized dictionary, where each edge is represented by a 2-tuple that is used as a key in the
     dictionary. The value can either be `True` or any value that you want to associate with the edge.
     """
 
-    def __setitem__(self, key: Tuple[TLeft, TRight], value: TEdge) -> None:
-        if not isinstance(key, tuple) or len(key) != 2:
-            raise TypeError("Key must a 2-tuple")
-        super(BipartiteGraph, self).__setitem__(key, value)
+    # __slots__ = ('_edges', ) TODO: Uncomment for Python 3.6
 
-    def __getitem__(self, key: Tuple[TLeft, TRight]) -> TEdge:
-        if not isinstance(key, tuple) or len(key) != 2:
-            raise TypeError("Key must a 2-tuple")
-        return super(BipartiteGraph, self).__getitem__(key)
+    def __init__(self, *args, **kwargs):
+        self._edges = dict(*args, **kwargs)
 
-    def __delitem__(self, key: Tuple[TLeft, TRight]) -> None:
+    def __setitem__(self, key: Edge, value: TEdgeValue) -> None:
         if not isinstance(key, tuple) or len(key) != 2:
             raise TypeError("Key must a 2-tuple")
-        return super(BipartiteGraph, self).__delitem__(key)
+        self._edges.__setitem__(key, value)
+
+    def __getitem__(self, key: Edge) -> TEdgeValue:
+        if not isinstance(key, tuple) or len(key) != 2:
+            raise TypeError("Key must a 2-tuple")
+        return self._edges.__getitem__(key)
+
+    def __delitem__(self, key: Edge) -> None:
+        if not isinstance(key, tuple) or len(key) != 2:
+            raise TypeError("Key must a 2-tuple")
+        return self._edges.__delitem__(key)
+
+    def edges_with_value(self):
+        return self._edges.items()
+
+    def edges(self):
+        return self._edges.keys()
+
+    def __copy__(self):
+        cls = self.__class__
+        new_graph = cls.__new__(cls)
+        new_graph._edges = self._edges.copy()
+        return new_graph
+
+    def __iter__(self):
+        return self._edges.__iter__()
+
+    def __len__(self):
+        return self._edges.__len__()
+
+    def __eq__(self, other):
+        if isinstance(other, dict):
+            return self._edges == other
+        elif isinstance(self, type(other)):
+            return self._edges == other._edges
+        else:
+            return NotImplemented
 
     def as_graph(self) -> Graph:  # pragma: no cover
         """Returns a :class:`graphviz.Graph` representation of this bipartite graph."""
@@ -45,7 +81,7 @@ class BipartiteGraph(Dict[Tuple[TLeft, TRight], TEdge], Generic[TLeft, TRight, T
         nodes_left = {}  # type: Dict[TLeft, str]
         nodes_right = {}  # type: Dict[TRight, str]
         node_id = 0
-        for (left, right), value in self.items():
+        for (left, right), value in self._edges.items():
             if left not in nodes_left:
                 name = 'node{:d}'.format(node_id)
                 nodes_left[left] = name
@@ -79,7 +115,7 @@ class BipartiteGraph(Dict[Tuple[TLeft, TRight], TEdge], Generic[TLeft, TRight, T
         # Only one direction of the undirected edge is needed for the HopcroftKarp class
         directed_graph = {}  # type: Dict[Tuple[int, TLeft], Set[Tuple[int, TRight]]]
 
-        for (left, right) in self:
+        for (left, right) in self._edges:
             tail = (LEFT, left)
             head = (RIGHT, right)
             if tail not in directed_graph:
@@ -93,26 +129,21 @@ class BipartiteGraph(Dict[Tuple[TLeft, TRight], TEdge], Generic[TLeft, TRight, T
         # that go from LEFT to RIGHT
         return dict((tail[1], head[1]) for tail, head in matching.items() if tail[0] == LEFT)
 
-    def without_nodes(self, edge: Tuple[TLeft, TRight]) -> 'BipartiteGraph[TLeft, TRight, TEdge]':
+    def without_nodes(self, edge: Edge) -> 'BipartiteGraph[TLeft, TRight, TEdgeValue]':
         """Returns a copy of this bipartite graph with the given edge and its adjacent nodes removed."""
-        return BipartiteGraph(((n1, n2), v) for (n1, n2), v in self.items() if n1 != edge[0] and n2 != edge[1])
+        return BipartiteGraph(((n1, n2), v) for (n1, n2), v in self._edges.items() if n1 != edge[0] and n2 != edge[1])
 
-    def without_edge(self, edge: Tuple[TLeft, TRight]) -> 'BipartiteGraph[TLeft, TRight, TEdge]':
+    def without_edge(self, edge: Edge) -> 'BipartiteGraph[TLeft, TRight, TEdgeValue]':
         """Returns a copy of this bipartite graph with the given edge removed."""
-        return BipartiteGraph((e2, v) for e2, v in self.items() if edge != e2)
+        return BipartiteGraph((e2, v) for e2, v in self._edges.items() if edge != e2)
 
-    def limited_to(self, left: Set[TLeft], right: Set[TRight]) -> 'BipartiteGraph[TLeft, TRight, TEdge]':
+    def limited_to(self, left: Set[TLeft], right: Set[TRight]) -> 'BipartiteGraph[TLeft, TRight, TEdgeValue]':
         """Returns the induced subgraph where only the nodes from the given sets are included."""
-        return BipartiteGraph(((n1, n2), v) for (n1, n2), v in self.items() if n1 in left and n2 in right)
-
-
-Node = Tuple[int, Union[TLeft, TRight]]
-NodeList = List[Node]
-NodeSet = Set[Node]
+        return BipartiteGraph(((n1, n2), v) for (n1, n2), v in self._edges.items() if n1 in left and n2 in right)
 
 
 class _DirectedMatchGraph(Dict[Node, NodeSet], Generic[TLeft, TRight]):
-    def __init__(self, graph: BipartiteGraph[TLeft, TRight, TEdge], matching: Dict[TLeft, TRight]) -> None:
+    def __init__(self, graph: BipartiteGraph[TLeft, TRight, TEdgeValue], matching: Dict[TLeft, TRight]) -> None:
         super(_DirectedMatchGraph, self).__init__()
         for (tail, head) in graph:
             if tail in matching and matching[tail] == head:
@@ -178,14 +209,15 @@ class _DirectedMatchGraph(Dict[Node, NodeSet], Generic[TLeft, TRight]):
         return cast(NodeList, [])
 
 
-def enum_maximum_matchings_iter(graph: BipartiteGraph[TLeft, TRight, TEdge]) -> Iterator[Dict[TLeft, TRight]]:
+def enum_maximum_matchings_iter(graph: BipartiteGraph[TLeft, TRight, TEdgeValue]) -> Iterator[Dict[TLeft, TRight]]:
     matching = graph.find_matching()
     if matching:
         yield matching
+        graph = graph.__copy__()
         yield from _enum_maximum_matchings_iter(graph, matching, _DirectedMatchGraph(graph, matching))
 
 
-def _enum_maximum_matchings_iter(graph: BipartiteGraph[TLeft, TRight, TEdge], matching: Dict[TLeft, TRight],
+def _enum_maximum_matchings_iter(graph: BipartiteGraph[TLeft, TRight, TEdgeValue], matching: Dict[TLeft, TRight],
                                  directed_match_graph: _DirectedMatchGraph[TLeft, TRight]) \
         -> Iterator[Dict[TLeft, TRight]]:
     # Algorithm described in "Algorithms for Enumerating All Perfect, Maximum and Maximal Matchings in Bipartite Graphs"
@@ -210,8 +242,8 @@ def _enum_maximum_matchings_iter(graph: BipartiteGraph[TLeft, TRight, TEdge], ma
         else:
             cycle = tuple(x[1] for x in raw_cycle)
 
-        # Step 3 - TODO: Properly find right edge
-        edge = cast(Tuple[TLeft, TRight], cycle[:2])
+        # Step 3 - TODO: Properly find right edge? (to get complexity bound)
+        edge = cast(Edge, cycle[:2])
 
         # Step 4
         # already done because we are not really finding the optimal edge
@@ -226,25 +258,34 @@ def _enum_maximum_matchings_iter(graph: BipartiteGraph[TLeft, TRight, TEdge], ma
         yield new_match
 
         # Construct G+(e) and G-(e)
-        graph_plus = graph.without_nodes(edge)
-        graph_minus = graph.without_edge(edge)
+        old_value = graph[edge]
+        del graph[edge]
+
+        # Step 7
+        # Recurse with the new matching M' but without the edge e
+        directed_match_graph_minus = _DirectedMatchGraph(graph, new_match)
+
+        yield from _enum_maximum_matchings_iter(graph, new_match, directed_match_graph_minus)
+
+        graph[edge] = old_value
 
         # Step 6
         # Recurse with the old matching M but without the edge e
 
-        # Construct M\e
-        match_minus_e = matching.copy()
-        del match_minus_e[edge[0]]
+        graph_plus = graph
 
-        directed_match_graph_plus = _DirectedMatchGraph(graph_plus, match_minus_e)
+        edges = []
+        for left, right in list(graph_plus.edges()):
+            if left == edge[0] or right == edge[1]:
+                edges.append((left, right, graph_plus[left, right]))
+                del graph_plus[left, right]
+
+        directed_match_graph_plus = _DirectedMatchGraph(graph_plus, matching)
 
         yield from _enum_maximum_matchings_iter(graph_plus, matching, directed_match_graph_plus)
 
-        # Step 7
-        # Recurse with the new matching M' but without the edge e
-        directed_match_graph_minus = _DirectedMatchGraph(graph_minus, new_match)
-
-        yield from _enum_maximum_matchings_iter(graph_minus, new_match, directed_match_graph_minus)
+        for left, right, value in edges:
+            graph_plus[left, right] = value
 
     else:
         # Step 8
@@ -283,15 +324,11 @@ def _enum_maximum_matchings_iter(graph: BipartiteGraph[TLeft, TRight, TEdge], ma
 
         edge = (left2, right)
 
-        # Construct M'\e
-        new_match_minus_e = new_match.copy()
-        del new_match_minus_e[left2]
-
         # Construct G+(e) and G-(e)
         graph_plus = graph.without_nodes(edge)
         graph_minus = graph.without_edge(edge)
 
-        dgm_plus = _DirectedMatchGraph(graph_plus, new_match_minus_e)
+        dgm_plus = _DirectedMatchGraph(graph_plus, new_match)
         dgm_minus = _DirectedMatchGraph(graph_minus, matching)
 
         # Step 9

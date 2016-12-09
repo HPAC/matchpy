@@ -1,17 +1,16 @@
 # -*- coding: utf-8 -*-
 import math
 from collections import deque
-from typing import (Dict, Iterable, List, NamedTuple, Optional, Set, Tuple,
-                    Union)
+from typing import (Dict, Iterable, List, NamedTuple, Optional, Set, Tuple, Union)
 
 from graphviz import Digraph
 from multiset import Multiset
 
 from ..constraints import Constraint, MultiConstraint
-from ..expressions import (FrozenExpression, Operation, Substitution, Symbol,
-                           SymbolWildcard, Variable, Wildcard, freeze)
-from ..utils import (VariableWithCount,
-                     commutative_sequence_variable_partition_iter)
+from ..expressions import (
+    FrozenExpression, Operation, Substitution, Symbol, SymbolWildcard, Variable, Wildcard, freeze
+)
+from ..utils import (VariableWithCount, commutative_sequence_variable_partition_iter)
 from .bipartite import BipartiteGraph, enum_maximum_matchings_iter
 from .syntactic import OPERATION_END, is_operation
 
@@ -391,7 +390,7 @@ class CommutativeMatcher(object):
 
     def add_subject(self, subject: FrozenExpression) -> None:
         if subject not in self.subjects:
-            subject_id = self.subjects[subject] = len(self.subjects)
+            subject_id, pattern_set = self.subjects[subject] = (len(self.subjects), set())
             self.subjects[subject_id] = subject
             context = _MatchContext((subject, ), Substitution(), self.associative)
             for state, parts in self.automaton._match(self.automaton.root, context):
@@ -399,14 +398,22 @@ class CommutativeMatcher(object):
                     variables = self.automaton.pattern_vars[pattern_index]
                     substitution = Substitution((name, parts[index]) for name, index in variables.items())
                     self.bipartite[subject_id, pattern_index] = substitution
+                    pattern_set.add(pattern_index)
         else:
-            subject_id = self.subjects[subject]
+            subject_id, _ = self.subjects[subject]
         return subject_id
 
     def match(self, subjects, substitution):
-        subject_ids = Multiset(self.subjects[s] for s in subjects)
+        subject_ids = Multiset()
+        pattern_ids = Multiset()
+        for subject in subjects:
+            subject_id, subject_pattern_ids = self.subjects[subject]
+            subject_ids.add(subject_id)
+            pattern_ids.update(subject_pattern_ids)
         for pattern_index, pattern_set, pattern_vars in self.patterns.values():
             if pattern_set:
+                if not pattern_set <= pattern_ids:
+                    continue
                 bipartite_match_iter = self._match_with_bipartite(subject_ids, pattern_set, substitution)
                 for bipartite_subst, matched_subjects in bipartite_match_iter:
                     if pattern_vars:
@@ -474,7 +481,7 @@ class CommutativeMatcher(object):
 
     def _build_bipartite(self, subjects, patterns):
         bipartite = BipartiteGraph()
-        for (expr, patt), m in self.bipartite.items():
+        for (expr, patt), m in self.bipartite.edges_with_value():
             for i in range(subjects[expr]):
                 for j in range(patterns[patt]):
                     bipartite[(expr, i), (patt, j)] = m

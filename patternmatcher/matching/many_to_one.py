@@ -338,7 +338,7 @@ class CommutativeMatcher(object):
             The multiplied induced bipartite subgraph for the concrete match situation.
         """
         bipartite = BipartiteGraph()  # type: Subgraph
-        for (expr, patt), m in self.bipartite.items():
+        for (expr, patt), m in self.bipartite.edges_with_value():
             for i in range(expressions[expr]):
                 for j in range(patterns[patt]):
                     bipartite[(expr, i), (patt, j)] = m
