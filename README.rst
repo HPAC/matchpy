@@ -65,8 +65,8 @@ Matches are given in the form of substitutions, which are a mapping from variabl
     >>> expression = f(a, b)
     >>> pattern = f(x, y)
     >>> substitution = next(match(expression, pattern))
-    >>> print(substitution)
-    x <- a, y <- b
+    >>> substitution
+    {'x': Symbol('a'), 'y': Symbol('b')}
 
 Replacing the variables in the pattern according to the substitution will yield the original subject expression::
 

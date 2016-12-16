@@ -4,6 +4,7 @@ import pytest
 from patternmatcher.constraints import CustomConstraint, MultiConstraint
 from patternmatcher.expressions import Operation, Symbol, Variable, Arity, Wildcard, freeze
 from patternmatcher.matching.common import CommutativePatternsParts
+from patternmatcher.matching.automaton import Automaton
 
 f = Operation.new('f', Arity.variadic)
 f2 = Operation.new('f2', Arity.variadic)
@@ -157,6 +158,31 @@ class TestCommutativePatternsParts:
         info = parts.sequence_variable_infos['x']
         assert 1 == info.min_count
         assert result_constraint == info.constraint
+
+
+class TestAutomaton:
+    def test_different_constraints(self):
+        c1 = CustomConstraint(lambda x: len(str(x)) > 1)
+        c2 = CustomConstraint(lambda x: len(str(x)) == 1)
+        pattern1 = f(Variable.dot('x', c1))
+        pattern2 = f(Variable.dot('x', c2))
+        pattern3 = f(Variable.dot('x', c1), b)
+        pattern4 = f(Variable.dot('x', c2), b)
+        matcher = Automaton(pattern1, pattern2, pattern3, pattern4)
+
+        matcher.as_graph().render('tmp/automaton')
+
+        subject = f(a)
+        results = list(matcher.match(subject))
+        assert len(results) == 1
+        assert results[0][0] == pattern2
+        assert results[0][1] == {'x': a}
+
+        subject = f(Symbol('longer'), b)
+        results = sorted(matcher.match(subject))
+        assert len(results) == 1
+        assert results[0][0] == pattern3
+        assert results[0][1] == {'x': Symbol('longer')}
 
 
 if __name__ == '__main__':

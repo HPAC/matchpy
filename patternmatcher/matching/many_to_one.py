@@ -62,13 +62,14 @@ class ManyToOneMatcher(object):
 
         Example:
 
-            >>> pattern1 = freeze(f(a, x_))
-            >>> pattern2 = freeze(f(y_, b))
+            >>> pattern1 = f(a, x_)
+            >>> pattern2 = f(y_, b)
             >>> matcher = ManyToOneMatcher(pattern1, pattern2)
-            >>> for pattern, match in sorted(matcher.match(freeze(f(a, b)))):
+            >>> subject = f(a, b)
+            >>> for pattern, match in sorted(matcher.match(subject)):
             ...     print(pattern, ':', match)
-            f(a, x_) : x <- b
-            f(y_, b) : y <- a
+            f(a, x_) : {x ↦ b}
+            f(y_, b) : {y ↦ a}
 
         Args:
             expression: The expression to match.
@@ -78,7 +79,8 @@ class ManyToOneMatcher(object):
             Note that the pattern will be a :term:`frozen` version of the original pattern., i.e. it will be
             equivalent to the original pattern but might not be identical.
         """
-        subexpressions = self._extract_subexpressions(freeze(expression), True)
+        expression = freeze(expression)
+        subexpressions = self._extract_subexpressions(expression, True)
         for t, es in subexpressions.items():
             if t in self.commutative_matchers:
                 for e in es:

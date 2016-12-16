@@ -313,15 +313,15 @@ class TestExpression:
             _ = SymbolWildcard(object)
 
 class CustomSymbolWithDict(Symbol):
-    def __init__(self, name, constraint=None):
-        super().__init__(name, constraint)
+    def __init__(self, name):
+        super().__init__(name)
         self.custom = 42
 
 class CustomSymbolWithoutDict(Symbol):
     __slots__ = ('custom', )
 
-    def __init__(self, name, constraint=None):
-        super().__init__(name, constraint)
+    def __init__(self, name):
+        super().__init__(name)
         self.custom = 42
 
 class TestFrozenExpression:

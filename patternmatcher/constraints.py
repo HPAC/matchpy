@@ -106,26 +106,24 @@ class CustomConstraint(Constraint):
         self.constraint = constraint
         signature = inspect.signature(constraint)
 
-        self.allow_any = False
         self.variables = OrderedDict()
 
         for param in signature.parameters.values():
             if param.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD or param.kind == inspect.Parameter.KEYWORD_ONLY:
                 self.variables[param.name] = param.name
             elif param.kind == inspect.Parameter.VAR_KEYWORD:
-                self.allow_any = True
+                raise ValueError("constraint cannot have variable keyword arguments (**kwargs)")
             else:
                 raise ValueError("constraint cannot have positional-only or variable positional arguments (*args)")
 
     def with_renamed_vars(self, renaming):
         cc = CustomConstraint(self.constraint)
-        for param_name, old_name in cc.variables.items():
-            cc.variables[param_name] = renaming[old_name]
+        for param_name, old_name in list(cc.variables.items()):
+            cc.variables[param_name] = renaming.get(old_name, old_name)
+        print(cc.variables, renaming)
         return cc
 
     def __call__(self, match: Substitution) -> bool:
-        if self.allow_any:
-            return self.constraint(**match)
         args = dict((name, match[var_name]) for name, var_name in self.variables.items())
 
         return self.constraint(**args)

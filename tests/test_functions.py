@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-from unittest.mock import Mock
-
 import hypothesis.strategies as st
 from hypothesis import assume, given
 import pytest
@@ -11,6 +9,7 @@ from patternmatcher.expressions import (Arity, Operation, Symbol, Variable,
 from patternmatcher.functions import (ReplacementRule, replace, replace_all,
                                       substitute)
 from patternmatcher.matching.one_to_one import match_anywhere
+from patternmatcher.constraints import Constraint
 
 
 class SpecialSymbol(Symbol):
@@ -44,8 +43,43 @@ x___ = Variable.star('x')
 y___ = Variable.star('y')
 z___ = Variable.star('z')
 
-mock_constraint_false = Mock(return_value=False)
-mock_constraint_true = Mock(return_value=True)
+class MockConstraint(Constraint):
+    def __init__(self, return_value):
+        self.return_value = return_value
+        self.called_with = []
+        self.renaming = None
+
+    def __call__(self, match):
+        self.called_with.append(match)
+        return self.return_value
+
+    def __eq__(self, other):
+        return id(self) == id(other)
+
+    def __hash__(self):
+        return hash(id(self))
+
+    def __repr__(self):
+        return 'MockConstraint(%r)' % self.return_value
+
+    def with_renamed_vars(self, renaming):
+        self.renaming = renaming
+        return self
+
+    @property
+    def call_count(self):
+        return len(self.called_with)
+
+    def assert_called_with(self, args):
+        if self.renaming is not None:
+            args = dict((self.renaming.get(n, n), v) for n, v in args.items())
+        assert args in self.called_with
+
+
+mock_constraint_false = MockConstraint(False)
+mock_constraint_true = MockConstraint(True)
+
+
 
 
 def _convert_match_list_to_tuple(expected_match):
@@ -176,6 +210,9 @@ class TestMatch:
             (f(f(a, b)),        f(x_),                              {'x': f(a, b)}),
             (f2(a, b),          f(x_, y_),                          None),
             (f(f(a, b)),        f(f(x_, y_)),                       {'x': a,       'y': b}),
+            (f(a, b, c),        f(x2_),                             None),
+            (f(a, b),           f(x2_),                             {'x': (a, b)}),
+            (f(a),              f(x2_),                             None),
         ])
     def test_wildcard_dot_match(self, match, expression, pattern, expected_match):
         expression = freeze(expression)
@@ -199,7 +236,10 @@ class TestMatch:
             (fa(a, b, a),           fa(x_, b, x_),  [{'x': a}]),
             (fa(a, a, b, a, a),     fa(x_, b, x_),  [{'x': fa(a, a)}]),
             (fa(a, b, c),           fa(x_, y_),     [{'x': a,           'y': fa(b, c)},
-                                                     {'x': fa(a, b),    'y': c}])
+                                                     {'x': fa(a, b),    'y': c}]),
+            (fa(a, b, c),           fa(x2_),        [{'x': (a, fa(b, c))}]),
+            (fa(a, b),              fa(x2_),        [{'x': (a, b)}]),
+            (fa(a),                 fa(x2_),        []),
         ]
     )
     def test_associative_wildcard_dot_match(self, match, expression, pattern, expected_matches):
@@ -442,13 +482,6 @@ class TestMatch:
         else:
             assert len(result) == 0
 
-    @staticmethod
-    def _make_constraint_mock(value):
-        mock = Mock(return_value=value)
-        attrs = {'with_renamed_vars.return_value': mock}
-        mock.configure_mock(**attrs)
-        return mock
-
     @pytest.mark.parametrize(
         'expression,    pattern_factory,                                                    constraint_values,  constraint_call_counts, match_count',
         [
@@ -468,17 +501,12 @@ class TestMatch:
             (f(a, a),   lambda c1, c2: f(Variable('x', _, c1), Variable('x', _, c2)),       [True,  False],     [1, 1],                 0),
             (f(a, a),   lambda c1, c2: f(Variable('x', _, c1), Variable('x', _, c2)),       [False, True],      [1, 0],                 0),
             (f(a, a),   lambda c1, c2: f(Variable('x', _, c1), Variable('x', _, c2)),       [True,  True],      [1, 1],                 1),
-            (a,         lambda c: Symbol('a', c),                                           [False],            [1],                    0),
-            (a,         lambda c: Symbol('a', c),                                           [True],             [1],                    1),
             (f(a),      lambda c: f(a, constraint=c),                                       [False],            [1],                    0),
             (f(a),      lambda c: f(a, constraint=c),                                       [True],             [1],                    1),
         ]
     )
     def test_constraint_match(self, match, expression, pattern_factory, constraint_values, constraint_call_counts, match_count):
-        if hasattr(match, 'xfail') and match.xfail:
-            pytest.xfail('Matcher uses constraints differently (atm)')
-
-        constraints = [self._make_constraint_mock(v) for v in constraint_values]
+        constraints = [MockConstraint(v) for v in constraint_values]
         pattern = pattern_factory(*constraints)
         expression = freeze(expression)
         pattern = freeze(pattern)
@@ -486,16 +514,13 @@ class TestMatch:
 
         assert len(result) == match_count, "Wrong number of matched for {!r} and {!r}".format(expression, pattern)
         for constraint, call_count in zip(constraints, constraint_call_counts):
-            assert constraint.call_count == call_count
+            assert constraint.call_count >= call_count
 
     def test_constraint_call_values(self, match):
-        if hasattr(match, 'xfail') and match.xfail:
-            pytest.xfail('Matcher uses constraints differently (atm)')
-
-        constraint1 = self._make_constraint_mock(True)
-        constraint2 = self._make_constraint_mock(True)
-        constraint3 = self._make_constraint_mock(True)
-        constraint4 = self._make_constraint_mock(True)
+        constraint1 = MockConstraint(True)
+        constraint2 = MockConstraint(True)
+        constraint3 = MockConstraint(True)
+        constraint4 = MockConstraint(True)
         expression = freeze(f(a, b))
         pattern = f(Wildcard(0, False, constraint1), Variable('x', _, constraint2), Variable('y', _, constraint3), constraint=constraint4)
 

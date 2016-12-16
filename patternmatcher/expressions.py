@@ -534,8 +534,8 @@ class Atom(Expression):  # pylint: disable=abstract-method
 class Symbol(Atom):
     __slots__ = 'name',
 
-    def __init__(self, name: str, constraint: Constraint=None) -> None:
-        super().__init__(constraint)
+    def __init__(self, name: str) -> None:
+        super().__init__(None)
         self.name = name
         self.head = self
 
@@ -556,10 +556,9 @@ class Symbol(Atom):
         return type(self)(self.name)
 
     def with_renamed_vars(self, renaming) -> 'Symbol':
-        constraint = self.constraint.with_renamed_vars(renaming) if self.constraint else None
         if hasattr(self, '_original_base'):
-            return freeze(self._original_base(self.name, constraint))
-        return type(self)(self.name, constraint)
+            return freeze(self._original_base(self.name))
+        return type(self)(self.name)
 
     def __lt__(self, other):
         if isinstance(other, Symbol):
@@ -938,8 +937,8 @@ class Substitution(Dict[str, VariableReplacement]):
 
         >>> subst = Substitution({'x': Multiset(['a', 'b'])})
         >>> subst.try_add_variable('x', ('a', 'b'))
-        >>> subst
-        {'x': ('a', 'b')}
+        >>> print(subst)
+        {x ↦ (a, b)}
 
         Args:
             variable:
@@ -1038,8 +1037,8 @@ class Substitution(Dict[str, VariableReplacement]):
 
         >>> subst1 = Substitution({'x': Multiset(['a', 'b'])})
         >>> subst2 = Substitution({'x': ('a', 'b'), 'y': ('c', )})
-        >>> str(subst1.union(subst2))
-        'x <- (a, b), y <- (c)'
+        >>> print(subst1.union(subst2))
+        {x ↦ (a, b), y ↦ (c)}
 
         Args:
             others:
@@ -1069,7 +1068,10 @@ class Substitution(Dict[str, VariableReplacement]):
         return str(value)
 
     def __str__(self):
-        return ', '.join('{!s} <- {!s}'.format(k, self._match_value_repr_str(v)) for k, v in sorted(self.items()))
+        return '{{{}}}'.format(', '.join('{!s} ↦ {!s}'.format(k, self._match_value_repr_str(v)) for k, v in sorted(self.items())))
+
+    def __repr__(self):
+        return '{{{}}}'.format(', '.join('{!r}: {!r}'.format(k, v) for k, v in sorted(self.items())))
 
 
 class _FrozenMeta(ABCMeta):
@@ -1280,7 +1282,7 @@ def unfreeze(expression: FrozenExpression) -> Expression:
     if isinstance(expression, Variable):
         return Variable(expression.name, unfreeze(expression.expression), expression.constraint)
     if isinstance(expression, Symbol):
-        return expression._original_base(expression.name, expression.constraint)
+        return expression._original_base(expression.name)
     if isinstance(expression, Operation):
         return expression._original_base.from_args(
             *map(unfreeze, expression.operands), constraint=expression.constraint

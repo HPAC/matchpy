@@ -41,10 +41,8 @@ VARIABLE_CONSTRAINTS = [
 C_custom1 = CustomConstraint(lambda x: x == 0)
 C_custom2 = CustomConstraint(lambda y: y == 0)
 C_custom3 = CustomConstraint(lambda x, y: x == y)
-C_custom4 = CustomConstraint(lambda **args: len(args) > 1)
-C_custom5 = CustomConstraint(lambda x, **args: x == 0 and len(args) > 0)
 
-CUSTOM_CONSTRAINTS = [C_custom1, C_custom2, C_custom3, C_custom4, C_custom5]
+CUSTOM_CONSTRAINTS = [C_custom1, C_custom2, C_custom3]
 
 
 @pytest.mark.parametrize(
@@ -137,16 +135,6 @@ def test_equal_variables_constraint_hash(c1, c2):
         (C_custom3,     {'x': 0, 'y': 1},           False),
         (C_custom3,     {'x': 1, 'y': 0},           False),
         (C_custom3,     {'x': 1, 'y': 1},           True),
-        (C_custom4,     {'x': 0, 'y': 0},           True),
-        (C_custom4,     {'x': 0},                   False),
-        (C_custom4,     {'y': 0},                   False),
-        (C_custom4,     {'x': 0, 'y': 0, 'z': 0},   True),
-        (C_custom5,     {'x': 0, 'y': 0},           True),
-        (C_custom5,     {'x': 1, 'y': 0},           False),
-        (C_custom5,     {'x': 0, 'y': 0, 'z': 0},   True),
-        (C_custom5,     {'x': 1, 'y': 0, 'z': 0},   False),
-        (C_custom5,     {'x': 0},                   False),
-        (C_custom5,     {'x': 1},                   False),
     ]
 )
 def test_custom_constraint_call(constraint, substitution, expected_result):

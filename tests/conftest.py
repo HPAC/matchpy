@@ -37,9 +37,8 @@ def match_automaton(expression, pattern):
     except StopIteration:
         pass
     else:
-        pytest.xfail('Matcher does not support fixed wildcards with length != 1 commutative operations')
-    matcher = Automaton()
-    matcher.add(pattern)
+        pytest.xfail('Matcher does not support fixed wildcards with length != 1 in commutative operations')
+    matcher = Automaton(pattern)
     for _, substitution in matcher.match(expression):
         yield substitution
 
