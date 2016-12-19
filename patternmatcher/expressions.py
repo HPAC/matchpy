@@ -401,14 +401,14 @@ class Operation(Expression, metaclass=_OperationMeta):
 
     @staticmethod
     def new(
-        name: str,
-        arity: Arity,
-        class_name: str=None,
-        *,
-        associative: bool=False,
-        commutative: bool=False,
-        one_identity: bool=False,
-        infix: bool=False
+            name: str,
+            arity: Arity,
+            class_name: str=None,
+            *,
+            associative: bool=False,
+            commutative: bool=False,
+            one_identity: bool=False,
+            infix: bool=False
     ) -> Type['Operation']:
         """Utility method to create a new operation type.
 
@@ -1068,7 +1068,9 @@ class Substitution(Dict[str, VariableReplacement]):
         return str(value)
 
     def __str__(self):
-        return '{{{}}}'.format(', '.join('{!s} ↦ {!s}'.format(k, self._match_value_repr_str(v)) for k, v in sorted(self.items())))
+        return '{{{}}}'.format(
+            ', '.join('{!s} ↦ {!s}'.format(k, self._match_value_repr_str(v)) for k, v in sorted(self.items()))
+        )
 
     def __repr__(self):
         return '{{{}}}'.format(', '.join('{!r}: {!r}'.format(k, v) for k, v in sorted(self.items())))

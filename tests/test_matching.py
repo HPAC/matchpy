@@ -170,8 +170,6 @@ class TestAutomaton:
         pattern4 = f(Variable.dot('x', c2), b)
         matcher = Automaton(pattern1, pattern2, pattern3, pattern4)
 
-        matcher.as_graph().render('tmp/automaton')
-
         subject = f(a)
         results = list(matcher.match(subject))
         assert len(results) == 1

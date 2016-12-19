@@ -77,7 +77,7 @@ class EqualVariablesConstraint(Constraint):
         self.variables = frozenset(variables)
 
     def with_renamed_vars(self, renaming):
-        return EqualVariablesConstraint(*(renaming[v] for v in self.variables))
+        return EqualVariablesConstraint(*(renaming.get(v, v) for v in self.variables))
 
     def __call__(self, match: Substitution) -> bool:
         subst = Substitution()
@@ -120,7 +120,6 @@ class CustomConstraint(Constraint):
         cc = CustomConstraint(self.constraint)
         for param_name, old_name in list(cc.variables.items()):
             cc.variables[param_name] = renaming.get(old_name, old_name)
-        print(cc.variables, renaming)
         return cc
 
     def __call__(self, match: Substitution) -> bool:
@@ -135,7 +134,10 @@ class CustomConstraint(Constraint):
         return 'CustomConstraint({!s})'.format(get_short_lambda_source(self.constraint) or self.constraint.__name__)
 
     def __eq__(self, other):
-        return isinstance(other, CustomConstraint) and self.constraint == other.constraint
+        return (
+            isinstance(other, CustomConstraint) and self.constraint == other.constraint and
+            self.variables == other.variables
+        )
 
     def __hash__(self):
         return hash(self.constraint)

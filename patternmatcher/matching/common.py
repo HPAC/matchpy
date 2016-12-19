@@ -304,11 +304,11 @@ def match_operation(expressions, operation, subst, matcher):
 
 
 def match_commutative_operation(
-    operands: Iterable[Expression],
-    pattern: CommutativePatternsParts,
-    substitution: Substitution,
-    matcher,
-    syntactic_matcher=None
+        operands: Iterable[Expression],
+        pattern: CommutativePatternsParts,
+        substitution: Substitution,
+        matcher,
+        syntactic_matcher=None
 ) -> Iterator[Substitution]:
     if any(not e.is_constant for e in operands):
         raise ValueError("All given expressions must be constant.")
@@ -337,7 +337,7 @@ def match_commutative_operation(
 
 
 def _matches_from_matching(
-    subst: Substitution, remaining: Multiset, pattern: CommutativePatternsParts, matcher, include_syntactic: bool
+        subst: Substitution, remaining: Multiset, pattern: CommutativePatternsParts, matcher, include_syntactic: bool
 ) -> Iterator[Substitution]:
     rest_expr = (pattern.rest + pattern.syntactic) if include_syntactic else pattern.rest
     needed_length = (
@@ -479,7 +479,7 @@ def _split_expressions(expressions: Multiset[Expression]) -> Tuple[Multiset[Expr
 
     for expression, count in expressions.items():
         if expression.is_syntactic or not (
-            isinstance(expression, Operation) and (expression.associative or expression.commutative)
+                isinstance(expression, Operation) and (expression.associative or expression.commutative)
         ):
             syntactics[expression] = count
         else:

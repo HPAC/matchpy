@@ -119,7 +119,9 @@ class Automaton:
                         context_stack.append(MultiConstraint.create(constraint, subpattern.constraint))
                         patterns_stack.append(deque(subpattern.operands))
                         constraint = False
-                constraint = MultiConstraint.create(constraint, subpattern.constraint) if constraint is not False else None
+                constraint = MultiConstraint.create(
+                    constraint, subpattern.constraint
+                ) if constraint is not False else None
                 state = self._create_expression_transition(state, subpattern, constraint, variable_name)
                 if getattr(subpattern, 'commutative', False):
                     subpattern_id = state.matcher.add_pattern(subpattern.operands)
@@ -495,7 +497,7 @@ class CommutativeMatcher(object):
                 yield pattern_index, substitution
 
     def _extract_sequence_wildcards(self, operands: Iterable[Expression]
-                                    ) -> Tuple[Multiset[int], Dict[str, VariableWithCount]]:
+                                   ) -> Tuple[Multiset[int], Dict[str, VariableWithCount]]:
         pattern_set = Multiset()
         pattern_vars = dict()
         for operand in operands:
