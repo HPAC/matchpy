@@ -194,7 +194,7 @@ class _OperationMeta(ABCMeta):
     and clashes with the :class:`FrozenOperation` class.
     """
 
-    def _repr(cls, name):
+    def _repr(cls, name):  # pragma: no cover
         flags = []
         if cls.associative:
             flags.append('associative')
@@ -508,7 +508,7 @@ class Operation(Expression, metaclass=_OperationMeta):
         return sum((x.symbols for x in self.operands), Multiset([self.name]))
 
     def _without_constraints(self):
-        return type(self).from_args(*self.operands)
+        return type(self).from_args(*(o.without_constraints for o in self.operands))
 
     def _is_linear(self, variables: Set[str]) -> bool:
         return all(o._is_linear(variables) for o in self.operands)  # pylint: disable=protected-access

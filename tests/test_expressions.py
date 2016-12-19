@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import inspect
 import itertools
+from unittest.mock import Mock
 
 import pytest
 from multiset import Multiset
@@ -9,8 +10,34 @@ from patternmatcher.expressions import (Arity, FrozenExpression, Operation,
                                         Substitution, Symbol, SymbolWildcard,
                                         Variable, Wildcard, freeze, unfreeze)
 
+from .utils import MockConstraint
+
 a = freeze(Symbol('a'))
 b = freeze(Symbol('b'))
+
+
+f = Operation.new('f', Arity.variadic)
+f_i = Operation.new('f_i', Arity.variadic, one_identity=True)
+f_a = Operation.new('f_a', Arity.variadic, associative=True)
+f_c = Operation.new('f_c', Arity.variadic, commutative=True)
+f_ac = Operation.new('f', Arity.variadic, associative=True, commutative=True)
+
+c = Symbol('c')
+
+_ = Wildcard.dot()
+x_ = Variable.dot('x')
+y_ = Variable.dot('y')
+z_ = Variable.dot('z')
+xs_ = Variable.symbol('x')
+__ = Wildcard.plus()
+x__ = Variable.plus('x')
+y__ = Variable.plus('y')
+z__ = Variable.plus('z')
+___ = Wildcard.star()
+x___ = Variable.star('x')
+y___ = Variable.star('y')
+z___ = Variable.star('z')
+
 
 class TestSubstitution:
     @pytest.mark.parametrize(
@@ -36,7 +63,6 @@ class TestSubstitution:
     )
     def test_union_with_var(self, substitution, variable, value, expected_result):
         substitution = Substitution(substitution)
-
         if expected_result is ValueError:
             with pytest.raises(ValueError):
                 _ = substitution.union_with_variable(variable, value)
@@ -44,29 +70,76 @@ class TestSubstitution:
             result = substitution.union_with_variable(variable, value)
             assert result == expected_result
 
-f = Operation.new('f', Arity.variadic)
-f_i = Operation.new('f_i', Arity.variadic, one_identity=True)
-f_a = Operation.new('f_a', Arity.variadic, associative=True)
-f_c = Operation.new('f_c', Arity.variadic, commutative=True)
-f_ac = Operation.new('f', Arity.variadic, associative=True, commutative=True)
+    @pytest.mark.parametrize(
+        '   substitution1,                  substitution2,                  expected_result',
+        [
+            ({},                            {},                             {}),
+            ({'x': a},                      {},                             {'x': a}),
+            ({'x': a},                      {'y': b},                       {'x': a, 'y': b}),
+            ({'x': a},                      {'x': b},                       ValueError),
+            ({'x': a},                      {'x': a},                       {'x': a}),
+        ]
+    )
+    def test_union(self, substitution1, substitution2, expected_result):
+        substitution1 = Substitution(substitution1)
+        substitution2 = Substitution(substitution2)
+        if expected_result is ValueError:
+            with pytest.raises(ValueError):
+                _ = substitution1.union(substitution2)
+            with pytest.raises(ValueError):
+                _ = substitution2.union(substitution1)
+        else:
+            result = substitution1.union(substitution2)
+            assert result == expected_result
+            assert result is not substitution1
+            assert result is not substitution2
+            result = substitution2.union(substitution1)
+            assert result == expected_result
+            assert result is not substitution1
+            assert result is not substitution2
+
+    @pytest.mark.parametrize(
+        '   substitution,                   subject,    pattern,                expected_result',
+        [
+            ({},                            a,          a,                      {}),
+            ({},                            a,          x_,                     {'x': a}),
+            ({'x': a},                      a,          x_,                     {'x': a}),
+            ({'x': b},                      a,          x_,                     False),
+            ({},                            f(a),       f(a),                   {}),
+            ({},                            f(a),       f(x_),                  {'x': a}),
+            ({'x': a},                      f(a),       f(x_),                  {'x': a}),
+            ({'x': b},                      f(a),       f(x_),                  False),
+            ({},                            f(a, a),    f(x_, x_),              {'x': a}),
+            ({},                            f(a, b),    f(x_, x_),              False),
+            ({},                            f(a, b),    f(x_, y_),              {'x': a, 'y': b}),
+        ]
+    )
+    def test_extract_substitution(self, substitution, subject, pattern, expected_result):
+        substitution = Substitution(substitution)
+        if expected_result is False:
+            assert substitution.extract_substitution(subject, pattern) is False
+        else:
+            assert substitution.extract_substitution(subject, pattern) is True
+            assert substitution == expected_result
+
+    @pytest.mark.parametrize(
+        '   substitution,                  renaming,                  expected_result',
+        [
+            ({},                            {},                       {}),
+            ({'x': a},                      {},                       {'x': a}),
+            ({'x': a},                      {'x': 'y'},               {'y': a}),
+            ({'x': a},                      {'y': 'x'},               {'x': a}),
+        ]
+    )
+    def test_rename(self, substitution, renaming, expected_result):
+        assert Substitution(substitution).rename(renaming) == expected_result
+
 
 a = Symbol('a')
 b = Symbol('b')
-c = Symbol('c')
 
-_ = Wildcard.dot()
-x_ = Variable.dot('x')
-y_ = Variable.dot('y')
-z_ = Variable.dot('z')
-xs_ = Variable.symbol('x')
-__ = Wildcard.plus()
-x__ = Variable.plus('x')
-y__ = Variable.plus('y')
-z__ = Variable.plus('z')
-___ = Wildcard.star()
-x___ = Variable.star('x')
-y___ = Variable.star('y')
-z___ = Variable.star('z')
+constraint1 = MockConstraint(True)
+constraint2 = MockConstraint(True)
 
 
 class TestExpression:
@@ -312,10 +385,60 @@ class TestExpression:
         with pytest.raises(TypeError):
             _ = SymbolWildcard(object)
 
+    @pytest.mark.parametrize(
+        '   expression,                                                     expected_result',
+        [
+            (a,                                                             a),
+            (x_,                                                            x_),
+            (Variable.dot('x', constraint1),                                x_),
+            (Variable.dot('x', constraint1),                                x_),
+            (SymbolWildcard(constraint=constraint1),                        SymbolWildcard()),
+            (f(a, constraint=constraint1),                                  f(a)),
+            (f(Variable.dot('x', constraint1)),                             f(x_)),
+            (f(Variable.dot('x', constraint1), constraint=constraint2),     f(x_)),
+        ]
+    )
+    def test_without_constraints(self, expression, expected_result):
+        new_expr = expression.without_constraints
+        assert new_expr == expected_result
+        assert new_expr is not expression
+
+        frozen_expression = freeze(expression)
+        new_expr = frozen_expression.without_constraints
+        assert new_expr == expected_result
+        assert new_expr is not frozen_expression
+
+    @pytest.mark.parametrize(
+        '   expression,                         renaming,       expected_result',
+        [
+            (a,                                 {},             a),
+            (a,                                 {'x': 'y'},     a),
+            (x_,                                {},             x_),
+            (x_,                                {'x': 'y'},     y_),
+            (Variable.dot('x', constraint1),    {'x': 'y'},     Variable.dot('y', constraint1)),
+            (SymbolWildcard(),                  {},             SymbolWildcard()),
+            (SymbolWildcard(),                  {'x': 'y'},     SymbolWildcard()),
+            (f(x_),                             {},             f(x_)),
+            (f(x_),                             {'x': 'y'},     f(y_)),
+            (f(x_, constraint=constraint1),     {'x': 'y'},     f(y_, constraint=constraint1)),
+        ]
+    )
+    def test_with_renamed_vars(self, expression, renaming, expected_result):
+        new_expr = expression.with_renamed_vars(renaming)
+        assert new_expr == expected_result
+        assert new_expr is not expression
+
+        frozen_expression = freeze(expression)
+        new_expr = frozen_expression.with_renamed_vars(renaming)
+        assert new_expr == expected_result
+        assert new_expr is not frozen_expression
+
+
 class CustomSymbolWithDict(Symbol):
     def __init__(self, name):
         super().__init__(name)
         self.custom = 42
+
 
 class CustomSymbolWithoutDict(Symbol):
     __slots__ = ('custom', )
