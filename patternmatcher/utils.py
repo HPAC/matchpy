@@ -100,7 +100,7 @@ def commutative_sequence_variable_partition_iter(values: Multiset[T], variables:
     if len(variables) == 1:
         name, count, minimum = variables[0]
         if count == 1 and len(values) >= minimum:
-            yield {name: values}
+            yield {name: values} if name is not None else {}
             return
     iterators = []
     for value, count in values.items():

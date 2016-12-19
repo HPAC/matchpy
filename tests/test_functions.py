@@ -96,6 +96,10 @@ class TestMatch:
     @pytest.mark.parametrize(
         '   expression,         pattern,            is_match',
         [
+            (fc(),              fc(),               True),
+            (fc(a),             fc(),               False),
+            (fc(),              fc(a),              False),
+            (fc(a, b),          fc(a, b),           True),
             (fc(a, b),          fc(a, b),           True),
             (fc(b, a),          fc(a, b),           True),
             (fc(b, a, c),       fc(a, b, c),        True),
@@ -149,6 +153,22 @@ class TestMatch:
 
         for subst in result:
             assert substitute(pattern, subst)[0] == expression, 'Invalid match'
+
+    @pytest.mark.parametrize(
+        '   expression,         pattern,                                    expected_matches',
+        [
+            (fc(a),             fc(x_, constraint=mock_constraint_false),   []),
+            (fc(a),             fc(x_, constraint=mock_constraint_true),    [{'x': a}]),
+        ]
+    )
+    def test_commutative_constraint_match(self, match, expression, pattern, expected_matches):
+        expression = freeze(expression)
+        pattern = freeze(pattern)
+        result = list(match(expression, pattern))
+        for expected_match in expected_matches:
+            assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(expression, pattern, expected_match)
+        for result_match in result:
+            assert result_match in expected_matches, "Expression {!s} and {!s} yielded the unexpected match {!s}".format(expression, pattern, result_match)
 
     @pytest.mark.parametrize(
         '   expression,         pattern,                            expected_match',
@@ -380,7 +400,11 @@ class TestMatch:
             (f(a),                s_,           []),
             (a,                   ss_,          []),
             (f(a),                ss_,          []),
-            (s,                   ss_,          [{'ss': s}])
+            (s,                   ss_,          [{'ss': s}]),
+            (fc(a),               fc(ss_),      []),
+            (fc(s),               fc(ss_),      [{'ss': s}]),
+            (fc(a, s),            fc(ss_, ___), [{'ss': s}]),
+            (fc(a, s),            fc(s_, ___),  [{'s': s}, {'s': a}]),
         ]
     )
     def test_wildcard_symbol_match(self, match, expression, pattern, expected_matches):
@@ -420,6 +444,36 @@ class TestMatch:
         ]
     )
     def test_commutative_multiple_fixed_vars(self, match, expression, pattern, expected_matches):
+        expression = freeze(expression)
+        pattern = freeze(pattern)
+        result = list(match(expression, pattern))
+        assert len(result) == len(expected_matches), 'Unexpected number of matches'
+        for expected_match in expected_matches:
+            assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(expression, pattern, expected_match)
+        for result_match in result:
+            assert result_match in expected_matches, "Expression {!s} and {!s} yielded the unexpected match {!s}".format(expression, pattern, result_match)
+
+    @pytest.mark.parametrize(
+        '   expression,             pattern,                 expected_matches',
+        [
+            (fc(a, b),              fc(x___, y___),          [{'x': Multiset([a]),       'y': Multiset([b])},
+                                                              {'x': Multiset([b]),       'y': Multiset([a])},
+                                                              {'x': Multiset([a, b]),    'y': Multiset()},
+                                                              {'x': Multiset(),          'y': Multiset([a, b])}]),
+            (fc(a, b),              fc(x___, x___),          []),
+            (fc(a, a),              fc(x___, x___),          [{'x': Multiset([a])}]),
+            (fc(a, a),              fc(x___, x___, y___),    [{'x': Multiset([a]),       'y': Multiset()},
+                                                              {'x': Multiset(),          'y': Multiset([a, a])}]),
+            (f(a, b, fc(a, b)),     f(x___, fc(x___)),       [{'x': (a, b)}]),
+            (f(b, a, fc(a, b)),     f(x___, fc(x___)),       [{'x': (b, a)}]),
+            (f(a, a, fc(a, b)),     f(x___, fc(x___)),       []),
+            (f(a, b, fc(a, a)),     f(x___, fc(x___)),       []),
+            (fc(a),                 fc(__, __),              []),
+            (fc(a, a),              fc(__, __),              [{}]),
+            (fc(a, b),              fc(__, __),              [{}]),
+        ]
+    )
+    def test_commutative_multiple_sequence_vars(self, match, expression, pattern, expected_matches):
         expression = freeze(expression)
         pattern = freeze(pattern)
         result = list(match(expression, pattern))

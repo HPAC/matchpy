@@ -291,7 +291,7 @@ class DiscriminationNet(Generic[T]):
     def add(self, pattern: Union[Expression, FlatTerm], final_label: T=None) -> None:
         """TODO"""
         if final_label is None:
-            final_label = pattern
+            final_label = freeze(pattern) if not isinstance(pattern, FlatTerm) else pattern
         flatterm = FlatTerm(freeze(pattern)) if not isinstance(pattern, FlatTerm) else pattern
         if pattern.is_syntactic or len(flatterm) == 1:
             net = self._generate_syntactic_net(flatterm, final_label)
@@ -526,13 +526,13 @@ class DiscriminationNet(Generic[T]):
                         child_state.depth = 1
                         child_state.state1 = current_state.state1
                         child_state.id1 = current_state.id1
-                        child_state.payload = child_state.state2.payload
+                        child_state.payload = child_state.state2.payload + current_state.state1.payload
                     elif with_wildcard2:
                         child_state.fixed = 2
                         child_state.depth = 1
                         child_state.state2 = current_state.state2
                         child_state.id2 = current_state.id2
-                        child_state.payload = child_state.state1.payload
+                        child_state.payload = child_state.state1.payload + current_state.state2.payload
                 elif label == OPERATION_END and current_state.fixed:
                     child_state.depth -= 1
 
@@ -540,9 +540,11 @@ class DiscriminationNet(Generic[T]):
                         if child_state.fixed == 1:
                             child_state.state1 = child_state.state1[Wildcard]
                             child_state.id1 = child_state.state1.id
+                            child_state.payload.extend(child_state.state1.payload)
                         elif child_state.fixed == 2:
                             child_state.state2 = child_state.state2[Wildcard]
                             child_state.id2 = child_state.state2.id
+                            child_state.payload.extend(child_state.state2.payload)
                         else:
                             raise AssertionError  # unreachable
                         child_state.fixed = 0
@@ -556,7 +558,7 @@ class DiscriminationNet(Generic[T]):
         return root
 
     def match(self, expression: Union[Expression, FlatTerm], collect: bool=False, first=False) -> List[T]:
-        flatterm = FlatTerm(expression) if isinstance(expression, Expression) else expression
+        flatterm = FlatTerm(freeze(expression)) if isinstance(expression, Expression) else expression
         state = self._root
         depth = 0
         result = state.payload[:]

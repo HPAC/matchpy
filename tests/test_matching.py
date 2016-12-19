@@ -182,6 +182,54 @@ class TestAutomaton:
         assert results[0][0] == pattern3
         assert results[0][1] == {'x': Symbol('longer')}
 
+    def test_different_constraints_on_operation(self):
+        c1 = CustomConstraint(lambda x: len(str(x)) > 1)
+        c2 = CustomConstraint(lambda x: len(str(x)) == 1)
+        pattern1 = f(x_, constraint=c1)
+        pattern2 = f(x_, constraint=c2)
+        pattern3 = f(x_, b, constraint=c1)
+        pattern4 = f(x_, b, constraint=c2)
+        matcher = Automaton(pattern1, pattern2, pattern3, pattern4)
+
+        subject = f(a)
+        results = list(matcher.match(subject))
+        assert len(results) == 1
+        assert results[0][0] == pattern2
+        assert results[0][1] == {'x': a}
+
+        subject = f(Symbol('longer'), b)
+        results = sorted(matcher.match(subject))
+        assert len(results) == 1
+        assert results[0][0] == pattern3
+        assert results[0][1] == {'x': Symbol('longer')}
+
+    def test_different_constraints_on_commutative_operation(self):
+        c1 = CustomConstraint(lambda x: len(str(x)) > 1)
+        c2 = CustomConstraint(lambda x: len(str(x)) == 1)
+        pattern1 = fc(x_, constraint=c1)
+        pattern2 = fc(x_, constraint=c2)
+        pattern3 = fc(x_, b, constraint=c1)
+        pattern4 = fc(x_, b, constraint=c2)
+        matcher = Automaton(pattern1, pattern2, pattern3, pattern4)
+
+        subject = fc(a)
+        results = list(matcher.match(subject))
+        assert len(results) == 1
+        assert results[0][0] == pattern2
+        assert results[0][1] == {'x': a}
+
+        subject = fc(Symbol('longer'), b)
+        results = sorted(matcher.match(subject))
+        assert len(results) == 1
+        assert results[0][0] == pattern3
+        assert results[0][1] == {'x': Symbol('longer')}
+
+        subject = fc(a, b)
+        results = list(matcher.match(subject))
+        assert len(results) == 1
+        assert results[0][0] == pattern4
+        assert results[0][1] == {'x': a}
+
 
 if __name__ == '__main__':
     import patternmatcher.matching as tested_module

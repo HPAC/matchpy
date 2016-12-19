@@ -110,19 +110,20 @@ class Automaton:
                 subpattern = patterns_stack[-1].popleft()
                 variable_name = None
                 constraint = None
+                has_pre_constraint = True
                 if isinstance(subpattern, Variable):
                     constraint = subpattern.constraint
                     variable_name = subpattern.name
                     subpattern = subpattern.expression
+                constraint = MultiConstraint.create(constraint, subpattern.constraint)
                 if isinstance(subpattern, Operation):
                     if not subpattern.commutative:
-                        context_stack.append(MultiConstraint.create(constraint, subpattern.constraint))
+                        context_stack.append(constraint)
                         patterns_stack.append(deque(subpattern.operands))
-                        constraint = False
-                constraint = MultiConstraint.create(
-                    constraint, subpattern.constraint
-                ) if constraint is not False else None
-                state = self._create_expression_transition(state, subpattern, constraint, variable_name)
+                    has_pre_constraint = False
+                state = self._create_expression_transition(
+                    state, subpattern, constraint if has_pre_constraint else None, variable_name
+                )
                 if getattr(subpattern, 'commutative', False):
                     subpattern_id = state.matcher.add_pattern(subpattern.operands)
                     state = self._create_simple_transition(state, subpattern_id, constraint)
@@ -151,8 +152,8 @@ class Automaton:
         for state, substitution in self._match(self.root, context):
             for pattern_index in state.patterns:
                 renaming = self.pattern_vars[pattern_index]
-                substitution = substitution.rename({renamed: original for original, renamed in renaming.items()})
-                yield self.patterns[pattern_index], substitution
+                new_substitution = substitution.rename({renamed: original for original, renamed in renaming.items()})
+                yield self.patterns[pattern_index], new_substitution
 
     def as_graph(self) -> Digraph:  # pragma: no cover
         return self._as_graph(None)
@@ -277,7 +278,10 @@ class Automaton:
         matched_subject = subject
         new_subjects = subjects[1:]
         if is_operation(label):
-            yield from self._match_operation(transition, context)
+            if transition.target.matcher:
+                yield from self._match_commutative_operation(transition.target, context)
+            else:
+                yield from self._match_regular_operation(transition, context)
             return
         elif isinstance(label, Wildcard) and not isinstance(label, SymbolWildcard):
             min_count = label.min_count
@@ -330,15 +334,6 @@ class Automaton:
                 new_context = _MatchContext(subjects[i:], new_substitution, associative)
                 yield from self._match(transition.target, new_context)
 
-    def _match_operation(self, transition: _Transition,
-                         context: _MatchContext) -> Iterator[Tuple[_State, Substitution]]:
-        subject = context[0][0]
-        if isinstance(subject, transition.label):
-            if transition.target.matcher:
-                yield from self._match_commutative_operation(transition.target, context)
-            else:
-                yield from self._match_regular_operation(transition, context)
-
     def _match_commutative_operation(self, state: _State,
                                      context: _MatchContext) -> Iterator[Tuple[_State, Substitution]]:
         (subject, *rest), substitution, associative = context
@@ -359,12 +354,11 @@ class Automaton:
         new_associative = transition.label if transition.label.associative else None
         new_context = _MatchContext(subject.operands, substitution, new_associative)
         for new_state, new_substitution in self._match(transition.target, new_context):
-            if OPERATION_END in new_state.transitions:
-                for transition in new_state.transitions[OPERATION_END]:
-                    eventual_substitution = self._check_constraint(transition, new_substitution, subject)
-                    if eventual_substitution is not None:
-                        new_context = _MatchContext(rest, eventual_substitution, associative)
-                        yield from self._match(transition.target, new_context)
+            for transition in new_state.transitions[OPERATION_END]:
+                eventual_substitution = self._check_constraint(transition, new_substitution, subject)
+                if eventual_substitution is not None:
+                    new_context = _MatchContext(rest, eventual_substitution, associative)
+                    yield from self._match(transition.target, new_context)
 
     def _create_state(self, matcher: 'CommutativeMatcher' =None) -> _State:
         state = _State(dict(), set(), matcher)
@@ -506,7 +500,13 @@ class CommutativeMatcher(object):
             else:
                 varname = getattr(operand, 'name', None)
                 wildcard = operand.expression if isinstance(operand, Variable) else operand
-                if isinstance(wildcard, Wildcard):
+                if varname is None:
+                    if varname in pattern_vars:
+                        _, _, min_count = pattern_vars[varname]
+                    else:
+                        min_count = 0
+                    pattern_vars[varname] = VariableWithCount(varname, 1, wildcard.min_count + min_count)
+                else:
                     if varname in pattern_vars:
                         _, count, _ = pattern_vars[varname]
                     else:
@@ -550,6 +550,7 @@ class CommutativeMatcher(object):
     ) -> Iterator[Substitution]:
         for variable_substitution in commutative_sequence_variable_partition_iter(subjects, pattern_vars):
             try:
+                print(variable_substitution)
                 yield substitution.union(variable_substitution)
             except ValueError:
                 pass
@@ -574,13 +575,9 @@ class CommutativeMatcher(object):
                 previous_label = label
         for subject_id, count in subject_ids.items():
             patterns = iter(matching.get((subject_id, i), (math.inf, math.inf)) for i in range(count))
-            try:
-                last_pattern = next(patterns)
-            except StopIteration:
-                pass
-            else:
-                for next_pattern in patterns:
-                    if next_pattern < last_pattern:
-                        return False
-                    last_pattern = next_pattern
+            last_pattern = next(patterns)
+            for next_pattern in patterns:
+                if next_pattern < last_pattern:
+                    return False
+                last_pattern = next_pattern
         return True

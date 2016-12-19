@@ -952,7 +952,7 @@ class Substitution(Dict[str, VariableReplacement]):
                 substitution for the variable.
         """
         if variable not in self:
-            self[variable] = replacement
+            self[variable] = replacement.copy() if isinstance(replacement, Multiset) else replacement
         else:
             existing_value = self[variable]
 

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from typing import Iterator, Tuple
 
-from ..expressions import Expression, Substitution
+from ..expressions import Expression, Substitution, freeze
 from .common import match as _match
 
 __all__ = ['match', 'match_anywhere']
@@ -24,7 +24,7 @@ def match(expression: Expression, pattern: Expression) -> Iterator[Substitution]
         and the corresponding value is the variables substitution. Applying the substitution to the pattern
         results in the original expression (except for :class:`Wildcard`\s)
     """
-    return _match([expression], pattern, Substitution())
+    return _match([freeze(expression)], freeze(pattern), Substitution())
 
 
 def match_anywhere(expression: Expression, pattern: Expression) -> Iterator[Tuple[Substitution, Tuple[int, ...]]]:

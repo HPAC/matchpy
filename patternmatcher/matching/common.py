@@ -341,7 +341,8 @@ def _matches_from_matching(
 ) -> Iterator[Substitution]:
     rest_expr = (pattern.rest + pattern.syntactic) if include_syntactic else pattern.rest
     needed_length = (
-        len(pattern.sequence_variables) + len(pattern.fixed_variables) + len(rest_expr) + pattern.wildcard_min_length
+        pattern.sequence_variable_min_length + pattern.fixed_variable_length + len(rest_expr) +
+        pattern.wildcard_min_length
     )
 
     if len(remaining) < needed_length:
@@ -396,22 +397,21 @@ def _matches_from_matching(
         combined_constraint = MultiConstraint.create(*constraints)
 
         for sequence_subst in commutative_sequence_variable_partition_iter(Multiset(rem_expr), sequence_vars):
-            s = Substitution(sequence_subst)
             if pattern.operation.associative:
                 for v in fixed_vars.keys():
-                    if v not in s:
+                    if v not in sequence_subst:
                         continue
                     l = pattern.fixed_variable_infos[v].min_count
-                    value = cast(Multiset[Expression], s[v])
+                    value = cast(Multiset[Expression], sequence_subst[v])
                     if len(value) > l:
                         normal = Multiset(list(value)[:l - 1])
                         wrapped = pattern.operation.from_args(*(value - normal))
                         normal.add(wrapped)
-                        s[v] = normal if l > 1 else next(iter(normal))
+                        sequence_subst[v] = normal if l > 1 else next(iter(normal))
                     elif l == len(value) and l == 1:
-                        s[v] = next(iter(value))
+                        sequence_subst[v] = next(iter(value))
             try:
-                result = s.union(subst)
+                result = subst.union(sequence_subst)
                 if combined_constraint is None or combined_constraint(result):
                     yield result
             except ValueError:

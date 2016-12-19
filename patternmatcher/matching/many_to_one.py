@@ -122,7 +122,9 @@ class ManyToOneMatcher(object):
             if op_expr.commutative:
                 matcher = self.commutative_matchers[type(op_expr)]
                 parts = CommutativePatternsParts(type(pattern), *pattern.operands)
-                yield from matcher.match(op_expr.operands, parts, subst)
+                for result in matcher.match(op_expr.operands, parts, subst):
+                    if pattern.constraint is None or pattern.constraint(result):
+                        yield result
             else:
                 for result in _non_commutative_match(op_expr.operands, pattern, subst, self._match):
                     if pattern.constraint is None or pattern.constraint(result):
