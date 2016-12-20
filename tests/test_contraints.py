@@ -3,7 +3,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from patternmatcher.expressions._constraints import (Constraint,
+from patternmatcher.expressions.constraints import (Constraint,
                                                      CustomConstraint,
                                                      EqualVariablesConstraint,
                                                      MultiConstraint)

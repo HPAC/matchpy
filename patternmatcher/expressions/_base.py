@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Callable, Iterator, Optional, Set, Tuple, Dict
 from multiset import Multiset
 
 if TYPE_CHECKING:
-    from ._constraints import Constraint
+    from .constraints import Constraint
 else:
     Substitution = Dict[str, Union[Tuple['Expression', ...], Multiset['Expression'], 'Expression']]
     Constraint = Callable[[Substitution], bool]
@@ -34,7 +34,7 @@ class Expression(metaclass=ABCMeta):
 
     __slots__ = 'constraint', 'head'
 
-    def __init__(self, constraint: '_constraints.Constraint'=None) -> None:
+    def __init__(self, constraint: 'constraints.Constraint' =None) -> None:
         """Create a new expression.
 
         Args:
@@ -141,6 +141,7 @@ class Expression(metaclass=ABCMeta):
             return self
         raise IndexError("Invalid position")
 
+
 # This import needs to be at the end of the file, as it is only needed for type hints
 # Otherwise, we get an import cycle causing errors
-from . import _constraints  # pylint: disable=wrong-import-position
+from . import constraints  # pylint: disable=wrong-import-position

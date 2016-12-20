@@ -1,10 +1,9 @@
 patternmatcher.expressions package
 ==================================
 
-Module contents
----------------
+Submodules
+----------
 
-.. automodule:: patternmatcher.expressions
-    :members:
-    :undoc-members:
-    :show-inheritance:
+.. toctree::
+
+   patternmatcher.expressions.constraints

@@ -6,7 +6,7 @@ from typing import Callable, List, NamedTuple, Sequence, Tuple, Union, Iterable
 from .expressions import Expression, Operation, Substitution, Variable, freeze
 from .matching.one_to_one import match
 
-__all__ = ['substitute', 'replace', 'replace_all']
+__all__ = ['substitute', 'replace', 'replace_all', 'is_match']
 
 
 def substitute(expression: Expression, substitution: Substitution) -> Tuple[Union[Expression, List[Expression]], bool]:
@@ -149,3 +149,7 @@ def replace_all(expression: Expression, rules: Iterable[ReplacementRule], max_co
         replace_count += 1
 
     return expression
+
+
+def is_match(subject, pattern):
+    return any(True for _ in match(subject, pattern))

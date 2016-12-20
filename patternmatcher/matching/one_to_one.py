@@ -2,7 +2,7 @@
 from typing import Iterator, Tuple
 
 from ..expressions import Expression, Substitution, freeze
-from .common import match as _match
+from .common import _match
 
 __all__ = ['match', 'match_anywhere']
 

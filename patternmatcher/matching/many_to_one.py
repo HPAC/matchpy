@@ -8,7 +8,7 @@ from multiset import Multiset
 from ..expressions import (Expression, FrozenExpression, Operation, Substitution, Symbol, Variable, Wildcard, freeze)
 from .bipartite import BipartiteGraph, enum_maximum_matchings_iter
 from .common import (
-    CommutativePatternsParts, match_commutative_operation, _non_commutative_match, match_variable, match_wildcard,
+    CommutativePatternsParts, _match_commutative_operation, _non_commutative_match, _match_variable, _match_wildcard,
     Matcher
 )
 from .syntactic import DiscriminationNet
@@ -98,10 +98,10 @@ class ManyToOneMatcher(object):
         :attr:`commutative_matchers` for commutative expressions.
         """
         if isinstance(pattern, Variable):
-            yield from match_variable(expressions, pattern, subst, self._match)
+            yield from _match_variable(expressions, pattern, subst, self._match)
 
         elif isinstance(pattern, Wildcard):
-            yield from match_wildcard(expressions, pattern, subst)
+            yield from _match_wildcard(expressions, pattern, subst)
 
         elif isinstance(pattern, Symbol):
             if (
@@ -242,7 +242,7 @@ class CommutativeMatcher(object):
             -> Iterator[Substitution]:
         """Match the expression against the pattern and yield each valid substitution.
 
-        Uses :func:`.match_commutative_operation` with this matcher's parent :attr:`matcher` to recursively match
+        Uses :func:`._match_commutative_operation` with this matcher's parent :attr:`matcher` to recursively match
         non-:term:`syntactic` expressions. All syntactic expressions are first tried to match using the matcher's
         :attr:`bipartite` graph.
 
@@ -258,7 +258,7 @@ class CommutativeMatcher(object):
         Yields:
             Each substitution that is a valid match for the pattern and expression.
         """
-        yield from match_commutative_operation(expression, pattern, substitution, self.matcher, self._syntactic_match)
+        yield from _match_commutative_operation(expression, pattern, substitution, self.matcher, self._syntactic_match)
 
     def _syntactic_match(self, expressions: Multiset[FrozenExpression], patterns: Multiset[FrozenExpression]) \
             -> Iterator[Tuple[Substitution, Multiset[FrozenExpression]]]:

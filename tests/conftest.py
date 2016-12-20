@@ -5,6 +5,7 @@ from patternmatcher.expressions import Operation, Symbol, Variable, Arity, Wildc
 from patternmatcher.matching.many_to_one import ManyToOneMatcher
 from patternmatcher.matching.one_to_one import match as match_one_to_one
 from patternmatcher.matching.automaton import Automaton
+import patternmatcher
 
 @pytest.fixture(autouse=True)
 def add_default_expressions(doctest_namespace):
@@ -17,8 +18,10 @@ def add_default_expressions(doctest_namespace):
     doctest_namespace['_'] = Wildcard.dot()
     doctest_namespace['__'] = Wildcard.plus()
     doctest_namespace['___'] = Wildcard.star()
-    doctest_namespace['freeze'] = freeze
     doctest_namespace['__name__'] = '__main__'
+
+    for name in patternmatcher.__all__:
+        doctest_namespace[name] = getattr(patternmatcher, name)
 
 def pytest_generate_tests(metafunc):
     if 'match' in metafunc.fixturenames:

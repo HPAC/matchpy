@@ -3,13 +3,13 @@ from . import _expressions
 from . import _base
 from . import _frozen
 from . import _substitution
-from . import _constraints
+from . import constraints
 
 from ._base import Expression
 from ._expressions import Arity, Atom, Symbol, Variable, Wildcard, Operation, SymbolWildcard
 from ._frozen import FrozenExpression, freeze, unfreeze
 from ._substitution import Substitution
-from ._constraints import Constraint, CustomConstraint, MultiConstraint, EqualVariablesConstraint
+from .constraints import Constraint, CustomConstraint, MultiConstraint, EqualVariablesConstraint
 
 __all__ = [
     'Arity', 'Atom', 'Constraint', 'CustomConstraint', 'EqualVariablesConstraint', 'Expression', 'freeze',

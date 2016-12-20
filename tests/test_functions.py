@@ -557,7 +557,7 @@ class TestMatch:
         constraint4.assert_called_with({'x': a, 'y': b})
 
     def test_wildcard_internal_match(self):
-        from patternmatcher.matching.common import match as _match
+        from patternmatcher.matching.common import _match
 
         matches = list(_match([a, b], x_, {}))
         assert matches == []

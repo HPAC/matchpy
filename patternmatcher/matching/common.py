@@ -12,10 +12,7 @@ from ..utils import (
     integer_partition_vector_iter, iterator_chain
 )
 
-__all__ = [
-    'CommutativePatternsParts', 'match', 'match_variable', 'match_commutative_operation', 'match_operation',
-    'match_wildcard'
-]
+__all__ = ['CommutativePatternsParts', 'Matcher']
 
 Matcher = Callable[[Sequence[FrozenExpression], FrozenExpression, Substitution], Iterator[Substitution]]
 VarInfo = NamedTuple('VarInfo', [('min_count', int), ('constraint', Constraint), ('type', Optional[type])])
@@ -170,12 +167,12 @@ class CommutativePatternsParts(object):
         return '{}({})'.format(self.operation.name, ', '.join(parts))
 
 
-def match(expressions: List[Expression], pattern: Expression, subst: Substitution) -> Iterator[Substitution]:
+def _match(expressions: List[Expression], pattern: Expression, subst: Substitution) -> Iterator[Substitution]:
     if isinstance(pattern, Variable):
-        yield from match_variable(expressions, pattern, subst, match)
+        yield from _match_variable(expressions, pattern, subst, _match)
 
     elif isinstance(pattern, Wildcard):
-        yield from match_wildcard(expressions, pattern, subst)
+        yield from _match_wildcard(expressions, pattern, subst)
 
     elif isinstance(pattern, Symbol):
         if len(expressions) == 1 and isinstance(expressions[0], type(pattern)) and expressions[0].name == pattern.name:
@@ -189,12 +186,12 @@ def match(expressions: List[Expression], pattern: Expression, subst: Substitutio
         op_expr = cast(Operation, expressions[0])
         if not op_expr.symbols >= pattern.symbols:
             return
-        for result in match_operation(op_expr.operands, pattern, subst, match):
+        for result in _match_operation(op_expr.operands, pattern, subst, _match):
             if pattern.constraint is None or pattern.constraint(result):
                 yield result
 
 
-def match_variable(expressions: List[Expression], variable: Variable, subst: Substitution, matcher: Matcher) \
+def _match_variable(expressions: List[Expression], variable: Variable, subst: Substitution, matcher: Matcher) \
         -> Iterator[Substitution]:
     inner = variable.expression
     if len(expressions) == 1 and (not isinstance(inner, Wildcard) or inner.fixed_size):
@@ -210,7 +207,7 @@ def match_variable(expressions: List[Expression], variable: Variable, subst: Sub
             pass
 
 
-def match_wildcard(expressions: List[Expression], wildcard: Wildcard, subst: Substitution) -> Iterator[Substitution]:
+def _match_wildcard(expressions: List[Expression], wildcard: Wildcard, subst: Substitution) -> Iterator[Substitution]:
     if wildcard.fixed_size:
         if len(expressions) == wildcard.min_count:
             if isinstance(wildcard, SymbolWildcard) and not isinstance(expressions[0], wildcard.symbol_type):
@@ -290,7 +287,7 @@ def _non_commutative_match(expressions, operation, subst, matcher):
             yield new_subst
 
 
-def match_operation(expressions, operation, subst, matcher):
+def _match_operation(expressions, operation, subst, matcher):
     if len(operation.operands) == 0:
         if len(expressions) == 0:
             yield subst
@@ -300,10 +297,10 @@ def match_operation(expressions, operation, subst, matcher):
         yield from _non_commutative_match(expressions, operation, subst, matcher)
     else:
         parts = CommutativePatternsParts(type(operation), *operation.operands)
-        yield from match_commutative_operation(expressions, parts, subst, matcher)
+        yield from _match_commutative_operation(expressions, parts, subst, matcher)
 
 
-def match_commutative_operation(
+def _match_commutative_operation(
         operands: Iterable[Expression],
         pattern: CommutativePatternsParts,
         substitution: Substitution,
