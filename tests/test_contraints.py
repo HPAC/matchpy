@@ -3,9 +3,10 @@ from unittest.mock import Mock
 
 import pytest
 
-from patternmatcher.constraints import (Constraint, CustomConstraint,
-                                        EqualVariablesConstraint,
-                                        MultiConstraint)
+from patternmatcher.expressions._constraints import (Constraint,
+                                                     CustomConstraint,
+                                                     EqualVariablesConstraint,
+                                                     MultiConstraint)
 
 
 class DummyConstraint(Constraint):
@@ -202,7 +203,3 @@ def test_custom_constraint_with_renamed_vars():
     assert c2({'x': 1, 'z': 3, 'y': 3}) is True
     assert actual_x == 3
     assert actual_y == 3
-
-if __name__ == '__main__':
-    import patternmatcher.constraints as tested_module
-    pytest.main(['--doctest-modules', __file__, tested_module.__file__])

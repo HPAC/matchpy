@@ -4,8 +4,8 @@ from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
 from typing import Callable, Optional
 
-from .expressions import Substitution
-from .utils import get_short_lambda_source
+from ._substitution import Substitution
+from ..utils import get_short_lambda_source
 
 __all__ = ['Constraint', 'MultiConstraint', 'EqualVariablesConstraint', 'CustomConstraint']
 

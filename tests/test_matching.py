@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 import pytest
 
-from patternmatcher.constraints import CustomConstraint, MultiConstraint
-from patternmatcher.expressions import Operation, Symbol, Variable, Arity, Wildcard, freeze
-from patternmatcher.matching.common import CommutativePatternsParts
+from patternmatcher.expressions import (Arity, CustomConstraint,
+                                        MultiConstraint, Operation, Symbol,
+                                        Variable, Wildcard, freeze)
 from patternmatcher.matching.automaton import Automaton
+from patternmatcher.matching.common import CommutativePatternsParts
 
 f = Operation.new('f', Arity.variadic)
 f2 = Operation.new('f2', Arity.variadic)

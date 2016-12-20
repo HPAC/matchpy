@@ -6,6 +6,7 @@ Submodules
 
 .. toctree::
 
+   patternmatcher.matching.automaton
    patternmatcher.matching.bipartite
    patternmatcher.matching.common
    patternmatcher.matching.many_to_one

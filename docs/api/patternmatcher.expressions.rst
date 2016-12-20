@@ -1,5 +1,8 @@
-patternmatcher.expressions module
-=================================
+patternmatcher.expressions package
+==================================
+
+Module contents
+---------------
 
 .. automodule:: patternmatcher.expressions
     :members:

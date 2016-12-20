@@ -24,16 +24,16 @@ f(y_, b) matched with {y ↦ a}
 
 import math
 from collections import deque
-from typing import Container, Dict, Iterable, Iterator, List, NamedTuple, Optional, Sequence, Set, Tuple, Union
+from typing import (Container, Dict, Iterable, Iterator, List, NamedTuple, Optional, Sequence, Set, Tuple, Union)
 
 from graphviz import Digraph
 from multiset import Multiset
 
-from ..constraints import Constraint, MultiConstraint
 from ..expressions import (
-    Expression, FrozenExpression, Operation, Substitution, Symbol, SymbolWildcard, Variable, Wildcard, freeze
+    Constraint, Expression, FrozenExpression, MultiConstraint, Operation, Substitution, Symbol, SymbolWildcard,
+    Variable, Wildcard, freeze
 )
-from ..utils import VariableWithCount, commutative_sequence_variable_partition_iter
+from ..utils import (VariableWithCount, commutative_sequence_variable_partition_iter)
 from .bipartite import BipartiteGraph, enum_maximum_matchings_iter
 from .syntactic import OPERATION_END, is_operation
 

@@ -3,9 +3,9 @@ from typing import (Callable, Dict, Iterable, Iterator, List, NamedTuple, Option
 
 from multiset import Multiset
 
-from ..constraints import Constraint, MultiConstraint
 from ..expressions import (
-    Expression, FrozenExpression, Operation, Substitution, Symbol, SymbolWildcard, Variable, Wildcard
+    Expression, FrozenExpression, Operation, Substitution, Symbol, SymbolWildcard, Variable, Wildcard, Constraint,
+    MultiConstraint
 )
 from ..utils import (
     VariableWithCount, commutative_sequence_variable_partition_iter, fixed_integer_vector_iter,

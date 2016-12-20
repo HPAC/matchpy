@@ -6,6 +6,7 @@ Subpackages
 
 .. toctree::
 
+    patternmatcher.expressions
     patternmatcher.matching
 
 Submodules
@@ -13,8 +14,6 @@ Submodules
 
 .. toctree::
 
-   patternmatcher.constraints
-   patternmatcher.expressions
    patternmatcher.functions
    patternmatcher.utils
 

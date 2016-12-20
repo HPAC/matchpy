@@ -4,12 +4,11 @@ from hypothesis import assume, given
 import pytest
 from multiset import Multiset
 
-from patternmatcher.expressions import (Arity, Operation, Symbol, Variable,
-                                        Wildcard, freeze)
+from patternmatcher.expressions import (Arity, Constraint, Operation, Symbol,
+                                        Variable, Wildcard, freeze)
 from patternmatcher.functions import (ReplacementRule, replace, replace_all,
                                       substitute)
 from patternmatcher.matching.one_to_one import match_anywhere
-from patternmatcher.constraints import Constraint
 
 from .utils import MockConstraint
 

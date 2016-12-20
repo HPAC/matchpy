@@ -66,7 +66,7 @@ Matches are given in the form of substitutions, which are a mapping from variabl
     >>> pattern = f(x, y)
     >>> substitution = next(match(expression, pattern))
     >>> substitution
-    {'x': Symbol('a'), 'y': Symbol('b')}
+    {'x': FrozenSymbol('a'), 'y': FrozenSymbol('b')}
 
 Replacing the variables in the pattern according to the substitution will yield the original subject expression::
 
