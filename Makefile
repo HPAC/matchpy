@@ -9,3 +9,13 @@ check:
 
 coverage:
 	py.test --cov=patternmatcher --cov-report html --cov-report term tests/
+
+api-docs:
+	rmdir docs/api
+	sphinx-apidoc -n -e -T -o docs/api patternmatcher
+	make docs
+
+docs:
+	cd docs/api
+	make html
+	cd ..
