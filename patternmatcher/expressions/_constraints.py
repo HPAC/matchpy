@@ -4,7 +4,7 @@ from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
 from typing import Callable, Optional
 
-from ._substitution import Substitution
+from . import _substitution
 from ..utils import get_short_lambda_source
 
 __all__ = ['Constraint', 'MultiConstraint', 'EqualVariablesConstraint', 'CustomConstraint']
@@ -17,7 +17,7 @@ class Constraint(object, metaclass=ABCMeta):
     """
 
     @abstractmethod
-    def __call__(self, match: Substitution) -> bool:
+    def __call__(self, match: _substitution.Substitution) -> bool:
         raise NotImplementedError()
 
     @abstractmethod
@@ -56,7 +56,7 @@ class MultiConstraint(Constraint):
     def with_renamed_vars(self, renaming):
         return MultiConstraint(*(c.with_renamed_vars(renaming) for c in self.constraints))
 
-    def __call__(self, match: Substitution) -> bool:
+    def __call__(self, match: _substitution.Substitution) -> bool:
         return all(c(match) for c in self.constraints)
 
     def __str__(self):
@@ -79,8 +79,8 @@ class EqualVariablesConstraint(Constraint):
     def with_renamed_vars(self, renaming):
         return EqualVariablesConstraint(*(renaming.get(v, v) for v in self.variables))
 
-    def __call__(self, match: Substitution) -> bool:
-        subst = Substitution()
+    def __call__(self, match: _substitution.Substitution) -> bool:
+        subst = _substitution.Substitution()
         for name in self.variables:
             try:
                 subst.try_add_variable('_', match[name])
@@ -122,7 +122,7 @@ class CustomConstraint(Constraint):
             cc.variables[param_name] = renaming.get(old_name, old_name)
         return cc
 
-    def __call__(self, match: Substitution) -> bool:
+    def __call__(self, match: _substitution.Substitution) -> bool:
         args = dict((name, match[var_name]) for name, var_name in self.variables.items())
 
         return self.constraint(**args)

@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+from . import _expressions
+from . import _base
+from . import _frozen
+from . import _substitution
+from . import _constraints
+
 from ._base import Expression
 from ._expressions import Arity, Atom, Symbol, Variable, Wildcard, Operation, SymbolWildcard
 from ._frozen import FrozenExpression, freeze, unfreeze

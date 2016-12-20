@@ -34,7 +34,7 @@ class Expression(metaclass=ABCMeta):
 
     __slots__ = 'constraint', 'head'
 
-    def __init__(self, constraint: Constraint=None) -> None:
+    def __init__(self, constraint: '_constraints.Constraint'=None) -> None:
         """Create a new expression.
 
         Args:
@@ -140,3 +140,7 @@ class Expression(metaclass=ABCMeta):
         if len(position) == 0:
             return self
         raise IndexError("Invalid position")
+
+# This import needs to be at the end of the file, as it is only needed for type hints
+# Otherwise, we get an import cycle causing errors
+from . import _constraints  # pylint: disable=wrong-import-position
