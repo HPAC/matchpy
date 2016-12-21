@@ -1,7 +1,17 @@
 # -*- coding: utf-8 -*-
+"""This module contains various functions for working with expressions.
+
+- With `substitute()` you can replace occurrences of variables with an expression or sequence of expressions.
+- With `replace()` you can replace a subexpression at a specific position with a differen expression or
+  sequence of expressions.
+- With `replace_all()` you can apply a set of replacement rules repeatedly to an expression.
+- With `is_match()` you can check whether a pattern matches a subject expression.
+"""
 import itertools
 import math
 from typing import Callable, List, NamedTuple, Sequence, Tuple, Union, Iterable
+
+from multiset import Multiset
 
 from .expressions import Expression, Operation, Substitution, Variable, freeze
 from .matching.one_to_one import match
@@ -12,14 +22,28 @@ __all__ = ['substitute', 'replace', 'replace_all', 'is_match']
 def substitute(expression: Expression, substitution: Substitution) -> Tuple[Union[Expression, List[Expression]], bool]:
     """Replaces variables in the given `expression` by the given `substitution`.
 
+    >>> print(substitute(f(x_), {'x': a})[0])
+    f(a)
+
     In addition to the resulting expression(s), a bool is returned indicating whether anything was substituted.
-    If nothing was substituted, the original expression is returned.
-    Not that this function returns a list of expressions iff the expression is a variable and its substitution
+    If nothing was substituted, the original expression is returned:
+
+    >>> result, was_substituted = substitute(f(x_), {'y': a})
+    >>> print(result, was_substituted)
+    f(x_) False
+
+    Note that this function returns a list of expressions iff the expression is a variable and its substitution
     is a list of expressions. In other cases were a substitution is a list of expressions, the expressions will
     be integrated as operands in the surrounding operation:
 
-    >>> substitute(f(x_, c), {'x': [a, b]})
-    (f(Symbol('a'), Symbol('b'), Symbol('c')), True)
+    >>> print(substitute(f(x_, c), {'x': [a, b]})[0])
+    f(a, b, c)
+
+    If you substitute with a `Multiset` of values, they will be sorted:
+
+    >>> replacement = Multiset(map(freeze, [b, a, b]))
+    >>> print(substitute(f(x_, c), {'x': replacement})[0])
+    f(a, b, b, c)
 
     Parameters:
         expression:
@@ -44,6 +68,8 @@ def substitute(expression: Expression, substitution: Substitution) -> Tuple[Unio
                 any_replaced = True
             if isinstance(result, Expression):
                 new_operands.append(result)
+            elif isinstance(result, Multiset):
+                new_operands.extend(sorted(result))
             else:
                 new_operands.extend(result)
         if any_replaced:
@@ -151,5 +177,17 @@ def replace_all(expression: Expression, rules: Iterable[ReplacementRule], max_co
     return expression
 
 
-def is_match(subject, pattern):
+def is_match(subject: Expression, pattern: Expression) -> bool:
+    """
+    Check whether the given subject expression matches given pattern.
+
+    Args:
+        subject:
+            The subject for matching.
+        pattern:
+            The pattern for matching.
+
+    Returns:
+        True iff the subject matches the pattern.
+    """
     return any(True for _ in match(subject, pattern))

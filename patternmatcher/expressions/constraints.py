@@ -40,7 +40,7 @@ from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
 from typing import Callable, Dict, Optional
 
-from . import _substitution
+from . import substitution
 from ..utils import get_short_lambda_source
 
 __all__ = ['Constraint', 'MultiConstraint', 'EqualVariablesConstraint', 'CustomConstraint']
@@ -56,7 +56,7 @@ class Constraint(object, metaclass=ABCMeta):  # pylint: disable=too-few-public-m
     """
 
     @abstractmethod
-    def __call__(self, match: _substitution.Substitution) -> bool:  # pylint: disable=missing-raises-doc
+    def __call__(self, match: substitution.Substitution) -> bool:  # pylint: disable=missing-raises-doc
         """Return True, iff the constraint is fulfilled by the substitution.
 
         Override this in your subclass to define the actual constraint behavior.
@@ -139,7 +139,7 @@ class MultiConstraint(Constraint):
 
         Args:
             *constraints:
-                The set of constraints to combine. Constraints ar filtered out, if they are ``None``.
+                The set of constraints to combine. Constraints are filtered out if they are ``None``.
 
         Returns:
             The combined constraints. If it is a single constraint, it is returned, otherwise a :class:`MultiConstraint`
@@ -163,7 +163,7 @@ class MultiConstraint(Constraint):
     def with_renamed_vars(self, renaming):
         return MultiConstraint(*(c.with_renamed_vars(renaming) for c in self.constraints))
 
-    def __call__(self, match: _substitution.Substitution) -> bool:
+    def __call__(self, match: substitution.Substitution) -> bool:
         return all(c(match) for c in self.constraints)
 
     def __str__(self):
@@ -195,8 +195,8 @@ class EqualVariablesConstraint(Constraint):  # pylint: disable=too-few-public-me
     def with_renamed_vars(self, renaming):
         return EqualVariablesConstraint(*(renaming.get(v, v) for v in self.variables))
 
-    def __call__(self, match: _substitution.Substitution) -> bool:
-        subst = _substitution.Substitution()
+    def __call__(self, match: substitution.Substitution) -> bool:
+        subst = substitution.Substitution()
         for name in self.variables:
             try:
                 subst.try_add_variable('_', match[name])
@@ -268,7 +268,7 @@ class CustomConstraint(Constraint):  # pylint: disable=too-few-public-methods
             cc.variables[param_name] = renaming.get(old_name, old_name)
         return cc
 
-    def __call__(self, match: _substitution.Substitution) -> bool:
+    def __call__(self, match: substitution.Substitution) -> bool:
         args = dict((name, match[var_name]) for name, var_name in self.variables.items())
 
         return self.constraint(**args)

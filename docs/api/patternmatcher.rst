@@ -16,11 +16,3 @@ Submodules
 
    patternmatcher.functions
    patternmatcher.utils
-
-Module contents
----------------
-
-.. automodule:: patternmatcher
-    :members:
-    :undoc-members:
-    :show-inheritance:

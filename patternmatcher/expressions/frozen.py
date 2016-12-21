@@ -4,8 +4,8 @@ from typing import Iterable
 
 from multiset import Multiset
 
-from ._base import Expression
-from ._expressions import _OperationMeta, Operation, Variable, Wildcard, Symbol, SymbolWildcard
+from .base import Expression
+from .expressions import _OperationMeta, Operation, Variable, Wildcard, Symbol, SymbolWildcard
 from ..utils import slot_cached_property
 
 __all__ = ['FrozenExpression', 'freeze', 'unfreeze']

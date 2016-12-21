@@ -3,11 +3,11 @@ import itertools
 import keyword
 from abc import ABCMeta
 from enum import Enum, EnumMeta
-from typing import List, NamedTuple, Set, Tuple, TupleMeta, Type
+from typing import List, NamedTuple, Set, Tuple, TupleMeta, Type, Optional
 
 from multiset import Multiset
 
-from ._base import Expression, ExprPredicate, ExpressionsWithPos, Constraint
+from .base import Expression, ExprPredicate, ExpressionsWithPos, Constraint
 
 __all__ = ['Arity', 'Atom', 'Symbol', 'Variable', 'Wildcard', 'Operation', 'SymbolWildcard']
 

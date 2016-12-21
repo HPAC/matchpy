@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
-from . import _expressions
-from . import _base
-from . import _frozen
-from . import _substitution
+from . import expressions
+from . import base
+from . import frozen
+from . import substitution
 from . import constraints
 
-from ._base import Expression
-from ._expressions import Arity, Atom, Symbol, Variable, Wildcard, Operation, SymbolWildcard
-from ._frozen import FrozenExpression, freeze, unfreeze
-from ._substitution import Substitution
+from .base import Expression
+from .expressions import Arity, Atom, Symbol, Variable, Wildcard, Operation, SymbolWildcard
+from .frozen import FrozenExpression, freeze, unfreeze
+from .substitution import Substitution
 from .constraints import Constraint, CustomConstraint, MultiConstraint, EqualVariablesConstraint
 
 __all__ = [
