@@ -152,6 +152,8 @@ class Substitution(Dict[str, VariableReplacement]):
     def _match_value_repr_str(value: Union[List[base.Expression], base.Expression]) -> str:  # pragma: no cover
         if isinstance(value, (list, tuple)):
             return '({!s})'.format(', '.join(str(x) for x in value))
+        if isinstance(value, Multiset):
+            return '{{{!s}}}'.format(', '.join(str(x) for x in sorted(value)))
         return str(value)
 
     def __str__(self):

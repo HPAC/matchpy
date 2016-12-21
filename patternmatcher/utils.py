@@ -3,18 +3,8 @@ import inspect
 import math
 import ast
 import os
-from typing import (
-    Callable,
-    Dict,
-    Iterator,  # pylint: disable=unused-import
-    List,
-    NamedTuple,
-    Optional,
-    Sequence,
-    Tuple,
-    TypeVar,
-    cast
-)
+from types import FunctionType, LambdaType
+from typing import (Callable, Dict, Iterator, List, NamedTuple, Optional, Sequence, Tuple, TypeVar, cast, Union)  # pylint: disable=unused-import
 
 from multiset import Multiset
 
@@ -28,11 +18,11 @@ T = TypeVar('T')
 VariableWithCount = NamedTuple('VariableWithCount', [('name', str), ('count', int), ('minimum', int)])
 
 
-def fixed_integer_vector_iter(max_vect: Tuple[int, ...], vector_sum: int) -> Iterator[Tuple[int, ...]]:
+def fixed_integer_vector_iter(max_vector: Tuple[int, ...], vector_sum: int) -> Iterator[Tuple[int, ...]]:
     """
     Return an iterator over the integer vectors which
 
-    - are componentwise less than or equal to `max_vect`, and
+    - are componentwise less than or equal to `max_vector`, and
     - are non-negative, and where
     - the sum of their components is exactly `vector_sum`.
 
@@ -47,67 +37,129 @@ def fixed_integer_vector_iter(max_vect: Tuple[int, ...], vector_sum: int) -> Ite
         [(0, 2), (1, 1), (2, 0)]
         >>> list(map(sum, vectors))
         [2, 2, 2]
+
+    Args:
+        max_vector:
+            Maximum vector for the iteration. Every yielded result will be less than or equal to this componentwise.
+        vector_sum:
+            Every iterated vector will have a component sum equal to this value.
+
+    Yields:
+        All non-negative vectors that have the given sum and are not larger than the given maximum.
     """
-    if len(max_vect) == 0:
+    if len(max_vector) == 0:
         if vector_sum == 0:
             yield tuple()
         return
-
-    total = sum(max_vect)
+    total = sum(max_vector)
     if vector_sum <= total:
-        vector_sum = min(vector_sum, total)
-        start = max(max_vect[0] + vector_sum - total, 0)
-        end = min(max_vect[0], vector_sum)
-
+        start = max(max_vector[0] + vector_sum - total, 0)
+        end = min(max_vector[0], vector_sum)
         for j in range(start, end + 1):
-            for vec in fixed_integer_vector_iter(max_vect[1:], vector_sum - j):
+            for vec in fixed_integer_vector_iter(max_vector[1:], vector_sum - j):
                 yield (j, ) + vec
 
 
-def integer_partition_vector_iter(n: int, m: int) -> Iterator[List[int]]:
-    """
+def integer_partition_vector_iter(total: int, parts: int) -> Iterator[Tuple[int]]:
+    """Yield all integer partitions of *total* into *parts* parts.
+
+    Each partition is yielded as a *parts*-tuple. The generated partitions are order-dependant and not unique when
+    ignoring the order of the components. The partitions are yielded in lexicographical order.
+
+    Example:
+
+        >>> vectors = list(integer_partition_vector_iter(5, 2))
+        >>> vectors
+        [(0, 5), (1, 4), (2, 3), (3, 2), (4, 1), (5, 0)]
+        >>> list(map(sum, vectors))
+        [5, 5, 5, 5, 5, 5]
+
+    Args:
+        total:
+            The integer to partition.
+        parts:
+            The number of summands for the partition.
+
+    Yields:
+        All non-negative vectors that have the given sum and have the given dimension.
 
     """
-    if m < 0:
+    if parts < 0:
         return
-    if m == 0:
-        if n == 0:
+    if parts == 0:
+        if total == 0:
             yield tuple()
         return
-    if m == 1:
-        yield (n, )
+    if parts == 1:
+        yield (total, )
         return
-
-    for i in range(0, n + 1):
-        for vec in integer_partition_vector_iter(n - i, m - 1):
+    for i in range(0, total + 1):
+        for vec in integer_partition_vector_iter(total - i, parts - 1):
             yield (i, ) + vec
 
 
 def _make_iter_factory(value, total, variables: List[VariableWithCount]):
     var_counts = [v.count for v in variables]
 
-    def factory(subst):
+    def _factory(subst):
         for solution in solve_linear_diop(total, *var_counts):
             for var, count in zip(variables, solution):
                 subst[var.name][value] = count
             yield (subst, )
 
-    return factory
+    return _factory
 
 
-def commutative_sequence_variable_partition_iter(values: Multiset[T], variables: List[VariableWithCount]) \
-        -> Iterator[Dict[str, Multiset[T]]]:
+def commutative_sequence_variable_partition_iter(values: Multiset[T], variables: List[VariableWithCount]
+                                                ) -> Iterator[Dict[str, Multiset[T]]]:
+    """Yield all possible variable substitutions for given values and variables.
+
+    The results are not yielded in any particular order.
+
+    Example:
+
+        >>> var1 = VariableWithCount(name='x', count=1, minimum=1)
+        >>> var2 = VariableWithCount(name='y', count=2, minimum=0)
+        >>> values = Multiset('aaabbc')
+        >>> substitutions = commutative_sequence_variable_partition_iter(values, [var1, var2])
+        >>> as_strings = list(str(Substitution(substitution)) for substitution in substitutions)
+        >>> for substitution in sorted(as_strings):
+        ...     print(substitution)
+        {x ↦ {a, a, a, b, b, c}, y ↦ {}}
+        {x ↦ {a, a, a, c}, y ↦ {b}}
+        {x ↦ {a, b, b, c}, y ↦ {a}}
+        {x ↦ {a, c}, y ↦ {a, b}}
+
+    Args:
+        values:
+            The multiset of values which are partitioned and distributed among the variables.
+        variables:
+            A list of the variables to distribute the values among. Each variable has a name, a count of how many times
+            it occurs and a minimum number of values it needs.
+
+    Yields:
+        Each possible substitutions that is a valid partitioning of the values among the variables.
+    """
     if len(variables) == 1:
         name, count, minimum = variables[0]
-        if count == 1 and len(values) >= minimum:
-            yield {name: values} if name is not None else {}
-            return
+        if count == 1:
+            if len(values) >= minimum:
+                yield {name: values} if name is not None else {}
+        else:
+            new_values = Multiset()
+            for element, element_count in values.items():
+                if element_count % count != 0:
+                    return
+                new_values[element] = element_count // count
+            if len(new_values) >= minimum:
+                yield {name: new_values} if name is not None else {}
+        return
+
     iterators = []
     for value, count in values.items():
         iterators.append(_make_iter_factory(value, count, variables))
 
     initial = dict((var.name, Multiset()) for var in variables)  # type: Dict[str, Multiset[T]]
-
     for (subst, ) in iterator_chain((initial, ), *iterators):
         valid = True
         for var in variables:
@@ -120,7 +172,7 @@ def commutative_sequence_variable_partition_iter(values: Multiset[T], variables:
             yield subst
 
 
-def get_short_lambda_source(lambda_func):
+def get_short_lambda_source(lambda_func: Union[FunctionType, LambdaType]) -> Optional[str]:
     """Return the source of a (short) lambda function.
     If it's impossible to obtain, returns None.
     """
@@ -130,7 +182,7 @@ def get_short_lambda_source(lambda_func):
     except (IOError, TypeError):
         return None
 
-    # Remove trailing whitespace from lines (including potential lingering \r and \n due to OS mismatch)
+    # Remove trailing whitespace from lines (including potential lingering \r and \total due to OS mismatch)
     source_lines = [l.rstrip() for l in source_lines]
 
     # Try to parse the source lines
