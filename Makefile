@@ -4,6 +4,9 @@ init:
 test:
 	py.test tests/ --doctest-modules patternmatcher/ README.rst
 
+doctest:
+	py.test --doctest-modules -k "not tests" patternmatcher/ README.rst
+
 check:
 	pylint patternmatcher
 

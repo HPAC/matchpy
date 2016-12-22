@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""This module contains the `base class <Expression>` for all expressions.
+
+See `expressions.expressions` for the actual basic expression building blocks.
+"""
 from abc import ABCMeta, abstractmethod
 from typing import TYPE_CHECKING, Callable, Iterator, Optional, Set, Tuple, Dict, Union
 
@@ -34,7 +38,7 @@ class Expression(metaclass=ABCMeta):
 
     __slots__ = 'constraint', 'head'
 
-    def __init__(self, constraint: 'constraints.Constraint' =None) -> None:
+    def __init__(self, constraint: 'Constraint' =None) -> None:
         """Create a new expression.
 
         Args:
@@ -50,7 +54,8 @@ class Expression(metaclass=ABCMeta):
         """A multiset of the variable names occurring in the expression."""
         return self._variables()
 
-    def _variables(self) -> Multiset[str]:
+    @staticmethod
+    def _variables() -> Multiset[str]:
         return Multiset()
 
     @property
@@ -58,7 +63,8 @@ class Expression(metaclass=ABCMeta):
         """A multiset of the symbol names occurring in the expression."""
         return self._symbols()
 
-    def _symbols(self) -> Multiset[str]:
+    @staticmethod
+    def _symbols() -> Multiset[str]:
         return Multiset()
 
     @property
@@ -66,7 +72,8 @@ class Expression(metaclass=ABCMeta):
         """True, iff the expression does not contain any wildcards."""
         return self._is_constant()
 
-    def _is_constant(self) -> bool:
+    @staticmethod
+    def _is_constant() -> bool:
         return True
 
     @property
@@ -74,7 +81,8 @@ class Expression(metaclass=ABCMeta):
         """True, iff the expression does not contain any associative or commutative operations or sequence wildcards."""
         return self._is_syntactic()
 
-    def _is_syntactic(self) -> bool:
+    @staticmethod
+    def _is_syntactic() -> bool:
         return True
 
     @property
@@ -82,7 +90,8 @@ class Expression(metaclass=ABCMeta):
         """True, iff the expression is linear, i.e. every variable may occur at most once."""
         return self._is_linear(set())
 
-    def _is_linear(self, variables: Set[str]) -> bool:
+    @staticmethod
+    def _is_linear(variables: Set[str]) -> bool:
         return True
 
     @property
@@ -140,8 +149,3 @@ class Expression(metaclass=ABCMeta):
         if len(position) == 0:
             return self
         raise IndexError("Invalid position")
-
-
-# This import needs to be at the end of the file, as it is only needed for type hints
-# Otherwise, we get an import cycle causing errors
-from . import constraints  # pylint: disable=wrong-import-position

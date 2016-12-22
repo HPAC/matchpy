@@ -1,6 +1,7 @@
 @ECHO off
 if /I %1 == init goto :init
 if /I %1 == test goto :test
+if /I %1 == doctest goto :doctest
 if /I %1 == check goto :check
 if /I %1 == coverage goto :coverage
 if /I %1 == api-docs goto :apidocs
@@ -14,6 +15,10 @@ goto :eof
 
 :test
 	py.test tests\ --doctest-modules patternmatcher\ README.rst
+goto :eof
+
+:doctest
+	py.test --doctest-modules -k "not tests" patternmatcher\ README.rst
 goto :eof
 
 :check

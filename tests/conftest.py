@@ -1,26 +1,9 @@
 # -*- coding: utf-8 -*-
 import pytest
 
-from patternmatcher.expressions import Operation, Symbol, Variable, Arity, Wildcard, freeze
+from patternmatcher.expressions import Operation, Wildcard
 from patternmatcher.matching.one_to_one import match as match_one_to_one
 from patternmatcher.matching.many_to_one import ManyToOneMatcher
-import patternmatcher
-
-@pytest.fixture(autouse=True)
-def add_default_expressions(doctest_namespace):
-    doctest_namespace['f'] = Operation.new('f', Arity.variadic)
-    doctest_namespace['a'] = Symbol('a')
-    doctest_namespace['b'] = Symbol('b')
-    doctest_namespace['c'] = Symbol('c')
-    doctest_namespace['x_'] = Variable.dot('x')
-    doctest_namespace['y_'] = Variable.dot('y')
-    doctest_namespace['_'] = Wildcard.dot()
-    doctest_namespace['__'] = Wildcard.plus()
-    doctest_namespace['___'] = Wildcard.star()
-    doctest_namespace['__name__'] = '__main__'
-
-    for name in patternmatcher.__all__:
-        doctest_namespace[name] = getattr(patternmatcher, name)
 
 def pytest_generate_tests(metafunc):
     if 'match' in metafunc.fixturenames:
