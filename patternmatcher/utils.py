@@ -1,16 +1,18 @@
 # -*- coding: utf-8 -*-
+"""This module contains various utility functions."""
 import inspect
 import math
 import ast
 import os
-from types import FunctionType, LambdaType
-from typing import (Callable, Dict, Iterator, List, NamedTuple, Optional, Sequence, Tuple, TypeVar, cast, Union)  # pylint: disable=unused-import
+from types import LambdaType
+from typing import (Callable, Dict, Iterator, List, NamedTuple, Optional, Sequence, Tuple, TypeVar, cast, Union, Any)  # pylint: disable=unused-import
 
 from multiset import Multiset
 
 __all__ = [
     'fixed_integer_vector_iter', 'integer_partition_vector_iter', 'commutative_sequence_variable_partition_iter',
-    'get_short_lambda_source', 'solve_linear_diop', 'iterator_chain', 'cached_property', 'slot_cached_property'
+    'get_short_lambda_source', 'solve_linear_diop', 'generator_chain', 'cached_property', 'slot_cached_property',
+    'extended_euclid', 'base_solution_linear'
 ]
 
 T = TypeVar('T')
@@ -22,15 +24,15 @@ def fixed_integer_vector_iter(max_vector: Tuple[int, ...], vector_sum: int) -> I
     """
     Return an iterator over the integer vectors which
 
-    - are componentwise less than or equal to `max_vector`, and
+    - are componentwise less than or equal to *max_vector*, and
     - are non-negative, and where
-    - the sum of their components is exactly `vector_sum`.
+    - the sum of their components is exactly *vector_sum*.
 
     The iterator yields the vectors in lexicographical order.
 
     Examples:
 
-        List all vectors that are between (0, 0) and (2, 2) componentwise, where the sum of components is 2:
+        List all vectors that are between ``(0, 0)`` and ``(2, 2)`` componentwise, where the sum of components is 2:
 
         >>> vectors = list(fixed_integer_vector_iter([2, 2], 2))
         >>> vectors
@@ -98,30 +100,55 @@ def integer_partition_vector_iter(total: int, parts: int) -> Iterator[Tuple[int]
             yield (i, ) + vec
 
 
-def _make_iter_factory(value, total, variables: List[VariableWithCount]):
+def _make_variable_generator_factory(value, total, variables: List[VariableWithCount]):
     var_counts = [v.count for v in variables]
 
     def _factory(subst):
         for solution in solve_linear_diop(total, *var_counts):
             for var, count in zip(variables, solution):
                 subst[var.name][value] = count
-            yield (subst, )
+            yield subst
 
     return _factory
+
+
+def _commutative_single_variable_partiton_iter(values: Multiset[T],
+                                               variable: VariableWithCount) -> Iterator[Dict[str, Multiset[T]]]:
+    name, count, minimum = variable
+    if count == 1:
+        if len(values) >= minimum:
+            yield {name: values} if name is not None else {}
+    else:
+        new_values = Multiset()
+        for element, element_count in values.items():
+            if element_count % count != 0:
+                return
+            new_values[element] = element_count // count
+        if len(new_values) >= minimum:
+            yield {name: new_values} if name is not None else {}
 
 
 def commutative_sequence_variable_partition_iter(values: Multiset[T], variables: List[VariableWithCount]
                                                 ) -> Iterator[Dict[str, Multiset[T]]]:
     """Yield all possible variable substitutions for given values and variables.
 
-    The results are not yielded in any particular order.
+    .. note::
+
+        The results are not yielded in any particular order because the algorithm uses dictionaries. Dictionaries until
+        Python 3.6 do not keep track of the insertion order.
 
     Example:
 
-        >>> var1 = VariableWithCount(name='x', count=1, minimum=1)
-        >>> var2 = VariableWithCount(name='y', count=2, minimum=0)
+        For a subject like ``fc(a, a, a, b, b, c)`` and a pattern like ``f(x__, y___, y___)`` one can define the
+        following input parameters for the partitioning:
+
+        >>> x = VariableWithCount(name='x', count=1, minimum=1)
+        >>> y = VariableWithCount(name='y', count=2, minimum=0)
         >>> values = Multiset('aaabbc')
-        >>> substitutions = commutative_sequence_variable_partition_iter(values, [var1, var2])
+
+        Then the solutions are found (and sorted to get a unique output):
+
+        >>> substitutions = commutative_sequence_variable_partition_iter(values, [x, y])
         >>> as_strings = list(str(Substitution(substitution)) for substitution in substitutions)
         >>> for substitution in sorted(as_strings):
         ...     print(substitution)
@@ -141,26 +168,15 @@ def commutative_sequence_variable_partition_iter(values: Multiset[T], variables:
         Each possible substitutions that is a valid partitioning of the values among the variables.
     """
     if len(variables) == 1:
-        name, count, minimum = variables[0]
-        if count == 1:
-            if len(values) >= minimum:
-                yield {name: values} if name is not None else {}
-        else:
-            new_values = Multiset()
-            for element, element_count in values.items():
-                if element_count % count != 0:
-                    return
-                new_values[element] = element_count // count
-            if len(new_values) >= minimum:
-                yield {name: new_values} if name is not None else {}
+        yield from _commutative_single_variable_partiton_iter(values, variables[0])
         return
 
-    iterators = []
+    generators = []
     for value, count in values.items():
-        iterators.append(_make_iter_factory(value, count, variables))
+        generators.append(_make_variable_generator_factory(value, count, variables))
 
     initial = dict((var.name, Multiset()) for var in variables)  # type: Dict[str, Multiset[T]]
-    for (subst, ) in iterator_chain((initial, ), *iterators):
+    for subst in generator_chain(initial, *generators):
         valid = True
         for var in variables:
             if len(subst[var.name]) < var.minimum:
@@ -172,9 +188,24 @@ def commutative_sequence_variable_partition_iter(values: Multiset[T], variables:
             yield subst
 
 
-def get_short_lambda_source(lambda_func: Union[FunctionType, LambdaType]) -> Optional[str]:
+def get_short_lambda_source(lambda_func: LambdaType) -> Optional[str]:
     """Return the source of a (short) lambda function.
-    If it's impossible to obtain, returns None.
+    If it's impossible to obtain, return ``None``.
+
+    The source is returned without the ``lambda`` and signature parts:
+
+    >>> get_short_lambda_source(lambda x, y: x < y)
+    'x < y'
+
+    This should work well for most lambda definitions, however for multi-line or highly nested lambdas,
+    the source extraction might not succeed.
+
+    Args:
+        lambda_func:
+            The lambda function.
+
+    Returns:
+        The source of the lambda function without its signature.
     """
     # Adapted from http://xion.io/post/code/python-get-lambda-code.html
     try:
@@ -223,17 +254,43 @@ def get_short_lambda_source(lambda_func: Union[FunctionType, LambdaType]) -> Opt
             pass
         lambda_body_text = lambda_body_text[:-1]
         if not lambda_body_text:
-            raise AssertionError  # We (should) always get the valid body at some point
+            assert False, "Unreachable, because we always get the valid body at some point"
 
 
 def extended_euclid(a: int, b: int) -> Tuple[int, int, int]:
-    """Extended Euclidean algorithm that computes the Bézout coefficients as well as `gcd(a, b)`
+    """Extended Euclidean algorithm that computes the Bézout coefficients as well as :math:`gcd(a, b)`
 
-    Returns `x, y, d` where `x` and `y` are a solution to `ax + by = d` and `d = gcd(a, b)`.
-    `x` and `y` are a minimal pair of Bézout's coefficients.
+    Returns ``x, y, d`` where *x* and *y* are a solution to :math:`ax + by = d` and :math:`d = gcd(a, b)`.
+    *x* and *y* are a minimal pair of Bézout's coefficients.
 
     See `Extended Euclidean algorithm <https://en.wikipedia.org/wiki/Extended_Euclidean_algorithm>`_ or
     `Bézout's identity <https://en.wikipedia.org/wiki/B%C3%A9zout%27s_identity>`_ for more information.
+
+    Example:
+
+        Compute the Bézout coefficients and GCD of 42 and 12:
+
+        >>> a, b = 42, 12
+        >>> x, y, d = extended_euclid(a, b)
+        >>> x, y, d
+        (1, -3, 6)
+
+        Verify the results:
+
+        >>> import math
+        >>> d == math.gcd(a, b)
+        True
+        >>> a * x + b * y == d
+        True
+
+    Args:
+        a:
+            The first integer.
+        b:
+            The second integer.
+
+    Returns:
+        A tuple with the Bézout coefficients and the greatest common divider of the arguments.
     """
     if b == 0:
         return (1, 0, a)
@@ -245,18 +302,36 @@ def extended_euclid(a: int, b: int) -> Tuple[int, int, int]:
 
 
 def base_solution_linear(a: int, b: int, c: int) -> Iterator[Tuple[int, int]]:
-    r"""Yields solution for a basic linear Diophantine equation of the form :math:`ax + by = c`.
+    r"""Yield solutions for a basic linear Diophantine equation of the form :math:`ax + by = c`.
 
     First, the equation is normalized by dividing :math:`a, b, c` by their gcd.
     Then, the extended Euclidean algorithm (:func:`extended_euclid`) is used to find a base solution :math:`(x_0, y_0)`.
-    All non-negative solutions are generated by using that the general solution is:math:`(x_0 + b t, y_0 - a t)`.
-    Hence, by adding or substracting :math:`a` resp. :math:`b` from the base solution, all solutions can be generated.
+
+    All non-negative solutions are generated by using that the general solution is :math:`(x_0 + b t, y_0 - a t)`.
     Because the base solution is one of the minimal pairs of Bézout's coefficients, for all non-negative solutions
     either :math:`t \geq 0` or :math:`t \leq 0` must hold. Also, all the non-negative solutions are consecutive with
-    respect to :math:`t`. Therefore, all non-negative solutions can be generated efficiently from the base solution.
+    respect to :math:`t`.
+
+    Hence, by adding or subtracting :math:`a` resp. :math:`b` from the base solution, all non-negative solutions can
+    be efficiently generated.
+
+    Args:
+        a:
+            The first coefficient of the equation.
+        b:
+            The second coefficient of the equation.
+        c:
+            The constant of the equation.
+
+    Yields:
+        Each non-negative integer solution of the equation as a tuple ``(x, y)``.
+
+    Raises:
+        ValueError:
+            If any of the coefficients is not a positive integer.
     """
-    assert a > 0, "Invalid coefficient"
-    assert b > 0, "Invalid coefficient"
+    if a <= 0 or b <= 0:
+        raise ValueError('Coefficients must be positive integers.')
 
     d = math.gcd(a, math.gcd(b, c))
     a = a // d
@@ -291,19 +366,32 @@ def base_solution_linear(a: int, b: int, c: int) -> Iterator[Tuple[int, int]]:
 _linear_diop_solution_cache = {}
 
 
+# TODO: Move caching elsewhere
 def solve_linear_diop(total: int, *coeffs: int) -> Iterator[Tuple[int, ...]]:
-    r"""Generator for the solutions of a linear Diophantine equation of the format
-    :math:`c_1 x_1 + \dots + c_n x_n = total`
+    r"""Yield non-negative integer solutions of a linear Diophantine equation of the format
+    :math:`c_1 x_1 + \dots + c_n x_n = total`.
 
-    `coeffs` are the coefficients `c_i`.
-
-    If there are at most two coefficients, :func:`base_solution_linear` is used to find the solutions.
+    If there are at most two coefficients, :func:`base_solution_linear()` is used to find the solutions.
     Otherwise, the solutions are found recursively, by reducing the number of variables in each recursion:
 
     1. Compute :math:`d := gcd(c_2, \dots , c_n)`
     2. Solve :math:`c_1 x + d y = total`
     3. Recursively solve :math:`c_2 x_2 + \dots + c_n x_n = y` for each solution for `y`
     4. Combine these solutions to form a solution for the whole equation
+
+    .. note::
+
+        The results are cached such that they do not have to be recomputed when the function is called with the same
+        arguments. This caching is transparent to the user and might be removed in the future.
+
+    Args:
+        total:
+            The constant of the equation.
+        *coeffs:
+            The coefficients :math:`c_i` of the equation.
+
+    Yields:
+        The non-negative integer solutions of the equation as a tuple :math:`(x_1, \dots, x_n)`.
     """
     if len(coeffs) == 0:
         if total == 0:
@@ -343,32 +431,117 @@ def solve_linear_diop(total: int, *coeffs: int) -> Iterator[Tuple[int, ...]]:
     _linear_diop_solution_cache[cache_key] = tuple(solutions)
 
 
-def iterator_chain(initial_data: tuple, *factories: Callable[..., Iterator[tuple]]) -> Iterator[tuple]:
-    f_count = len(factories)
-    if f_count == 0:
+def generator_chain(initial_data: Any, *factories: Callable[..., Iterator[Any]]) -> Iterator[Any]:
+    """Chain multiple generators together by passing results from one to the next.
+
+    This helper function allows to create a chain of generator where each generator is constructed by a factory that
+    gets the data yielded by the previous generator. So each generator can generate new data dependant on the data
+    yielded by the previous one. For each data item yielded by a generator, a new generator is constructed by the
+    next factory.
+
+    Example:
+
+        Lets say for every number from 0 to 4, we want to count up to that number. Then we can do
+        something like this using list comprehensions:
+
+        >>> [i for n in range(1, 5) for i in range(1, n + 1)]
+        [1, 1, 2, 1, 2, 3, 1, 2, 3, 4]
+
+        You can use this function to achieve the same thing:
+
+        >>> list(generator_chain(5, lambda n: iter(range(1, n)), lambda i: iter(range(1, i + 1))))
+        [1, 1, 2, 1, 2, 3, 1, 2, 3, 4]
+
+        The advantage is, that this is independent of the number of dependant generators you have.
+        Also, this function does not use recursion so it is safe to use even with large generator counts.
+
+    Args:
+        initial_data:
+            The initial data that is passed to the first generator factory.
+        *factories:
+            The generator factories. Each of them gets passed its predecessors data and has to return an iterable.
+            The data from this iterable is passed to the next factory.
+
+    Yields:
+        Every data item yielded by the generators of the final factory.
+
+    """
+    generator_count = len(factories)
+    if generator_count == 0:
         yield initial_data
         return
-    iterators = [None] * f_count  # type: List[Optional[Iterator[tuple]]]
+    generators = [None] * generator_count  # type: List[Optional[Iterator[tuple]]]
     next_data = initial_data
-    i = 0
+    generator_index = 0
     while True:
         try:
-            while i < f_count:
-                if iterators[i] is None:
-                    iterators[i] = factories[i](*next_data)
-                next_data = iterators[i].__next__()
-                i += 1
+            while generator_index < generator_count:
+                if generators[generator_index] is None:
+                    generators[generator_index] = factories[generator_index](next_data)
+                next_data = next(generators[generator_index])
+                generator_index += 1
             yield next_data
-            i -= 1
+            generator_index -= 1
         except StopIteration:
-            iterators[i] = None
-            i -= 1
-            if i < 0:
+            generators[generator_index] = None
+            generator_index -= 1
+            if generator_index < 0:
                 break
 
 
 class cached_property(property):
+    """Property with caching.
+
+    An extension of the builtin `property`, that caches the value after the first access.
+    This is useful in case the computation of the property value is expensive.
+
+    Use it just like a regular property decorator. Cached properties cannot have a setter.
+
+    Example:
+
+        First, create a class with a cached property:
+
+        >>> class MyClass:
+        ...     @cached_property
+        ...     def my_property(self):
+        ...         print('my_property called')
+        ...         return 42
+        >>> instance = MyClass()
+
+        Then, access the property and get the computed value:
+
+        >>> instance.my_property
+        my_property called
+        42
+
+        Now the result is cached and the original method will not be called again:
+
+        >>> instance.my_property
+        42
+    """
+
     def __init__(self, getter, slot=None):
+        """
+        Use it as a decorator:
+
+        >>> class MyClass:
+        ...     @cached_property
+        ...     def my_property(self):
+        ...         return 42
+
+        The *slot* argument specifies a class slot to use for caching the property. You should use the
+        `slot_cached_property` decorator instead as that is more convenient.
+
+        Args:
+            getter:
+                The getter method for the property.
+            slot:
+                Optional slot to use for the cached value. Only relevant in classes that use slots.
+                Use `slot_cached_property` instead.
+
+        Returns:
+            The wrapped `property` with caching.
+        """
         super().__init__(getter)
         self._name = getter.__name__
         self._slot = slot
@@ -391,12 +564,46 @@ class cached_property(property):
 
 
 def slot_cached_property(slot):
-    def wrapper(getter):
+    """Property with caching for classes with slots.
+
+    This is a wrapper around `cached_property` to be used with classes that have slots.
+    It provides an extension of the builtin `property`, that caches the value in a slot after the first access.
+    You need to specify which slot to use for the cached value.
+
+    Example:
+
+        First, create a class with a cached property and a slot to hold the cached value:
+
+        >>> class MyClass:
+        ...     __slots__ = ('_my_cached_property', )
+        ...
+        ...     @slot_cached_property('_my_cached_property')
+        ...     def my_property(self):
+        ...         print('my_property called')
+        ...         return 42
+        ...
+        >>> instance = MyClass()
+
+        Then, access the property and get the computed value:
+
+        >>> instance.my_property
+        my_property called
+        42
+
+        Now the result is cached and the original method will not be called again:
+
+        >>> instance.my_property
+        42
+
+    Args:
+        slot:
+            The name of the classes slot to use for the cached value.
+
+    Returns:
+        The wrapped `cached_property`.
+    """
+
+    def _wrapper(getter):
         return cached_property(getter, slot)
 
-    return wrapper
-
-
-if __name__ == '__main__':
-    import doctest
-    doctest.testmod(exclude_empty=True)
+    return _wrapper

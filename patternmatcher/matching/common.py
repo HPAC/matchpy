@@ -9,7 +9,7 @@ from ..expressions import (
 )
 from ..utils import (
     VariableWithCount, commutative_sequence_variable_partition_iter, fixed_integer_vector_iter,
-    integer_partition_vector_iter, iterator_chain
+    integer_partition_vector_iter, generator_chain
 )
 
 __all__ = ['CommutativePatternsParts', 'Matcher']
@@ -221,8 +221,7 @@ def _match_wildcard(expressions: List[Expression], wildcard: Wildcard, subst: Su
 
 def _match_factory(expressions, operand, matcher):
     def factory(subst):
-        for subst in matcher(expressions, operand, subst):
-            yield (subst, )
+        yield from matcher(expressions, operand, subst)
 
     return factory
 
@@ -283,7 +282,7 @@ def _non_commutative_match(expressions, operation, subst, matcher):
         partition = _build_full_partition(part, expressions, operation)
         factories = [_match_factory(e, o, matcher) for e, o in zip(partition, operation.operands)]
 
-        for (new_subst, ) in iterator_chain((subst, ), *factories):
+        for new_subst in generator_chain(subst, *factories):
             yield new_subst
 
 
@@ -381,7 +380,7 @@ def _matches_from_matching(
 
     expr_counter = Multiset(remaining)  # type: Multiset[Expression]
 
-    for rem_expr, subst in iterator_chain((expr_counter, subst), *factories):
+    for rem_expr, subst in generator_chain((expr_counter, subst), *factories):
         sequence_vars = _variables_with_counts(pattern.sequence_variables, pattern.sequence_variable_infos)
         constraints = [pattern.sequence_variable_infos[name].constraint for name in pattern.sequence_variables]
         if pattern.operation.associative:
@@ -423,7 +422,8 @@ def _variables_with_counts(variables, infos):
 
 
 def _fixed_expr_factory(expression, matcher):
-    def factory(expressions, substitution):
+    def factory(data):
+        expressions, substitution = data
         for expr in expressions.keys():
             if expr.head == expression.head:
                 for subst in matcher([expr], expression, substitution):
@@ -434,7 +434,8 @@ def _fixed_expr_factory(expression, matcher):
 
 
 def _fixed_var_iter_factory(variable, count, length, constraint=None, symbol_type=None):
-    def factory(expressions, substitution):
+    def factory(data):
+        expressions, substitution = data
         if variable in substitution:
             value = ([substitution[variable]]
                      if isinstance(substitution[variable], Expression) else substitution[variable])
