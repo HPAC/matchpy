@@ -1,9 +1,13 @@
 # -*- coding: utf-8 -*-
+"""Module contains the basic building blocks for expressions.
+
+TODO: Document each class with an example here.
+"""
 import itertools
 import keyword
 from abc import ABCMeta
 from enum import Enum, EnumMeta
-from typing import List, NamedTuple, Set, Tuple, TupleMeta, Type, Optional
+from typing import List, NamedTuple, Set, Tuple, TupleMeta, Type, Optional  # pylint: disable=unused-import
 
 from multiset import Multiset
 
@@ -15,7 +19,7 @@ __all__ = ['Arity', 'Atom', 'Symbol', 'Variable', 'Wildcard', 'Operation', 'Symb
 # This class is needed so that Tuple and Enum play nicely with each other
 class _ArityMeta(TupleMeta, EnumMeta):
     @classmethod
-    def __prepare__(mcs, cls, bases, **kwargs):
+    def __prepare__(mcs, cls, bases, **kwargs):  # pylint: disable=unused-argument
         return super().__prepare__(cls, bases)
 
 
@@ -26,9 +30,9 @@ class Arity(_ArityBase, Enum, metaclass=_ArityMeta, _root=True):
     """Arity of an operator as (`int`, `bool`) tuple.
 
     The first component is the minimum number of operands.
-    If the second component is `True`, the operator has fixed width arity. In that case, the first component
+    If the second component is ``True``, the operator has fixed width arity. In that case, the first component
     describes the fixed number of operands required.
-    If it is `False`, the operator has variable width arity.
+    If it is ``False``, the operator has variable width arity.
     """
 
     def __new__(cls, *data):
@@ -46,11 +50,11 @@ class Arity(_ArityBase, Enum, metaclass=_ArityMeta, _root=True):
 
 
 class _OperationMeta(ABCMeta):
-    """Metaclass for :class:`Operation`
+    """Metaclass for `Operation`
 
     This metaclass is mainly used to override :meth:`__call__` to provide simplification when creating a
     new operation expression. This is done to avoid problems when overriding ``__new__`` of the operation class
-    and clashes with the :class:`FrozenOperation` class.
+    and clashes with the `.FrozenOperation` class.
     """
 
     def _repr(cls, name):  # pragma: no cover
@@ -87,7 +91,7 @@ class _OperationMeta(ABCMeta):
         """Flatten/sort the operands of associative/commutative operations.
 
         Returns:
-            False iff ``one_identity`` is True and the operation contains a single
+            False iff *one_identity* is True and the operation contains a single
             argument that is not a sequence wildcard.
         """
 
@@ -116,9 +120,9 @@ class _OperationMeta(ABCMeta):
     def from_args(cls, *args, **kwargs):
         """Create a new instance of the class using the given arguments.
 
-        This is used so that it can be overridden by :class:`_FrozenOperationMeta`. Use this to create a new instance
+        This is used so that it can be overridden by `._FrozenOperationMeta`. Use this to create a new instance
         of an operation with changed operands instead of using the instantiation operation directly.
-        Because the  :class:`FrozenExpression` has a different initializer, this would break for :term:`frozen`
+        Because the  `.FrozenExpression` has a different initializer, this would break for :term:`frozen`
         operations otherwise.
 
         Args:
@@ -284,7 +288,7 @@ class Operation(Expression, metaclass=_OperationMeta):
                 Name or symbol for the operator. Will be used as name for the new class if
                 `class_name` is not specified.
             arity:
-                The arity of the operator as explained in the documentation of :class:`Operation`.
+                The arity of the operator as explained in the documentation of `Operation`.
             class_name:
                 Name for the new operation class to be used instead of name. This argument
                 is required if `name` is not a valid python identifier.
@@ -387,13 +391,28 @@ class Operation(Expression, metaclass=_OperationMeta):
 
 
 class Atom(Expression):  # pylint: disable=abstract-method
+    """Base for all atomic expressions."""
     pass
 
 
 class Symbol(Atom):
+    """An atomic constant expression term.
+
+    It is uniquely identified by its name.
+
+    Attributes:
+        name (str):
+            The symbol's name.
+    """
+
     __slots__ = 'name',
 
     def __init__(self, name: str) -> None:
+        """
+        Args:
+            name:
+                The name of the symbol that uniquely identifies it.
+        """
         super().__init__(None)
         self.name = name
         self.head = self
@@ -441,7 +460,7 @@ class Variable(Expression):
             Can be used to access its value in constraints or for replacement.
         expression (Expression):
             The expression that is used for matching. On match, its value will be
-            assigned to the variable. Usually, a :class:`Wildcard` is used to match
+            assigned to the variable. Usually, a `Wildcard` is used to match
             any expression.
         constraint (Optional[Constraint]):
             See :attr:`Expression.constraint`.
@@ -453,15 +472,15 @@ class Variable(Expression):
     def __init__(self, name: str, expression: Expression, constraint: Constraint=None) -> None:
         """
         Args:
-            name
+            name:
                 The name of the variable that is used to capture its value in the match.
                 Can be used to access its value in constraints or for replacement.
-            expression
+            expression:
                 The expression that is used for matching. On match, its value will be
-                assigned to the variable. Usually, a :class:`Wildcard` is used to match
+                assigned to the variable. Usually, a `Wildcard` is used to match
                 any expression.
-            constraint
-                See :class:`Expression`.
+            constraint:
+                See `.Expression`.
 
         Raises:
             ValueError: if the expression contains a variable. Nested variables are not supported.
@@ -500,46 +519,88 @@ class Variable(Expression):
 
     @staticmethod
     def dot(name: str, constraint: Constraint=None) -> 'Variable':
-        """Create a :class:`Variable` with a :class:`Wildcard` that matches exactly one argument."""
+        """Create a `Variable` with a `Wildcard` that matches exactly one argument.
+
+        Args:
+            name:
+                The name of the variable.
+            constraint:
+                An optional `.Constraint` which can filter what is matched by the variable.
+
+        Returns:
+            A `Variable` with a `Wildcard` that matches exactly one argument.
+        """
         return Variable(name, Wildcard.dot(), constraint)
 
     @staticmethod
     def symbol(name: str, symbol_type: Type[Symbol]=Symbol, constraint: Constraint=None) -> 'Variable':
-        """Create a :class:`Variable` with a :class:`SymbolWildcard`.
+        """Create a `Variable` with a `SymbolWildcard`.
 
         Args:
             name:
                 The name of the variable.
             symbol_type:
-                An optional subclass of :class:`Symbol` to further limit which kind of smybols are
+                An optional subclass of `Symbol` to further limit which kind of symbols are
                 matched by the wildcard.
             constraint:
-                An optional :class:`.Constraint` which can filter what is matched by the variable.
+                An optional `.Constraint` which can filter what is matched by the variable.
 
         Returns:
-            A :class:`Variable` that matches a :class:`Symbol` with type ``symbol_type``.
+            A `Variable` that matches a `Symbol` with type *symbol_type*
         """
         return Variable(name, Wildcard.symbol(symbol_type), constraint)
 
     @staticmethod
     def star(name: str, constraint: Constraint=None) -> 'Variable':
-        """Creates a `Variable` with :class:`Wildcard` that matches any number of arguments."""
+        """Creates a `Variable` with `Wildcard` that matches any number of arguments.
+
+        Args:
+            name:
+                The name of the variable.
+            constraint:
+                An optional `.Constraint` which can filter what is matched by the variable.
+
+        Returns:
+            A `Variable` with a `Wildcard` that matches any number of arguments.
+        """
         return Variable(name, Wildcard.star(), constraint)
 
     @staticmethod
     def plus(name: str, constraint: Constraint=None) -> 'Variable':
-        """Creates a `Variable` with :class:`Wildcard` that matches at least one and up to any number of arguments."""
+        """Creates a `Variable` with `Wildcard` that matches at least one and up to any number of arguments.
+
+        Args:
+            name:
+                The name of the variable.
+            constraint:
+                An optional `.Constraint` which can filter what is matched by the variable.
+
+        Returns:
+            A `Variable` with a `Wildcard` that matches at least one and up to any number of arguments.
+        """
         return Variable(name, Wildcard.plus(), constraint)
 
     @staticmethod
     def fixed(name: str, length: int, constraint: Constraint=None) -> 'Variable':
-        """Creates a `Variable` with :class:`Wildcard` that matches exactly `length` expressions."""
+        """Creates a `Variable` with `Wildcard` that matches exactly *length* expressions.
+
+        Args:
+            name:
+                The name of the variable.
+            length:
+                The length of the variable.
+            constraint:
+                An optional `.Constraint` which can filter what is matched by the variable.
+
+        Returns:
+            A `Variable` with `Wildcard` that matches exactly *length* expressions.
+        """
         return Variable(name, Wildcard.dot(length), constraint)
 
     def _preorder_iter(self, predicate: ExprPredicate=None, position: Tuple[int, ...]=()) -> ExpressionsWithPos:
         if predicate is None or predicate(self):
             yield self, position
-        yield from self.expression._preorder_iter(predicate, position + (0, ))
+        yield from self.expression._preorder_iter(predicate, position + (0, ))  # pylint: disable=protected-access
 
     def _is_linear(self, variables: Set[str]) -> bool:
         if self.name in variables:
@@ -591,15 +652,15 @@ class Variable(Expression):
 class Wildcard(Atom):
     """A wildcard that matches any expression.
 
-    The wildcard will match any number of expressions between `min_count` and `fixed_size`.
+    The wildcard will match any number of expressions between *min_count* and *fixed_size*.
     Optionally, the wildcard can also be constrained to only match expressions satisfying a predicate.
 
     Attributes:
         min_count (int):
             The minimum number of expressions this wildcard will match.
         fixed_size (bool):
-            If `True`, the wildcard matches exactly `min_count` expressions.
-            If `False`, the wildcard is a sequence wildcard and can match `min_count` or more expressions.
+            If ``True``, the wildcard matches exactly *min_count* expressions.
+            If ``False``, the wildcard is a sequence wildcard and can match *min_count* or more expressions.
         constraint (Optional[Constraint]):
             An optional constraint for expressions to be considered a match. If set, this
             callback is invoked for every match and the return value is utilized to decide
@@ -614,15 +675,15 @@ class Wildcard(Atom):
             min_count:
                 The minimum number of expressions this wildcard will match. Must be a non-negative number.
             fixed_size:
-                If `True`, the wildcard matches exactly `min_count` expressions.
-                If `False`, the wildcard is a sequence wildcard and can match `min_count` or more expressions.
+                If ``True``, the wildcard matches exactly *min_count* expressions.
+                If ``False``, the wildcard is a sequence wildcard and can match *min_count* or more expressions.
             constraint:
                 An optional constraint for expressions to be considered a match. If set, this
                 callback is invoked for every match and the return value is utilized to decide
                 whether the match is valid.
 
         Raises:
-            ValueError: if ``min_count`` is negative or when trying to create a fixed zero-length wildcard.
+            ValueError: if *min_count* is negative or when trying to create a fixed zero-length wildcard.
         """
         if min_count < 0:
             raise ValueError("min_count cannot be negative")
@@ -648,7 +709,7 @@ class Wildcard(Atom):
 
     @staticmethod
     def dot(length: int=1) -> 'Wildcard':
-        """Create a :class:`Wildcard` that matches a fixed number `length` of arguments.
+        """Create a `Wildcard` that matches a fixed number *length* of arguments.
 
         Defaults to matching only a single argument.
 
@@ -656,31 +717,40 @@ class Wildcard(Atom):
             length: The fixed number of arguments to match.
 
         Returns:
-            A wildcard with a fixed size."""
+            A wildcard with a fixed size.
+        """
         return Wildcard(min_count=length, fixed_size=True)
 
     @staticmethod
     def symbol(symbol_type: Type[Symbol]=Symbol) -> 'SymbolWildcard':
-        """Create a :class:`SymbolWildcard` that matches a single :class:`Symbol` argument.
+        """Create a `SymbolWildcard` that matches a single `Symbol` argument.
 
         Args:
             symbol_type:
-                An optional subclass of :class:`Symbol` to further limit which kind of smybols are
+                An optional subclass of `Symbol` to further limit which kind of smybols are
                 matched by the wildcard.
 
         Returns:
-            A :class:`SymbolWildcard` that matches the ``symbol_type``.
+            A `SymbolWildcard` that matches the *symbol_type*.
         """
         return SymbolWildcard(symbol_type)
 
     @staticmethod
     def star() -> 'Wildcard':
-        """Creates a :class:`Wildcard` that matches any number of arguments."""
+        """Creates a `Wildcard` that matches any number of arguments.
+
+        Returns:
+            A wildcard that matches any number of arguments.
+        """
         return Wildcard(min_count=0, fixed_size=False)
 
     @staticmethod
     def plus() -> 'Wildcard':
-        """Creates a :class:`Wildcard` that matches at least one and up to any number of arguments."""
+        """Creates a `Wildcard` that matches at least one and up to any number of arguments
+
+        Returns:
+            A wildcard that matches at least one and up to any number of arguments
+        """
         return Wildcard(min_count=1, fixed_size=False)
 
     def __str__(self):
@@ -721,23 +791,29 @@ class Wildcard(Atom):
 
 
 class SymbolWildcard(Wildcard):
-    """A special :class:`Wildcard` that matches a :class:`Symbol`."""
+    """A special `Wildcard` that matches a `Symbol`.
+
+    Attributes:
+        symbol_type:
+            A subclass of `Symbol` to constraint what the wildcard matches.
+            If not specified, the wildcard will match any `Symbol`.
+    """
 
     __slots__ = 'symbol_type',
 
     def __init__(self, symbol_type: Type[Symbol]=Symbol, constraint: Constraint=None) -> None:
         """
         Args:
-            symbol_type
-                An optional subclass of :class:`Symbol` to further constraint what the wildcard matches.
-                It will then only match symbols of that type.
-            constraint
+            symbol_type:
+                A subclass of `Symbol` to constraint what the wildcard matches.
+                If not specified, the wildcard will match any `Symbol`.
+            constraint:
                 An optional constraint for expressions to be considered a match. If set, this
                 callback is invoked for every match and the return value is utilized to decide
                 whether the match is valid.
 
         Raises:
-            TypeError: if ``symbol_type`` is not a subclass of :class:`Symbol`.
+            TypeError: if *symbol_type* is not a subclass of `Symbol`.
         """
         super().__init__(1, True, constraint)
 
