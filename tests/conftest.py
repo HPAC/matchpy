@@ -2,9 +2,8 @@
 import pytest
 
 from patternmatcher.expressions import Operation, Symbol, Variable, Arity, Wildcard, freeze
-from patternmatcher.matching.many_to_one import ManyToOneMatcher
 from patternmatcher.matching.one_to_one import match as match_one_to_one
-from patternmatcher.matching.automaton import Automaton
+from patternmatcher.matching.many_to_one import ManyToOneMatcher
 import patternmatcher
 
 @pytest.fixture(autouse=True)
@@ -25,15 +24,9 @@ def add_default_expressions(doctest_namespace):
 
 def pytest_generate_tests(metafunc):
     if 'match' in metafunc.fixturenames:
-        metafunc.parametrize('match', ['one-to-one', 'many-to-one', 'automaton'], indirect=True)
-
+        metafunc.parametrize('match', ['one-to-one', 'many-to-one'], indirect=True)
 
 def match_many_to_one(expression, pattern):
-    matcher = ManyToOneMatcher(pattern)
-    for _, substitution in matcher.match(expression):
-        yield substitution
-
-def match_automaton(expression, pattern):
     try:
         commutative, _ = next(p for p in pattern.preorder_iter(lambda e: isinstance(e, Operation) and e.commutative))
         next(wc for wc in commutative.preorder_iter(lambda e: isinstance(e, Wildcard) and e.min_count > 1))
@@ -41,11 +34,9 @@ def match_automaton(expression, pattern):
         pass
     else:
         pytest.xfail('Matcher does not support fixed wildcards with length != 1 in commutative operations')
-    matcher = Automaton(pattern)
+    matcher = ManyToOneMatcher(pattern)
     for _, substitution in matcher.match(expression):
         yield substitution
-
-match_automaton.xfail = True
 
 @pytest.fixture
 def match(request):
@@ -53,7 +44,5 @@ def match(request):
         return match_one_to_one
     elif request.param == 'many-to-one':
         return match_many_to_one
-    elif request.param == 'automaton':
-        return match_automaton
     else:
         raise ValueError("Invalid internal test config")

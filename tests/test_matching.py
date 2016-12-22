@@ -4,7 +4,7 @@ import pytest
 from patternmatcher.expressions import (Arity, CustomConstraint,
                                         MultiConstraint, Operation, Symbol,
                                         Variable, Wildcard, freeze)
-from patternmatcher.matching.automaton import Automaton
+from patternmatcher.matching.many_to_one import ManyToOneMatcher
 from patternmatcher.matching.common import CommutativePatternsParts
 
 f = Operation.new('f', Arity.variadic)
@@ -169,7 +169,7 @@ class TestAutomaton:
         pattern2 = f(Variable.dot('x', c2))
         pattern3 = f(Variable.dot('x', c1), b)
         pattern4 = f(Variable.dot('x', c2), b)
-        matcher = Automaton(pattern1, pattern2, pattern3, pattern4)
+        matcher = ManyToOneMatcher(pattern1, pattern2, pattern3, pattern4)
 
         subject = f(a)
         results = list(matcher.match(subject))
@@ -190,7 +190,7 @@ class TestAutomaton:
         pattern2 = f(x_, constraint=c2)
         pattern3 = f(x_, b, constraint=c1)
         pattern4 = f(x_, b, constraint=c2)
-        matcher = Automaton(pattern1, pattern2, pattern3, pattern4)
+        matcher = ManyToOneMatcher(pattern1, pattern2, pattern3, pattern4)
 
         subject = f(a)
         results = list(matcher.match(subject))
@@ -211,7 +211,7 @@ class TestAutomaton:
         pattern2 = fc(x_, constraint=c2)
         pattern3 = fc(x_, b, constraint=c1)
         pattern4 = fc(x_, b, constraint=c2)
-        matcher = Automaton(pattern1, pattern2, pattern3, pattern4)
+        matcher = ManyToOneMatcher(pattern1, pattern2, pattern3, pattern4)
 
         subject = fc(a)
         results = list(matcher.match(subject))

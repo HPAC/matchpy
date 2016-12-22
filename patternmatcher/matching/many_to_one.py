@@ -1,382 +1,583 @@
 # -*- coding: utf-8 -*-
-"""Contains the :class:`ManyToOneMatcher` and other classes related to many-to-one pattern matching."""
+"""Contains the :class:`ManyToOneMatcher` which can be used for fast many-to-one matching.
 
-from typing import (Any, Dict, FrozenSet, Iterator, List, Sequence, Set, Tuple, Type, cast)
+You can initialize the matcher with a list of the patterns that you wish to match:
 
+>>> pattern1 = f(a, x_)
+>>> pattern2 = f(y_, b)
+>>> matcher = ManyToOneMatcher(pattern1, pattern2)
+
+You can also add patterns later:
+
+>>> pattern3 = f(a, b)
+>>> _ = matcher.add(pattern3)
+
+Then you can match a subject against all the patterns at once:
+
+>>> subject = f(a, b)
+>>> for matched_pattern, substitution in sorted(matcher.match(subject)):
+...     print('{} matched with {}'.format(matched_pattern, substitution))
+f(a, b) matched with {}
+f(a, x_) matched with {x ↦ b}
+f(y_, b) matched with {y ↦ a}
+"""
+
+import math
+from collections import deque
+from typing import (Container, Dict, Iterable, Iterator, List, NamedTuple, Optional, Sequence, Set, Tuple, Union)
+
+from graphviz import Digraph
 from multiset import Multiset
 
-from ..expressions import (Expression, FrozenExpression, Operation, Substitution, Symbol, Variable, Wildcard, freeze)
-from .bipartite import BipartiteGraph, enum_maximum_matchings_iter
-from .common import (
-    CommutativePatternsParts, _match_commutative_operation, _non_commutative_match, _match_variable, _match_wildcard,
-    Matcher
+from ..expressions import (
+    Constraint, Expression, FrozenExpression, MultiConstraint, Operation, Substitution, Symbol, SymbolWildcard,
+    Variable, Wildcard, freeze
 )
-from .syntactic import DiscriminationNet
+from ..utils import (VariableWithCount, commutative_sequence_variable_partition_iter)
+from .bipartite import BipartiteGraph, enum_maximum_matchings_iter
+from .syntactic import OPERATION_END, is_operation
 
-__all__ = ['ManyToOneMatcher', 'CommutativeMatcher']
+__all__ = ['ManyToOneMatcher']
+
+LabelType = Union[FrozenExpression, type]  # TODO: in py 3.6 properly use Type[]
+HeadType = Optional[Union[FrozenExpression, type]]  # TODO: in py 3.6 properly use Type[]
+
+_State = NamedTuple('_State', [
+    ('transitions', Dict[LabelType, '_Transition']),
+    ('patterns', Set[int]),
+    ('matcher', Optional['CommutativeMatcher'])
+])  # yapf: disable
+
+_Transition = NamedTuple('_Transition', [
+    ('label', LabelType),
+    ('target', _State),
+    ('constraint', Optional[Constraint]),
+    ('variable_name', Optional[str])
+])  # yapf: disable
+
+_MatchContext = NamedTuple('_MatchContext', [
+    ('subjects', Tuple[FrozenExpression]),
+    ('substitution', Substitution),
+    ('associative', Optional[type])
+])  # yapf: disable
 
 
-class ManyToOneMatcher(object):
-    """Pattern matcher that matches a set of patterns against a subject.
-
-    It does so more efficiently than using one-to-one matching for each pattern individually
-    by reusing structural similarities of the patterns.
-
-    Attributes:
-        patterns (FrozenSet[FrozenExpression]):
-            The set of patterns that the matcher uses.
-        commutative_matchers (Dict[Type[Operation], CommutativeMatcher]):
-            A dictionary holding a :class:`CommutativeMatcher` instance for every type of commutative operation
-            occurring in the patterns.
-    """
+class ManyToOneMatcher:
+    __slots__ = ('patterns', 'states', 'root', 'pattern_vars')
 
     def __init__(self, *patterns: Expression) -> None:
-        """Create a new many-to-one matcher.
-
-        Note that the patterns cannot be modified after the instance has been created.
-        In case you want to change the set of patterns, you have to create a new matcher instance.
-
+        """
         Args:
-            *patterns:
-                The patterns that are used for matching.
-                Note that the patterns will be :term:`frozen` and hence cannot be changed after the creation of
-                the matcher.
+            *patterns: The patterns which the matcher should match.
         """
-        self.patterns = frozenset(freeze(pattern) for pattern in patterns)
-        self.commutative_matchers = {}  # type: Dict[Type[Operation], CommutativeMatcher]
-        subexpressions = {}  # type: Dict[Type[Operation], Set[FrozenExpression]]
+        self.patterns = []
+        self.states = []
+        self.root = self._create_state()
+        self.pattern_vars = []
 
-        for pattern in self.patterns:
-            self._extract_subexpressions(pattern, False, subexpressions)
+        for pattern in patterns:
+            self.add(pattern)
 
-        for operation_type, operands in subexpressions.items():
-            matcher = CommutativeMatcher(self._match)
-            for operand in operands:
-                matcher.add_pattern(operand)
-            self.commutative_matchers[operation_type] = matcher
+    def add(self, pattern: Expression) -> int:
+        """Add a new pattern to the matcher.
 
-    def match(self, expression: Expression) -> Iterator[Tuple[FrozenExpression, Substitution]]:
-        """Match the given expression against each pattern.
-
-        The expression will be :term:`frozen` because parts of it might be used as dictionary keys during matching.
-
-        Example:
-
-            >>> pattern1 = f(a, x_)
-            >>> pattern2 = f(y_, b)
-            >>> matcher = ManyToOneMatcher(pattern1, pattern2)
-            >>> subject = f(a, b)
-            >>> for pattern, match in sorted(matcher.match(subject)):
-            ...     print(pattern, ':', match)
-            f(a, x_) : {x ↦ b}
-            f(y_, b) : {y ↦ a}
-
-        Args:
-            expression: The expression to match.
-
-        Yields:
-            For every match, the matching pattern and substitution is yielded as a tuple.
-            Note that the pattern will be a :term:`frozen` version of the original pattern., i.e. it will be
-            equivalent to the original pattern but might not be identical.
-        """
-        expression = freeze(expression)
-        subexpressions = self._extract_subexpressions(expression, True)
-        for t, es in subexpressions.items():
-            if t in self.commutative_matchers:
-                for e in es:
-                    self.commutative_matchers[t].add_expression(e)
-
-        for pattern in self.patterns:
-            for match in self._match([expression], pattern, Substitution()):
-                yield pattern, match
-
-    def _match(self, expressions: Sequence[FrozenExpression], pattern: FrozenExpression,
-               subst: Substitution) -> Iterator[Substitution]:
-        """Delegates the matching of the expressions depending on the type of the pattern.
-
-        Compared to the regular one-to-one matching, it uses the CommutativeMatcher instances in
-        :attr:`commutative_matchers` for commutative expressions.
-        """
-        if isinstance(pattern, Variable):
-            yield from _match_variable(expressions, pattern, subst, self._match)
-
-        elif isinstance(pattern, Wildcard):
-            yield from _match_wildcard(expressions, pattern, subst)
-
-        elif isinstance(pattern, Symbol):
-            if (
-                len(expressions) == 1 and isinstance(expressions[0], type(pattern)) and
-                expressions[0].name == pattern.name
-            ):
-                if pattern.constraint is None or pattern.constraint(subst):
-                    yield subst
-
-        else:
-            assert isinstance(pattern, Operation), "Unexpected expression of type {!r}".format(type(pattern))
-            if len(expressions) != 1 or not isinstance(expressions[0], pattern.__class__):
-                return
-            op_expr = cast(Operation, expressions[0])
-            if not op_expr.symbols >= pattern.symbols:
-                return
-
-            if op_expr.commutative:
-                matcher = self.commutative_matchers[type(op_expr)]
-                parts = CommutativePatternsParts(type(pattern), *pattern.operands)
-                for result in matcher.match(op_expr.operands, parts, subst):
-                    if pattern.constraint is None or pattern.constraint(result):
-                        yield result
-            else:
-                for result in _non_commutative_match(op_expr.operands, pattern, subst, self._match):
-                    if pattern.constraint is None or pattern.constraint(result):
-                        yield result
-
-    @staticmethod
-    def _extract_subexpressions(expression: FrozenExpression, include_constant: bool,
-                                subexpressions: Dict[Type[Operation], Set[FrozenExpression]]=None) \
-            -> Dict[Type[Operation], Set[FrozenExpression]]:
-        """Extracts all syntactic subexpressions that are operands of a commutative subexpression.
-
-        Args:
-            expression:
-                The expression from which the subexpressions are extracted.
-            include_constant:
-                Iff True, constant syntactic subexpressions are extracted. Otherwise, they will be excluded.
-            subexpressions:
-                If given, it is used to store the subexpressions, otherwise a new dictionary is created.
-
-        Returns:
-            The subexpressions grouped by the type of the commutative expression they occur in as a dictionary.
-            The key is the commutative operation and the value a set of expressions that occurs.
-        """
-        if subexpressions is None:
-            subexpressions = {}
-        for subexpr, _ in expression.preorder_iter(lambda e: isinstance(e, Operation) and e.commutative):
-            operation = cast(Operation, subexpr)
-            op_type = cast(Type[Operation], operation.__class__)
-            expressions = set()
-            for operand in operation.operands:
-                if operand.is_syntactic and (not operand.is_constant or include_constant):
-                    expressions.add(operand)
-            subexpressions.setdefault(op_type, set()).update(expressions)
-        return subexpressions
-
-
-Subgraph = BipartiteGraph[Tuple[FrozenExpression, int], Tuple[FrozenExpression, int], Substitution]
-SubgraphMatching = Dict[Tuple[Tuple[Expression, int], Tuple[Expression, int]], Substitution]
-
-
-class CommutativeMatcher(object):
-    """A matcher for commutative patterns.
-
-    Creates a :class:`.DiscriminationNet` from the patterns and uses it to populate a
-    :class:`.BipartiteGraph` connecting patterns and matching expressions. This graph is then
-    used for faster many-to-one matching.
-
-    All patterns have to be added via :meth:`add_pattern` first, then all expressions have to be added
-    via :meth:`add_expression`. Finally, expressions can be matched with :meth:`match`.
-
-    Attributes:
-        patterns (Set[FrozenExpression]):
-            A set of the patterns that have been added to the matcher. Every pattern is :term:`syntactic`.
-            Patterns can be added via :meth:`add_pattern`.
-        expressions (Set[FrozenExpression]):
-            A set of the expressions that have been added to the matcher. Every expression is :term:`syntactic` and
-            :term:`constant`. Expressions can be added via :meth:`add_expression`.
-        net (DiscriminationNet[FrozenExpression]):
-            A discrimination net constructed from the pattern set.
-        bipartite (BipartiteGraph[FrozenExpression, FrozenExpression, Substitution]):
-            A bipartite graph connecting expressions and patterns. An edge represents a match between the expression
-            and pattern and is labeled with the match substitution. This graph contains all the subexpressions and
-            subpatterns from :attr:`expressions` and :attr:`patterns`.
-        matcher (Matcher):
-            The matching function that is used for recursive matching, i.e. for every non-syntactic expression.
-
-    """
-
-    def __init__(self, matcher: Matcher) -> None:
-        """Create a CommutativeMatcher instance.
-
-        Args:
-            matcher: The parent matcher that recursive matching for non-:term:`syntactic` expressions is delegated to.
-        """
-        self.patterns = set()  # type: Set[FrozenExpression]
-        self.expressions = set()  # type: Set[FrozenExpression]
-        self.net = DiscriminationNet()
-        self.bipartite = BipartiteGraph()  # type: BipartiteGraph
-        self.matcher = matcher
-
-    def add_pattern(self, pattern: FrozenExpression) -> None:
-        """Add a new syntactic pattern to be matched later.
+        Equivalent patterns are not added again. However, patterns that are structurally equivalent,
+        but have different constraints or different variable names are distinguished by the matcher.
 
         Args:
             pattern: The pattern to add.
 
-        Raises:
-            ValueError: If the given pattern is not syntactic.
+        Returns:
+            The internal id for the pattern. This is mainly used by the :class:`CommutativeMatcher`.
         """
-        if not pattern.is_syntactic:
-            raise ValueError("Can only add syntactic subpatterns.")
-        if pattern not in self.patterns:
-            self.patterns.add(pattern)
-            self.net.add(pattern)
-
-    def add_expression(self, expression: FrozenExpression) -> None:
-        """Add a new constant syntactic expression to be matched later.
-
-        Args:
-            expression: The expression to add.
-
-        Raises:
-            ValueError: If the given expression is not syntactic or not constant.
-        """
-        if not expression.is_constant or not expression.is_syntactic:
-            raise ValueError("The expression must be syntactic and constant.")
-        if expression not in self.expressions:
-            self.expressions.add(expression)
-            for pattern in self.net.match(expression):
-                subst = Substitution()
-                if subst.extract_substitution(expression, pattern):
-                    self.bipartite[expression, pattern] = subst
-
-    def match(self, expression: List[Expression], pattern: CommutativePatternsParts, substitution: Substitution=None) \
-            -> Iterator[Substitution]:
-        """Match the expression against the pattern and yield each valid substitution.
-
-        Uses :func:`._match_commutative_operation` with this matcher's parent :attr:`matcher` to recursively match
-        non-:term:`syntactic` expressions. All syntactic expressions are first tried to match using the matcher's
-        :attr:`bipartite` graph.
-
-        Args:
-            expression:
-                A list of operands of the commutative operation expression to match.
-            pattern:
-                The operands of the commutative operation pattern to match.
-            substitution:
-                The initial substitution as it might already be filled by previous matching steps.
-                If not given, an empty substitution is used instead.
-
-        Yields:
-            Each substitution that is a valid match for the pattern and expression.
-        """
-        yield from _match_commutative_operation(expression, pattern, substitution, self.matcher, self._syntactic_match)
-
-    def _syntactic_match(self, expressions: Multiset[FrozenExpression], patterns: Multiset[FrozenExpression]) \
-            -> Iterator[Tuple[Substitution, Multiset[FrozenExpression]]]:
-        """Match the multiset of expressions against the multiset of patterns using the bipartite graph.
-
-        Because more expressions than patterns can be given, not all expression might be covered by a match.
-        The remaining expressions are yielded along with the match substitution for every match.
-
-        Args:
-            expressions:
-                A multiset of syntactic constant expressions. The cardinality of the expression multiset can be
-                higher than that of the pattern multiset.
-            patterns:
-                A multiset of syntactic patterns.
-
-        Yields:
-            For every match, the corresponding substitution as well as the remaining expressions not covered by the
-            match as a tuple.
-        """
-        subgraph = self._build_bipartite(expressions, patterns)
-        matching_iter = enum_maximum_matchings_iter(subgraph)
         try:
-            matching = next(matching_iter)
-        except StopIteration:  # no matching found
-            return
-        if len(matching) < len(patterns):  # not all patterns covered by matching
-            return
+            return self.patterns.index(pattern)
+        except ValueError:
+            pass
 
-        for result, matched_expressions in self._substitution_from_matching(subgraph, matching):
-            yield result, expressions - matched_expressions
-        for matching in matching_iter:
-            for result, matched_expressions in self._substitution_from_matching(subgraph, matching):
-                yield result, expressions - matched_expressions
+        pattern_index = len(self.patterns)
+        renaming = self._collect_variable_renaming(pattern)
+        index = 0
+        self.patterns.append(pattern)
+        self.pattern_vars.append(renaming)
+        pattern = freeze(pattern.with_renamed_vars(renaming))
+        state = self.root
+        patterns_stack = [deque([pattern])]
+        context_stack = []
 
-    def _substitution_from_matching(self, subgraph: Subgraph, matching: SubgraphMatching) \
-            -> Iterator[Tuple[Substitution, Multiset[FrozenExpression]]]:
-        """Create a match substitution from a bipartite matching.
+        while patterns_stack:
+            if patterns_stack[-1]:
+                subpattern = patterns_stack[-1].popleft()
+                variable_name = None
+                constraint = None
+                has_pre_constraint = True
+                if isinstance(subpattern, Variable):
+                    constraint = subpattern.constraint
+                    variable_name = subpattern.name
+                    subpattern = subpattern.expression
+                constraint = MultiConstraint.create(constraint, subpattern.constraint)
+                if isinstance(subpattern, Operation):
+                    if not subpattern.commutative:
+                        context_stack.append(constraint)
+                        patterns_stack.append(deque(subpattern.operands))
+                    has_pre_constraint = False
+                state = self._create_expression_transition(
+                    state, subpattern, constraint if has_pre_constraint else None, variable_name
+                )
+                if getattr(subpattern, 'commutative', False):
+                    subpattern_id = state.matcher.add_pattern(subpattern.operands)
+                    state = self._create_simple_transition(state, subpattern_id, constraint)
+                index += 1
+            else:
+                patterns_stack.pop()
+                if context_stack:
+                    constraint = context_stack.pop()
+                    state = self._create_simple_transition(state, OPERATION_END, constraint)
+
+        state.patterns.add(pattern_index)
+
+        return pattern_index
+
+    def match(self, subject: Expression) -> Iterator[Tuple[Expression, Substitution]]:
+        """Match the subject against all the matcher's patterns.
 
         Args:
-            subgraph:
-                The bipartite subgraph used for matching.
-            matching:
-                The matching to create a substitution from if possible.
+            subject: The subject to match.
 
         Yields:
-            If the matching is canonical and results in a valid substitution, that substitution is yielded along with
-            the multiset of matched expressions.
+            For every match, a tuple of the matching pattern and the match substitution.
         """
-        # Limiting the matchings to canonical ones eliminates duplicate substitutions being yielded.
-        if self._is_canonical_matching(matching):
-            # The substitutions on each edge in the matching need to be unified
-            # Only if they can be, it is a valid match
-            substitutions = (subgraph[edge] for edge in matching.items())
+        subject = freeze(subject)
+        context = _MatchContext((subject, ), Substitution(), None)
+        for state, substitution in self._match(self.root, context):
+            for pattern_index in state.patterns:
+                renaming = self.pattern_vars[pattern_index]
+                new_substitution = substitution.rename({renamed: original for original, renamed in renaming.items()})
+                yield self.patterns[pattern_index], new_substitution
+
+    def as_graph(self) -> Digraph:  # pragma: no cover
+        return self._as_graph(None)
+
+    def _as_graph(self, finals: Optional[List[str]]) -> Digraph:  # pragma: no cover
+        graph = Digraph()
+        self._make_graph_nodes(graph, finals)
+        self._make_graph_edges(graph)
+        return graph
+
+    def _make_graph_nodes(self, graph: Digraph, finals: Optional[List[str]]) -> None:  # pragma: no cover
+        for state in self.states:
+            name = 'n{!s}'.format(id(state))
+            if finals is not None and not state.transitions:
+                finals.append(name)
+            if state.matcher:
+                graph.node(name, 'Sub Matcher', {'shape': 'box'})
+                subfinals = []
+                graph.subgraph(state.matcher.automaton._as_graph(subfinals))
+                submatch_label = 'Sub Matcher End'
+                for pattern_index, subpatterns, variables in state.matcher.patterns.values():
+                    var_formatted = ', '.join('{}[{}]x{}'.format(n, m, c) for n, c, m in variables)
+                    submatch_label += '\n{}: {} {}'.format(pattern_index, subpatterns, var_formatted)
+                graph.node(name + '-end', submatch_label, {'shape': 'box'})
+                for f in subfinals:
+                    graph.edge(f, name + '-end')
+                graph.edge(name, 'n{}'.format(id(state.matcher.automaton.root)))
+            elif not state.patterns:
+                graph.node(name, '', {'shape': ('circle' if state.transitions else 'doublecircle')})
+            else:
+                variables = ['{}: {}'.format(p, repr(self.pattern_vars[p])) for p in state.patterns]
+                label = '\n'.join(variables)
+                graph.node(name, label, {'shape': 'box'})
+
+    def _make_graph_edges(self, graph: Digraph) -> None:  # pragma: no cover
+        for state in self.states:
+            for _, transitions in state.transitions.items():
+                for transition in transitions:
+                    t_label = str(transition.label)
+                    if is_operation(transition.label):
+                        t_label += '('
+                    if transition.constraint is not None:
+                        t_label += ' ;/ ' + str(transition.constraint)
+                    if transition.variable_name:
+                        t_label += '\n \\=> {}'.format(transition.variable_name)
+
+                    start = 'n{!s}'.format(id(state))
+                    if state.matcher:
+                        start += '-end'
+                    end = 'n{!s}'.format(id(transition.target))
+                    graph.edge(start, end, t_label)
+
+    def _create_expression_transition(
+            self, state: _State, expression: Expression, constraint: Optional[Constraint], variable_name: Optional[str]
+    ) -> _State:
+        label, head = self._get_label_and_head(expression)
+        transitions = state.transitions.setdefault(head, [])
+        commutative = getattr(expression, 'commutative', False)
+        pre_constraint = constraint if not commutative else None
+        matcher = None
+        for transition in transitions:
+            if (transition.constraint == pre_constraint and
+                    transition.variable_name == variable_name and
+                    transition.label == label):
+                state = transition.target
+                matcher = state.matcher
+                break
+        else:
+            if commutative:
+                matcher = CommutativeMatcher(expression.associative)
+            state = self._create_state(matcher)
+            transition = _Transition(label, state, constraint, variable_name)
+            transitions.append(transition)
+        return state
+
+    def _create_simple_transition(self, state: _State, label: LabelType, constraint: Optional[Constraint]) -> _State:
+        transitions = state.transitions.setdefault(label, [])
+        for transition in transitions:
+            if transition.constraint == constraint:
+                state = transition.target
+                break
+        else:
+            state = self._create_state()
+            transition = _Transition(label, state, constraint, None)
+            transitions.append(transition)
+        return state
+
+    @staticmethod
+    def _get_label_and_head(expression: Expression) -> Tuple[LabelType, HeadType]:
+        if isinstance(expression, Operation):
+            label = type(expression)
+            head = label._original_base
+        else:
+            label = expression.without_constraints
+            head = expression.head
+            if isinstance(label, SymbolWildcard):
+                head = label.symbol_type
+        return label, head
+
+    def _match(self, state: _State, context: _MatchContext) -> Iterator[Tuple[_State, Substitution]]:
+        subjects, substitution, _ = context
+        if not state.transitions:
+            if state.patterns and not subjects:
+                yield state, substitution
+            return
+
+        if len(subjects) == 0 and OPERATION_END in state.transitions:
+            yield state, substitution
+
+        subject = subjects[0] if subjects else None
+        heads = self._get_heads(subject)
+
+        for head in heads:
+            for transition in state.transitions.get(head, []):
+                yield from self._match_transition(transition, context)
+
+    def _match_transition(self, transition: _Transition,
+                          context: _MatchContext) -> Iterator[Tuple[_State, Substitution]]:
+        subjects, substitution, associative = context
+        label = transition.label
+        subject = subjects[0] if subjects else None
+        matched_subject = subject
+        new_subjects = subjects[1:]
+        if is_operation(label):
+            if transition.target.matcher:
+                yield from self._match_commutative_operation(transition.target, context)
+            else:
+                yield from self._match_regular_operation(transition, context)
+            return
+        elif isinstance(label, Wildcard) and not isinstance(label, SymbolWildcard):
+            min_count = label.min_count
+            if label.fixed_size and not associative:
+                if min_count == 1:
+                    if subject is None:
+                        return
+                elif len(subjects) >= min_count:
+                    matched_subject = tuple(subjects[:min_count])
+                    new_subjects = subjects[min_count:]
+                else:
+                    return
+            else:
+                yield from self._match_sequence_variable(label, transition, context)
+                return
+
+        new_substitution = self._check_constraint(transition, substitution, matched_subject)
+        if new_substitution is not None:
+            new_context = _MatchContext(new_subjects, new_substitution, associative)
+            yield from self._match(transition.target, new_context)
+
+    @staticmethod
+    def _get_heads(expression: Expression) -> List[HeadType]:
+        heads = [expression.head] if expression else []
+        if isinstance(expression, Symbol):
+            heads.extend(
+                base for base in type(expression).__mro__
+                if issubclass(base, Symbol) and not issubclass(base, FrozenExpression)
+            )
+        heads.append(None)
+        return heads
+
+    def _match_sequence_variable(self, wildcard: Wildcard, transition: _Transition,
+                                 context: _MatchContext) -> Iterator[Tuple[_State, Substitution]]:
+        subjects, substitution, associative = context
+        min_count = wildcard.min_count
+        for i in range(min_count, len(subjects) + 1):
+            matched_subject = tuple(subjects[:i])
+            if associative and wildcard.fixed_size:
+                if i > min_count:
+                    wrapped = associative.from_args(*matched_subject[min_count - 1:])
+                    if min_count == 1:
+                        matched_subject = wrapped
+                    else:
+                        matched_subject = matched_subject[:min_count - 1] + (wrapped, )
+                elif min_count == 1:
+                    matched_subject = matched_subject[0]
+            new_substitution = self._check_constraint(transition, substitution, matched_subject)
+            if new_substitution is not None:
+                new_context = _MatchContext(subjects[i:], new_substitution, associative)
+                yield from self._match(transition.target, new_context)
+
+    def _match_commutative_operation(self, state: _State,
+                                     context: _MatchContext) -> Iterator[Tuple[_State, Substitution]]:
+        (subject, *rest), substitution, associative = context
+        matcher = state.matcher
+        for operand in subject.operands:
+            matcher.add_subject(operand)
+        for matched_pattern, new_substitution in matcher.match(subject.operands, substitution):
+            transition_set = state.transitions[matched_pattern]
+            for next_transition in transition_set:
+                eventual_substitution = self._check_constraint(next_transition, new_substitution, subject)
+                if eventual_substitution is not None:
+                    new_context = _MatchContext(rest, eventual_substitution, associative)
+                    yield from self._match(next_transition.target, new_context)
+
+    def _match_regular_operation(self, transition: _Transition,
+                                 context: _MatchContext) -> Iterator[Tuple[_State, Substitution]]:
+        (subject, *rest), substitution, associative = context
+        new_associative = transition.label if transition.label.associative else None
+        new_context = _MatchContext(subject.operands, substitution, new_associative)
+        for new_state, new_substitution in self._match(transition.target, new_context):
+            for transition in new_state.transitions[OPERATION_END]:
+                eventual_substitution = self._check_constraint(transition, new_substitution, subject)
+                if eventual_substitution is not None:
+                    new_context = _MatchContext(rest, eventual_substitution, associative)
+                    yield from self._match(transition.target, new_context)
+
+    def _create_state(self, matcher: 'CommutativeMatcher' =None) -> _State:
+        state = _State(dict(), set(), matcher)
+        self.states.append(state)
+        return state
+
+    @classmethod
+    def _collect_variable_renaming(
+            cls, expression: Expression, position: List[int]=None, variables: Dict[str, str]=None
+    ) -> Dict[str, str]:
+        """Return renaming for the variables in the expression.
+
+        The variable names are generated according to the position of the variable in the expression. The goal is to
+        rename variables in structurally identical patterns so that the automaton contains less redundant states.
+        """
+        if position is None:
+            position = [0]
+        if variables is None:
+            variables = {}
+        if isinstance(expression, Variable):
+            if expression.name not in variables:
+                variables[expression.name] = cls._get_name_for_position(position, variables.values())
+            expression = expression.expression
+        position[-1] += 1
+        if isinstance(expression, Operation):
+            if expression.commutative:
+                for operand in expression.operands:
+                    position.append(0)
+                    cls._collect_variable_renaming(operand, position, variables)
+                    position.pop()
+            else:
+                for operand in expression.operands:
+                    cls._collect_variable_renaming(operand, position, variables)
+
+        return variables
+
+    @staticmethod
+    def _get_name_for_position(position: List[int], variables: Container[str]) -> str:
+        new_name = 'i{}'.format('.'.join(map(str, position)))
+        if new_name in variables:
+            counter = 1
+            while '{}_{}'.format(new_name, counter) in variables:
+                counter += 1
+            new_name = '{}_{}'.format(new_name, counter)
+        return new_name
+
+    @staticmethod
+    def _check_constraint(transition: _Transition, substitution: Substitution,
+                          expression: Expression) -> Optional[Substitution]:
+        if transition.variable_name is not None:
             try:
-                first_subst = next(substitutions)
-                result = first_subst.union(*substitutions)
-                matched_expressions = Multiset(subexpression for subexpression, _ in matching)
-                yield result, matched_expressions
-            except (ValueError, StopIteration):
+                substitution = substitution.union_with_variable(transition.variable_name, expression)
+            except ValueError:
+                return None
+        if transition.constraint is None:
+            return substitution
+        return substitution if transition.constraint(substitution) else None
+
+
+Subgraph = BipartiteGraph[Tuple[int, int], Tuple[int, int], Substitution]
+Matching = Dict[Tuple[int, int], Tuple[int, int]]
+
+
+class CommutativeMatcher(object):
+    __slots__ = ('patterns', 'subjects', 'automaton', 'bipartite', 'associative')
+
+    def __init__(self, associative: Optional[type]) -> None:
+        self.patterns = {}
+        self.subjects = {}
+        self.automaton = ManyToOneMatcher()
+        self.bipartite = BipartiteGraph()
+        self.associative = associative
+
+    def add_pattern(self, operands: Iterable[FrozenExpression]) -> int:
+        pattern_set, pattern_vars = self._extract_sequence_wildcards(operands)
+        sorted_vars = tuple(sorted(pattern_vars.values()))
+        sorted_subpatterns = tuple(sorted(pattern_set))
+        pattern_key = sorted_subpatterns + sorted_vars
+        if pattern_key not in self.patterns:
+            inserted_id = len(self.patterns)
+            self.patterns[pattern_key] = (inserted_id, pattern_set, sorted_vars)
+        else:
+            inserted_id = self.patterns[pattern_key][0]
+        return inserted_id
+
+    def add_subject(self, subject: FrozenExpression) -> None:
+        if subject not in self.subjects:
+            subject_id, pattern_set = self.subjects[subject] = (len(self.subjects), set())
+            self.subjects[subject_id] = subject
+            context = _MatchContext((subject, ), Substitution(), self.associative)
+            for state, parts in self.automaton._match(self.automaton.root, context):
+                for pattern_index in state.patterns:
+                    variables = self.automaton.pattern_vars[pattern_index]
+                    substitution = Substitution((name, parts[index]) for name, index in variables.items())
+                    self.bipartite[subject_id, pattern_index] = substitution
+                    pattern_set.add(pattern_index)
+        else:
+            subject_id, _ = self.subjects[subject]
+        return subject_id
+
+    def match(self, subjects: Sequence[FrozenExpression],
+              substitution: Substitution) -> Iterator[Tuple[int, Substitution]]:
+        subject_ids = Multiset()
+        pattern_ids = Multiset()
+        for subject in subjects:
+            subject_id, subject_pattern_ids = self.subjects[subject]
+            subject_ids.add(subject_id)
+            pattern_ids.update(subject_pattern_ids)
+        for pattern_index, pattern_set, pattern_vars in self.patterns.values():
+            if pattern_set:
+                if not pattern_set <= pattern_ids:
+                    continue
+                bipartite_match_iter = self._match_with_bipartite(subject_ids, pattern_set, substitution)
+                for bipartite_substitution, matched_subjects in bipartite_match_iter:
+                    if pattern_vars:
+                        remaining_ids = subject_ids - matched_subjects
+                        remaining = Multiset(self.subjects[id] for id in remaining_ids)  # pylint: disable=not-an-iterable
+                        sequence_var_iter = self._match_sequence_variables(
+                            remaining, pattern_vars, bipartite_substitution
+                        )
+                        for result_substitution in sequence_var_iter:
+                            yield pattern_index, result_substitution
+                    elif len(subjects) == len(pattern_set):
+                        yield pattern_index, bipartite_substitution
+            elif pattern_vars:
+                sequence_var_iter = self._match_sequence_variables(Multiset(subjects), pattern_vars, substitution)
+                for variable_substitution in sequence_var_iter:
+                    yield pattern_index, variable_substitution
+            elif len(subjects) == 0:
+                yield pattern_index, substitution
+
+    def _extract_sequence_wildcards(self, operands: Iterable[Expression]
+                                   ) -> Tuple[Multiset[int], Dict[str, VariableWithCount]]:
+        pattern_set = Multiset()
+        pattern_vars = dict()
+        for operand in operands:
+            if not self._is_sequence_wildcard(operand):
+                pattern_set.add(self.automaton.add(operand))
+            else:
+                varname = getattr(operand, 'name', None)
+                wildcard = operand.expression if isinstance(operand, Variable) else operand
+                if varname is None:
+                    if varname in pattern_vars:
+                        _, _, min_count = pattern_vars[varname]
+                    else:
+                        min_count = 0
+                    pattern_vars[varname] = VariableWithCount(varname, 1, wildcard.min_count + min_count)
+                else:
+                    if varname in pattern_vars:
+                        _, count, _ = pattern_vars[varname]
+                    else:
+                        count = 0
+                    pattern_vars[varname] = VariableWithCount(varname, count + 1, wildcard.min_count)
+        return pattern_set, pattern_vars
+
+    def _is_sequence_wildcard(self, expression: Expression) -> bool:
+        if isinstance(expression, Variable):
+            expression = expression.expression
+        if isinstance(expression, SymbolWildcard):
+            return False
+        if isinstance(expression, Wildcard):
+            return not expression.fixed_size or self.associative
+        return False
+
+    def _match_with_bipartite(
+            self,
+            subject_ids: Multiset[int],
+            pattern_set: Multiset[int],
+            substitution: Substitution,
+    ) -> Iterator[Tuple[Substitution, Multiset[int]]]:
+        bipartite = self._build_bipartite(subject_ids, pattern_set)
+        for matching in enum_maximum_matchings_iter(bipartite):
+            if len(matching) < len(pattern_set):
+                break
+            if not self._is_canonical_matching(matching, subject_ids, pattern_set):
+                continue
+            try:
+                bipartite_substitution = substitution.union(*(bipartite[edge] for edge in matching.items()))
+            except ValueError:
+                continue
+            matched_subjects = Multiset(subexpression for subexpression, _ in matching)
+            yield bipartite_substitution, matched_subjects
+
+    @staticmethod
+    def _match_sequence_variables(
+            subjects: Multiset[FrozenExpression],
+            pattern_vars: Sequence[VariableWithCount],
+            substitution: Substitution,
+    ) -> Iterator[Substitution]:
+        for variable_substitution in commutative_sequence_variable_partition_iter(subjects, pattern_vars):
+            try:
+                print(variable_substitution)
+                yield substitution.union(variable_substitution)
+            except ValueError:
                 pass
 
-    def _build_bipartite(self, expressions: Multiset[FrozenExpression], patterns: Multiset[FrozenExpression]) \
-            -> Subgraph:
-        """Construct the bipartite graph for the specific match situation.
-
-        For the concrete matching, the bipartite graph must be limited to subexpressions and subpatterns actually
-        occurring in the concrete expression and pattern. This is equivalent to taking the subgraph induced by the
-        occurring subexpression and subpattern nodes.
-
-        However, since the same subexpression and subpatterns can occur multiple times (hence the multisets), their
-        corresponding nodes have to be multiplied by the number of occurrences. These nodes are labeled with a number
-        as well as the original expression, resulting in a tuple.
-
-        Args:
-            expressions:
-                The multiset of subexpressions of the concrete commutative expression.
-            patterns:
-                The multiset of subpatterns of the concrete commutative pattern.
-
-        Returns:
-            The multiplied induced bipartite subgraph for the concrete match situation.
-        """
-        bipartite = BipartiteGraph()  # type: Subgraph
-        for (expr, patt), m in self.bipartite.edges_with_value():
-            for i in range(expressions[expr]):
-                for j in range(patterns[patt]):
-                    bipartite[(expr, i), (patt, j)] = m
+    def _build_bipartite(self, subjects: Multiset[int], patterns: Multiset[int]) -> Subgraph:
+        bipartite = BipartiteGraph()
+        for (expression, pattern), substitution in self.bipartite.edges_with_value():
+            for i in range(subjects[expression]):
+                for j in range(patterns[pattern]):
+                    bipartite[(expression, i), (pattern, j)] = substitution
         return bipartite
 
     @staticmethod
-    def _is_canonical_matching(matching: SubgraphMatching) -> bool:
-        r"""Check if a matching is canonical.
-
-        In the bipartite graph build by :meth:`_build_bipartite`, nodes for expressions and patterns are labeled with
-        a number in addition to the expression or pattern itself. This is to handle multiple occurrences correctly.
-        Consider this example::
-
-            Expressions:    (g(a), 0)   (g(a), 1)
-                                |    \  /    |
-                                |     \/     |
-                                |     /\     |
-                                |    /  \    |
-            Patterns:       (g(x_), 0)  (g(x_), 1)
-
-        Here, there are two matchings in the bipartite graph, but both are equivalent. One matching uses the
-        diagonal edges, the other the straight ones. However, if we define a unique canonical matching then we can avoid
-        such duplications.
-
-        A canonical matching has only edges where the number on the expression is lower than or equal to the number on
-        the pattern. In the above example that applies to the matching with the straight edges only.
-
-        Args:
-            matching: The matching to check.
-
-        Returns:
-            ``True``, iff the matching is canonical.
-        """
-        for (_, i), (_, j) in matching.items():
-            if i > j:
-                return False
+    def _is_canonical_matching(matching: Matching, subject_ids: Multiset[int], pattern_set: Multiset[int]) -> bool:
+        inverted_matching = {p: s for s, p in matching.items()}
+        for (pattern_index, count) in sorted(pattern_set.items()):
+            _, previous_label = inverted_matching[pattern_index, 0]
+            for i in range(1, count):
+                _, label = inverted_matching[pattern_index, i]
+                if label < previous_label:
+                    return False
+                previous_label = label
+        for subject_id, count in subject_ids.items():
+            patterns = iter(matching.get((subject_id, i), (math.inf, math.inf)) for i in range(count))
+            last_pattern = next(patterns)
+            for next_pattern in patterns:
+                if next_pattern < last_pattern:
+                    return False
+                last_pattern = next_pattern
         return True
