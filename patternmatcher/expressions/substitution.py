@@ -83,36 +83,36 @@ class Substitution(Dict[str, VariableReplacement]):
         new_subst.try_add_variable(variable, replacement)
         return new_subst
 
-    def extract_substitution(self, expression: base.Expression, pattern: base.Expression) -> bool:
-        """Extract the variable substitution for the given pattern and expression.
+    def extract_substitution(self, subject: base.Expression, pattern: base.Expression) -> bool:
+        """Extract the variable substitution for the given pattern and subject.
 
-        This assumes that expression and pattern already match when being considered as linear.
+        This assumes that subject and pattern already match when being considered as linear.
         Also, they both must be :term:`syntactic`, as sequence variables cannot be handled here.
         All that this method does is checking whether all the substitutions for the variables can be unified.
         Also, this method mutates the substitution and might even do so in case the unification fails.
         So, in case it returns ``False``, the substitution is invalid for the match.
 
         Args:
-            expression:
-                A :term:`syntactic` expression that matches the pattern.
+            subject:
+                A :term:`syntactic` subject that matches the pattern.
             pattern:
-                A :term:`syntactic` pattern that matches the expression.
+                A :term:`syntactic` pattern that matches the subject.
 
         Returns:
             ``True`` iff the substitution could be extracted successfully.
         """
         if isinstance(pattern, expressions.Variable):
             try:
-                self.try_add_variable(pattern.name, expression)
+                self.try_add_variable(pattern.name, subject)
             except ValueError:
                 return False
-            return self.extract_substitution(expression, pattern.expression)
+            return True
         elif isinstance(pattern, expressions.Operation):
-            assert isinstance(expression, type(pattern))
-            assert len(expression.operands) == len(pattern.operands)
-            op_expression = cast(expressions.Operation, expression)
-            for expr, patt in zip(op_expression.operands, pattern.operands):
-                if not self.extract_substitution(expr, patt):
+            assert isinstance(subject, type(pattern))
+            assert len(subject.operands) == len(pattern.operands)
+            op_expression = cast(expressions.Operation, subject)
+            for subj, patt in zip(op_expression.operands, pattern.operands):
+                if not self.extract_substitution(subj, patt):
                     return False
         return True
 

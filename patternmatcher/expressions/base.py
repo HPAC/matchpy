@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Callable, Iterator, Optional, Set, Tuple, Dict
 from multiset import Multiset
 
 if TYPE_CHECKING:
-    from .constraints import Constraint
+    from .constraints import Constraint  # pylint: disable=unused-import
 else:
     Substitution = Dict[str, Union[Tuple['Expression', ...], Multiset['Expression'], 'Expression']]
     Constraint = Callable[[Substitution], bool]
@@ -91,7 +91,7 @@ class Expression(metaclass=ABCMeta):
         return self._is_linear(set())
 
     @staticmethod
-    def _is_linear(variables: Set[str]) -> bool:
+    def _is_linear(variables: Set[str]) -> bool:  # pylint: disable=unused-argument
         return True
 
     @property

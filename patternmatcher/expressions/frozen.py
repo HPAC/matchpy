@@ -1,4 +1,64 @@
 # -*- coding: utf-8 -*-
+"""Contains functions to make expressions :term:`frozen`, so that they become :term:`hashable`.
+
+Normal expressions are mutable and hence not :term:`hashable`:
+
+>>> expr = f(b, x_)
+>>> print(expr)
+f(b, x_)
+>>> expr.operands = [a, x_]
+>>> print(expr)
+f(a, x_)
+>>> hash(expr)
+Traceback (most recent call last):
+...
+TypeError: unhashable type: 'f'
+
+Use the `freeze()` function to freeze an expression and make it :term:`hashable`:
+
+>>> frozen = freeze(expr)
+>>> frozen == expr
+True
+>>> print(frozen)
+f(a, x_)
+>>> hash(frozen) == hash(frozen)
+True
+
+Attempting to modify a :term:`frozen` `.Expression` will raise an exception:
+
+>>> frozen.operands = [a]
+Traceback (most recent call last):
+...
+TypeError: Cannot modify a FrozenExpression
+
+You can check whether an expression is :term:`frozen` using `isinstance`:
+
+>>> isinstance(frozen, FrozenExpression)
+True
+>>> isinstance(expr, FrozenExpression)
+False
+
+Expressions can be unfrozen using `unfreeze()`:
+
+>>> unfrozen = unfreeze(frozen)
+>>> unfrozen == expr
+True
+>>> print(unfrozen)
+f(a, x_)
+
+This expression can be modified again:
+
+>>> unfrozen.operands = [a]
+>>> print(unfrozen)
+f(a)
+
+This does not affect the original expression or the :term:`frozen` one:
+
+>>> print(frozen)
+f(a, x_)
+>>> print(expr)
+f(a, x_)
+"""
 from abc import ABCMeta
 from typing import Iterable
 
@@ -47,11 +107,19 @@ class _FrozenOperationMeta(_FrozenMeta, _OperationMeta, ABCMeta):
         return cls._repr('FrozenOperation')
 
 
-class FrozenExpression(Expression, metaclass=_FrozenMeta):
+class FrozenExpression(Expression, metaclass=_FrozenMeta):  # pylint: disable=abstract-method,too-many-instance-attributes
     """Base class for :term:`frozen` expressions.
 
-    DO NOT instantiate this class directly, use :func:`freeze` instead!
-    Only use this class for :func:`isinstance` checks.
+    .. warning::
+
+        DO NOT instantiate this class directly, use :func:`freeze` instead!
+
+    Only use this class for :func:`isinstance` checks:
+
+    >>> isinstance(a, FrozenExpression)
+    False
+    >>> isinstance(freeze(a), FrozenExpression)
+    True
     """
     # pylint: disable=assigning-non-slot
 
@@ -65,6 +133,9 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):
     )
 
     def __new__(cls, expr: Expression, attributes_to_copy: Iterable[str]) -> 'FrozenExpression':
+        if cls is FrozenExpression:
+            raise TypeError('Cannot instantiate FrozenExpression class directly.')
+
         # This is a bit of a hack...
         # Copy all attributes of the original expression over to this instance
         # Use the _frozen attribute to lock changing attributes after the copying is done
@@ -105,6 +176,7 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):
         return self
 
     def __init__(self, expr, attributes_to_copy):  # pylint: disable=super-init-not-called
+        # All the work is done in __new__()
         pass
 
     def __setattr__(self, name, value):
@@ -115,35 +187,36 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):
 
     @slot_cached_property('cached_variables')
     def variables(self) -> Multiset[str]:
-        """Cached version of :attr:`Expression.variables`."""
+        """Cached version of :attr:`.Expression.variables`."""
         return super().variables
 
     @slot_cached_property('cached_symbols')
     def symbols(self) -> Multiset[str]:
-        """Cached version of :attr:`Expression.symbols`."""
+        """Cached version of :attr:`.Expression.symbols`."""
         return super().symbols
 
     @slot_cached_property('cached_is_constant')
     def is_constant(self) -> bool:
-        """Cached version of :attr:`Expression.is_constant`."""
+        """Cached version of :attr:`.Expression.is_constant`."""
         return super().is_constant
 
     @slot_cached_property('cached_is_syntactic')
     def is_syntactic(self) -> bool:
-        """Cached version of :attr:`Expression.is_syntactic`."""
+        """Cached version of :attr:`.Expression.is_syntactic`."""
         return super().is_syntactic
 
     @slot_cached_property('cached_is_linear')
     def is_linear(self) -> bool:
-        """Cached version of :attr:`Expression.is_linear`."""
+        """Cached version of :attr:`.Expression.is_linear`."""
         return super().is_linear
 
     @slot_cached_property('cached_without_constraints')
     def without_constraints(self) -> 'FrozenExpression':
-        """Cached version of :attr:`Expression.without_constraints`."""
+        """Cached version of :attr:`.Expression.without_constraints`."""
         return freeze(super().without_constraints)
 
     def with_renamed_vars(self, renaming) -> 'FrozenExpression':
+        """Frozen version of :meth:`.Expression.with_renamed_vars`."""
         return freeze(super().with_renamed_vars(renaming))
 
     def __hash__(self):
@@ -153,11 +226,16 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):
         return self._hash
 
 
-_frozen_type_cache = {}
+_frozen_type_cache = {}  # type: Dict[Type[Expression], Type[FrozenExpression]]
+"""Caches the frozen types generated for expression types."""
 
 
 def _frozen_new(cls, *args, **kwargs):
-    return freeze(cls._original_base(*args, **kwargs))
+    """__new__ for FrozenExpression subclasses.
+
+    Wraps the original base's constructor in a call to freeze().
+    """
+    return freeze(cls._original_base(*args, **kwargs))  # pylint: disable=protected-access
 
 
 def freeze(expression: Expression) -> FrozenExpression:
@@ -221,9 +299,9 @@ def unfreeze(expression: FrozenExpression) -> Expression:
     if isinstance(expression, Variable):
         return Variable(expression.name, unfreeze(expression.expression), expression.constraint)
     if isinstance(expression, Symbol):
-        return expression._original_base(expression.name)
+        return expression._original_base(expression.name)  # pylint: disable=protected-access
     if isinstance(expression, Operation):
-        return expression._original_base.from_args(
+        return expression._original_base.from_args(  # pylint: disable=protected-access
             *map(unfreeze, expression.operands), constraint=expression.constraint
         )
     assert False, "Unreachable, unless new types of expressions are added that are unsupported"
