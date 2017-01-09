@@ -5,11 +5,11 @@ import hypothesis.strategies as st
 from hypothesis import assume, example, given
 import pytest
 
-from patternmatcher.expressions import (Arity, Atom, Operation, Symbol,
+from matchpy.expressions import (Arity, Atom, Operation, Symbol,
                                         Variable, Wildcard, freeze)
-from patternmatcher.matching.one_to_one import match
-from patternmatcher.matching.syntactic import OPERATION_END as OP_END
-from patternmatcher.matching.syntactic import (DiscriminationNet, FlatTerm,
+from matchpy.matching.one_to_one import match
+from matchpy.matching.syntactic import OPERATION_END as OP_END
+from matchpy.matching.syntactic import (DiscriminationNet, FlatTerm,
                                                SequenceMatcher, is_operation,
                                                is_symbol_wildcard)
 

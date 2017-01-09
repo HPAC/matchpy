@@ -14,24 +14,24 @@ goto :eof
 goto :eof
 
 :test
-	py.test tests\ --doctest-modules patternmatcher\ README.rst
+	py.test tests\ --doctest-modules matchpy\ README.rst
 goto :eof
 
 :doctest
-	py.test --doctest-modules -k "not tests" patternmatcher\ README.rst
+	py.test --doctest-modules -k "not tests" matchpy\ README.rst
 goto :eof
 
 :check
-	pylint patternmatcher
+	pylint matchpy
 goto :eof
 
 :coverage
-	py.test --cov=patternmatcher --cov-report html --cov-report term tests\
+	py.test --cov=matchpy --cov-report html --cov-report term tests\
 goto :eof
 
 :apidocs
 	rmdir /s /q docs\api
-	sphinx-apidoc -e -T -o docs\api patternmatcher
+	sphinx-apidoc -e -T -o docs\api matchpy
 goto :docs
 
 :docs

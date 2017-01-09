@@ -2,20 +2,20 @@ init:
 	pip install -r requirements.txt
 
 test:
-	py.test tests/ --doctest-modules patternmatcher/ README.rst
+	py.test tests/ --doctest-modules matchpy/ README.rst
 
 doctest:
-	py.test --doctest-modules -k "not tests" patternmatcher/ README.rst
+	py.test --doctest-modules -k "not tests" matchpy/ README.rst
 
 check:
-	pylint patternmatcher
+	pylint matchpy
 
 coverage:
-	py.test --cov=patternmatcher --cov-report html --cov-report term tests/
+	py.test --cov=matchpy --cov-report html --cov-report term tests/
 
 api-docs:
 	rmdir docs/api
-	sphinx-apidoc -n -e -T -o docs/api patternmatcher
+	sphinx-apidoc -n -e -T -o docs/api matchpy
 	make docs
 
 docs:

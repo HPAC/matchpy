@@ -6,7 +6,7 @@ from unittest.mock import Mock
 import pytest
 from multiset import Multiset
 
-from patternmatcher.expressions import (Arity, FrozenExpression, Operation,
+from matchpy.expressions import (Arity, FrozenExpression, Operation,
                                         Substitution, Symbol, SymbolWildcard,
                                         Variable, Wildcard, freeze, unfreeze)
 
@@ -513,5 +513,5 @@ class TestFrozenExpression:
             frozen.operands = [a, b]
 
 if __name__ == '__main__':
-    import patternmatcher.expressions as tested_module
+    import matchpy.expressions as tested_module
     pytest.main(['--doctest-modules', __file__, tested_module.__file__])

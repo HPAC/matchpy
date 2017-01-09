@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 import pytest
 
-from patternmatcher.expressions import (Arity, CustomConstraint,
+from matchpy.expressions import (Arity, CustomConstraint,
                                         MultiConstraint, Operation, Symbol,
                                         Variable, Wildcard, freeze)
-from patternmatcher.matching.many_to_one import ManyToOneMatcher
-from patternmatcher.matching.common import CommutativePatternsParts
+from matchpy.matching.many_to_one import ManyToOneMatcher
+from matchpy.matching.common import CommutativePatternsParts
 
 f = Operation.new('f', Arity.variadic)
 f2 = Operation.new('f2', Arity.variadic)
@@ -233,5 +233,5 @@ class TestAutomaton:
 
 
 if __name__ == '__main__':
-    import patternmatcher.matching as tested_module
+    import matchpy.matching as tested_module
     pytest.main(['--doctest-modules', __file__, tested_module.__file__])

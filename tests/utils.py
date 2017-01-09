@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from patternmatcher.expressions import Constraint
+from matchpy.expressions import Constraint
 
 class MockConstraint(Constraint):
     def __init__(self, return_value):

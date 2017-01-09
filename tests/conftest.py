@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 import pytest
 
-from patternmatcher.expressions import Operation, Wildcard
-from patternmatcher.matching.one_to_one import match as match_one_to_one
-from patternmatcher.matching.many_to_one import ManyToOneMatcher
+from matchpy.expressions import Operation, Wildcard
+from matchpy.matching.one_to_one import match as match_one_to_one
+from matchpy.matching.many_to_one import ManyToOneMatcher
 
 def pytest_generate_tests(metafunc):
     if 'match' in metafunc.fixturenames:

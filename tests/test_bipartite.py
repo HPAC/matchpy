@@ -6,7 +6,7 @@ import hypothesis.strategies as st
 from hypothesis import given
 import pytest
 
-from patternmatcher.matching.bipartite import (BipartiteGraph,
+from matchpy.matching.bipartite import (BipartiteGraph,
                                                _DirectedMatchGraph,
                                                enum_maximum_matchings_iter)
 
@@ -141,5 +141,5 @@ class TestBipartiteGraphTest:
 
 
 if __name__ == '__main__':
-    import patternmatcher.bipartite as tested_module
+    import matchpy.bipartite as tested_module
     pytest.main(['--doctest-modules', __file__, tested_module.__file__])

@@ -7,7 +7,7 @@ from hypothesis import assume, example, given
 import pytest
 from multiset import Multiset
 
-from patternmatcher.utils import (VariableWithCount, base_solution_linear,
+from matchpy.utils import (VariableWithCount, base_solution_linear,
                                   cached_property,
                                   commutative_sequence_variable_partition_iter,
                                   extended_euclid, fixed_integer_vector_iter,
@@ -249,5 +249,5 @@ def test_cached_property():
     assert A.example.__doc__ == "Docstring Test"
 
 if __name__ == '__main__':
-    import patternmatcher.utils as tested_module
+    import matchpy.utils as tested_module
     pytest.main(['--doctest-modules', __file__, tested_module.__file__])

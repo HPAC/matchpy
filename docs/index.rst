@@ -1,4 +1,4 @@
-patternmatcher
+matchpy
 ==============
 
 Contents:
@@ -8,7 +8,7 @@ Contents:
    :glob:
    :titlesonly:
 
-   api/patternmatcher
+   api/matchpy
    glossary
 
 Indices and tables

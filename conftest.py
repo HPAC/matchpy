@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 import pytest
 
-from patternmatcher.expressions import Operation, Symbol, Variable, Arity, Wildcard
-import patternmatcher
+from matchpy.expressions import Operation, Symbol, Variable, Arity, Wildcard
+import matchpy
 
 @pytest.fixture(autouse=True)
 def add_default_expressions(doctest_namespace):
@@ -17,5 +17,5 @@ def add_default_expressions(doctest_namespace):
     doctest_namespace['___'] = Wildcard.star()
     doctest_namespace['__name__'] = '__main__'
 
-    for name in patternmatcher.__all__:
-        doctest_namespace[name] = getattr(patternmatcher, name)
+    for name in matchpy.__all__:
+        doctest_namespace[name] = getattr(matchpy, name)

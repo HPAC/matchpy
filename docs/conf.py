@@ -302,7 +302,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'patternmatcher', 'Pattern Matcher Documentation',
+    (master_doc, 'matchpy', 'Pattern Matcher Documentation',
      [author], 1)
 ]
 

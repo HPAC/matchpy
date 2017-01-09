@@ -1,4 +1,4 @@
-patternmatcher
+matchpy
 ==============
 
 A pattern matching libary for python.
@@ -20,7 +20,7 @@ Expressions
 Expressions and patterns both have a tree structure. Expressions consist of symbols (leafs) and operations
 (internal nodes)::
 
-    >>> from patternmatcher.expressions import Operation, Symbol, Arity
+    >>> from matchpy.expressions import Operation, Symbol, Arity
     >>> f = Operation.new('f', Arity.binary)
     >>> a = Symbol('a')
     >>> print(f(a, a))
@@ -30,14 +30,14 @@ Patterns are expressions which can additionally contain variables and wildcards.
 name to a node of the pattern so that it can be accessed later. Wildcards are placeholders that stand for any
 expression. Usually, the two are used in combination::
 
-    >>> from patternmatcher.expressions import Variable
+    >>> from matchpy.expressions import Variable
     >>> x = Variable.dot('x')
     >>> print(f(a, x))
     f(a, x_)
 
 However, unnamed wildcards can also be used::
 
-    >>> from patternmatcher.expressions import Wildcard
+    >>> from matchpy.expressions import Wildcard
     >>> w = Wildcard.dot()
     >>> print(f(w, w))
     f(_, _)
@@ -59,7 +59,7 @@ Substitutions
 
 Matches are given in the form of substitutions, which are a mapping from variable names to expressions::
 
-    >>> from patternmatcher.matching.one_to_one import match
+    >>> from matchpy.matching.one_to_one import match
     >>> y = Variable.dot('y')
     >>> b = Symbol('b')
     >>> expression = f(a, b)
@@ -70,20 +70,20 @@ Matches are given in the form of substitutions, which are a mapping from variabl
 
 Replacing the variables in the pattern according to the substitution will yield the original subject expression::
 
-    >>> from patternmatcher.functions import substitute
+    >>> from matchpy.functions import substitute
     >>> original, _ = substitute(pattern, substitution)
     >>> print(original)
     f(a, b)
 
 
-.. |coverage| image:: https://coveralls.io/repos/github/wheerd/patternmatcher/badge.svg?branch=master
-    :target: https://coveralls.io/github/wheerd/patternmatcher?branch=master
+.. |coverage| image:: https://coveralls.io/repos/github/wheerd/matchpy/badge.svg?branch=master
+    :target: https://coveralls.io/github/wheerd/matchpy?branch=master
     :alt: Test coverage
 
-.. |build| image:: https://travis-ci.org/wheerd/patternmatcher.svg?branch=master
-    :target: https://travis-ci.org/wheerd/patternmatcher
+.. |build| image:: https://travis-ci.org/wheerd/matchpy.svg?branch=master
+    :target: https://travis-ci.org/wheerd/matchpy
     :alt: Build status of the master branch
 
-.. |docs| image:: https://readthedocs.org/projects/patternmatcher/badge/?version=latest
-    :target: http://patternmatcher.readthedocs.io/en/latest/?badge=latest
+.. |docs| image:: https://readthedocs.org/projects/matchpy/badge/?version=latest
+    :target: http://matchpy.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status

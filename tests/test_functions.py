@@ -4,11 +4,11 @@ from hypothesis import assume, given
 import pytest
 from multiset import Multiset
 
-from patternmatcher.expressions import (Arity, Constraint, Operation, Symbol,
+from matchpy.expressions import (Arity, Constraint, Operation, Symbol,
                                         Variable, Wildcard, freeze)
-from patternmatcher.functions import (ReplacementRule, replace, replace_all,
+from matchpy.functions import (ReplacementRule, replace, replace_all,
                                       substitute)
-from patternmatcher.matching.one_to_one import match_anywhere
+from matchpy.matching.one_to_one import match_anywhere
 
 from .utils import MockConstraint
 
@@ -557,7 +557,7 @@ class TestMatch:
         constraint4.assert_called_with({'x': a, 'y': b})
 
     def test_wildcard_internal_match(self):
-        from patternmatcher.matching.common import _match
+        from matchpy.matching.common import _match
 
         matches = list(_match([a, b], x_, {}))
         assert matches == []
@@ -807,5 +807,5 @@ def test_logic_simplify():
 
 
 if __name__ == '__main__':
-    import patternmatcher.functions as tested_module
+    import matchpy.functions as tested_module
     pytest.main(['--doctest-modules', __file__, tested_module.__file__])

@@ -1,7 +1,7 @@
-patternmatcher.functions module
+matchpy.expressions.base module
 ===============================
 
-.. automodule:: patternmatcher.functions
+.. automodule:: matchpy.expressions.base
     :members:
     :undoc-members:
     :show-inheritance:

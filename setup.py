@@ -1,23 +1,46 @@
 # -*- coding: utf-8 -*-
+import os.path
 
-from setuptools import setup, find_packages
+from setuptools import setup
 
+root = os.path.dirname(__file__)
 
-with open('README.rst') as f:
+with open(os.path.join(root, 'README.rst')) as f:
     readme = f.read()
 
-with open('LICENSE') as f:
-    license = f.read()
 
 setup(
-    name="patternmatcher",
-    version='0.0.1',
-    description="A pattern matching library",
+    name="matchpy",
+    use_scm_version=True,
+    description="A pattern matching library.",
     long_description=readme,
     author="Manuel Krebber",
     author_email="admin@wheerd.de",
-    url="TODO",
-    license=license,
-    packages=find_packages(exclude=('tests', 'docs'))
+    url='https://github.com/wheerd/matchpy',
+    license='MIT',
+    zip_safe=True,
+    py_modules=['matchpy', 'matchpy.expressions', 'matchpy.matching'],
+    test_suite='tests',
+    classifiers=[
+        'Development Status :: 3 - Alpha',
+        'Intended Audience :: Developers',
+        'License :: OSI Approved :: MIT License',
+        'Programming Language :: Python',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.6'
+    ],
+    setup_requires=[
+        'setuptools_scm >= 1.7.0',
+        'pytest-runner'
+    ],
+    tests_require=[
+        'pytest',
+        'hypothesis',
+    ],
+    install_requires=[
+        'graphviz>=0.5,<0.6',
+        'hopcroftkarp>=1.2,<2.0',
+        'multiset>=1.0,<2.0'
+    ]
 )
 
