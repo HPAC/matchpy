@@ -16,7 +16,7 @@ setup(
     long_description=readme,
     author="Manuel Krebber",
     author_email="admin@wheerd.de",
-    url='https://github.com/wheerd/matchpy',
+    url='https://github.com/HPAC/matchpy',
     license='MIT',
     zip_safe=True,
     py_modules=['matchpy', 'matchpy.expressions', 'matchpy.matching'],

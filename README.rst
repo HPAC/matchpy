@@ -80,8 +80,8 @@ Replacing the variables in the pattern according to the substitution will yield 
     :target: https://coveralls.io/github/wheerd/matchpy?branch=master
     :alt: Test coverage
 
-.. |build| image:: https://travis-ci.org/wheerd/matchpy.svg?branch=master
-    :target: https://travis-ci.org/wheerd/matchpy
+.. |build| image:: https://travis-ci.org/HPAC/matchpy.svg?branch=master
+    :target: https://travis-ci.org/HPAC/matchpy
     :alt: Build status of the master branch
 
 .. |docs| image:: https://readthedocs.org/projects/matchpy/badge/?version=latest
