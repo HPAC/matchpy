@@ -76,8 +76,8 @@ Replacing the variables in the pattern according to the substitution will yield 
     f(a, b)
 
 
-.. |coverage| image:: https://coveralls.io/repos/github/wheerd/matchpy/badge.svg?branch=master
-    :target: https://coveralls.io/github/wheerd/matchpy?branch=master
+.. |coverage| image:: https://coveralls.io/repos/github/HPAC/matchpy/badge.svg?branch=master
+    :target: https://coveralls.io/github/HPAC/matchpy?branch=master
     :alt: Test coverage
 
 .. |build| image:: https://travis-ci.org/HPAC/matchpy.svg?branch=master
