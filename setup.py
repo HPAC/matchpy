@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import os.path
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 root = os.path.dirname(__file__)
 
@@ -19,7 +19,7 @@ setup(
     url='https://github.com/HPAC/matchpy',
     license='MIT',
     zip_safe=True,
-    py_modules=['matchpy', 'matchpy.expressions', 'matchpy.matching'],
+    packages=find_packages(exclude=('tests', )),
     test_suite='tests',
     classifiers=[
         'Development Status :: 3 - Alpha',
