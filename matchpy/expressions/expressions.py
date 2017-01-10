@@ -26,7 +26,7 @@ class _ArityMeta(TupleMeta, EnumMeta):
 _ArityBase = NamedTuple('_ArityBase', [('min_count', int), ('fixed_size', bool)])
 
 
-class Arity(_ArityBase, Enum, metaclass=_ArityMeta, _root=True):
+class Arity(_ArityBase, Enum, metaclass=_ArityMeta):
     """Arity of an operator as (`int`, `bool`) tuple.
 
     The first component is the minimum number of operands.

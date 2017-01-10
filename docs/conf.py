@@ -339,7 +339,7 @@ texinfo_documents = [
 # texinfo_no_detailmenu = False
 
 intersphinx_mapping = {
-    'python': ('https://docs.python.org/3.5', None),
+    'python': ('https://docs.python.org/3.6', None),
     'multiset': ('http://multiset.readthedocs.io/en/latest/', None),
 }
 

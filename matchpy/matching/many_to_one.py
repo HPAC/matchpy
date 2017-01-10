@@ -24,7 +24,7 @@ f(y_, b) matched with {y ↦ a}
 
 import math
 from collections import deque
-from typing import (Container, Dict, Iterable, Iterator, List, NamedTuple, Optional, Sequence, Set, Tuple, Union)
+from typing import (Container, Dict, Iterable, Iterator, List, NamedTuple, Optional, Sequence, Set, Tuple, Type, Union)
 
 from graphviz import Digraph
 from multiset import Multiset
@@ -39,8 +39,8 @@ from .syntactic import OPERATION_END, is_operation
 
 __all__ = ['ManyToOneMatcher']
 
-LabelType = Union[FrozenExpression, type]  # TODO: in py 3.6 properly use Type[]
-HeadType = Optional[Union[FrozenExpression, type]]  # TODO: in py 3.6 properly use Type[]
+LabelType = Union[FrozenExpression, Type[Operation]]
+HeadType = Optional[Union[FrozenExpression, Type[Operation], Type[Symbol]]]
 
 _State = NamedTuple('_State', [
     ('transitions', Dict[LabelType, '_Transition']),
