@@ -221,7 +221,6 @@ class ManyToOneMatcher:
                     transition.variable_name == variable_name and
                     transition.label == label):
                 state = transition.target
-                matcher = state.matcher
                 break
         else:
             if commutative:

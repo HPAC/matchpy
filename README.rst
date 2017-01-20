@@ -1,11 +1,11 @@
 matchpy
-==============
+=======
 
 A pattern matching libary for python.
 
 **Work in progress**
 
-|coverage| |build| |docs|
+|pypi| |coverage| |build| |docs|
 
 Overview
 --------
@@ -75,6 +75,10 @@ Replacing the variables in the pattern according to the substitution will yield 
     >>> print(original)
     f(a, b)
 
+
+.. |pypi| image:: https://img.shields.io/pypi/v/matchpy.svg?style=flat-square&label=latest%20version
+    :target: https://pypi.python.org/pypi/matchpy
+    :alt: Latest version released on PyPi
 
 .. |coverage| image:: https://coveralls.io/repos/github/HPAC/matchpy/badge.svg?branch=master
     :target: https://coveralls.io/github/HPAC/matchpy?branch=master
