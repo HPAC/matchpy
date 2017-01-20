@@ -57,6 +57,15 @@ class _OperationMeta(ABCMeta):
     and clashes with the `.FrozenOperation` class.
     """
 
+    def __init__(cls, name, bases, dct):
+        super(_OperationMeta, cls).__init__(name, bases, dct)
+
+        if cls.arity[1] and cls.one_identity:
+            raise TypeError('{}: An operation with fixed arity cannot have one_identity = True.'.format(name))
+
+        if cls.arity == Arity.unary and cls.infix:
+            raise TypeError('{}: Unary operations cannot use infix notation.'.format(name))
+
     def _repr(cls, name):  # pragma: no cover
         flags = []
         if cls.associative:
@@ -249,7 +258,8 @@ class Operation(Expression, metaclass=_OperationMeta):
 
     def __str__(self):
         if self.infix:
-            value = '({!s})'.format((' {!s} '.format(self.name)).join(str(o) for o in self.operands))
+            separator = ' {!s} '.format(self.name) if self.name else ''
+            value = '({!s})'.format(separator.join(str(o) for o in self.operands))
         else:
             value = '{!s}({!s})'.format(self.name, ', '.join(str(o) for o in self.operands))
         if self.constraint:
