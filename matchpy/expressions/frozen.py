@@ -269,7 +269,7 @@ def freeze(expression: Expression) -> FrozenExpression:
         attributes_to_copy = set()
         if hasattr(type(expression), '__slots__'):
             for cls in base.__mro__:
-                if not cls.__module__.startswith(_module_name):
+                if not cls.__module__.startswith(_module_name) and cls is not object:
                     if '__slots__' not in cls.__dict__:
                         attributes_to_copy.add('__dict__')
                     else:
