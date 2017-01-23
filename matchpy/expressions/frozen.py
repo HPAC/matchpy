@@ -268,9 +268,12 @@ def freeze(expression: Expression) -> FrozenExpression:
 
         attributes_to_copy = set()
         if hasattr(type(expression), '__slots__'):
-            attributes_to_copy.update(
-                *(getattr(cls, '__slots__', []) for cls in base.__mro__ if not cls.__module__.startswith(_module_name))
-            )
+            for cls in base.__mro__:
+                if not cls.__module__.startswith(_module_name):
+                    if '__slots__' not in cls.__dict__:
+                        attributes_to_copy.add('__dict__')
+                    else:
+                        attributes_to_copy.update(cls.__slots__)
         _frozen_type_cache[base] = (frozen_class, attributes_to_copy)
     else:
         frozen_class, attributes_to_copy = _frozen_type_cache[base]
