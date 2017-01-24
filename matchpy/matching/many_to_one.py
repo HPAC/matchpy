@@ -31,10 +31,10 @@ from typing import (Container, Dict, Iterable, Iterator, List, NamedTuple, Optio
 from graphviz import Digraph
 from multiset import Multiset
 
-from ..expressions import (
-    Constraint, Expression, FrozenExpression, MultiConstraint, Operation, Substitution, Symbol, SymbolWildcard,
-    Variable, Wildcard, freeze
-)
+from ..expressions.expressions import (Expression, Operation, Symbol, SymbolWildcard, Variable, Wildcard)
+from ..expressions.constraints import Constraint, MultiConstraint
+from ..expressions.substitution import Substitution
+from ..expressions.frozen import freeze, FrozenExpression
 from ..utils import (VariableWithCount, commutative_sequence_variable_partition_iter)
 from .bipartite import BipartiteGraph, enum_maximum_matchings_iter
 from .syntactic import OPERATION_END, is_operation
@@ -583,8 +583,8 @@ class CommutativeMatcher(object):
                 last_pattern = next_pattern
         return True
 
-class SecondaryAutomaton():
 
+class SecondaryAutomaton():
     def __init__(self, k):
         self.k = k
         self.states = self._build(k)
@@ -643,5 +643,3 @@ class SecondaryAutomaton():
                 graph.edge(str(state), str(target), label)
 
         return graph
-
-

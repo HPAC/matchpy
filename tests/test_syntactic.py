@@ -5,8 +5,9 @@ import hypothesis.strategies as st
 from hypothesis import assume, example, given
 import pytest
 
-from matchpy.expressions import (Arity, Atom, Operation, Symbol,
-                                        Variable, Wildcard, freeze)
+from matchpy.expressions.expressions import (Arity, Atom, Operation, Symbol,
+                                        Variable, Wildcard)
+from matchpy.expressions.frozen import freeze
 from matchpy.matching.one_to_one import match
 from matchpy.matching.syntactic import OPERATION_END as OP_END
 from matchpy.matching.syntactic import (DiscriminationNet, FlatTerm,

@@ -6,9 +6,12 @@ from unittest.mock import Mock
 import pytest
 from multiset import Multiset
 
-from matchpy.expressions import (Arity, FrozenExpression, Operation,
-                                        Substitution, Symbol, SymbolWildcard,
-                                        Variable, Wildcard, freeze, unfreeze)
+from matchpy.expressions.expressions import (Arity, Operation,
+                                        Symbol, SymbolWildcard,
+                                        Variable, Wildcard)
+from matchpy.expressions.substitution import Substitution
+from matchpy.expressions.frozen import freeze, unfreeze, FrozenExpression
+
 
 from .utils import MockConstraint
 
@@ -439,6 +442,10 @@ class CustomSymbolWithDict(Symbol):
         super().__init__(name)
         self.custom = 42
 
+    def copy_to(self, other):
+        super().copy_to(other)
+        other.custom = self.custom
+
 
 class CustomSymbolWithoutDict(Symbol):
     __slots__ = ('custom', )
@@ -446,6 +453,10 @@ class CustomSymbolWithoutDict(Symbol):
     def __init__(self, name):
         super().__init__(name)
         self.custom = 42
+
+    def copy_to(self, other):
+        super().copy_to(other)
+        other.custom = self.custom
 
 class TestFrozenExpression:
     BUILTIN_PROPERTIES = ['is_constant', 'is_syntactic', 'is_linear', 'symbols', 'variables']

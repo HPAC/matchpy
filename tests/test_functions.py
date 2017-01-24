@@ -4,8 +4,10 @@ from hypothesis import assume, given
 import pytest
 from multiset import Multiset
 
-from matchpy.expressions import (Arity, Constraint, Operation, Symbol,
-                                        Variable, Wildcard, freeze)
+from matchpy.expressions.expressions import (Arity, Operation, Symbol,
+                                        Variable, Wildcard)
+from matchpy.expressions.constraints import Constraint
+from matchpy.expressions.frozen import freeze
 from matchpy.functions import (ReplacementRule, replace, replace_all,
                                       substitute)
 from matchpy.matching.one_to_one import match_anywhere

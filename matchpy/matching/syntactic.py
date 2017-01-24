@@ -4,7 +4,9 @@ from typing import (Any, Dict, FrozenSet, Generic, Iterator, List, Optional, Seq
 
 from graphviz import Digraph
 
-from ..expressions import (Expression, Operation, Substitution, Symbol, SymbolWildcard, Variable, Wildcard, freeze)
+from ..expressions.expressions import (Expression, Operation, Symbol, SymbolWildcard, Variable, Wildcard)
+from ..expressions.substitution import Substitution
+from ..expressions.frozen import freeze
 from ..utils import cached_property
 
 __all__ = ['FlatTerm', 'is_operation', 'is_symbol_wildcard', 'DiscriminationNet', 'SequenceMatcher']

@@ -3,10 +3,10 @@ from typing import (Callable, Dict, Iterable, Iterator, List, NamedTuple, Option
 
 from multiset import Multiset
 
-from ..expressions import (
-    Expression, FrozenExpression, Operation, Substitution, Symbol, SymbolWildcard, Variable, Wildcard, Constraint,
-    MultiConstraint
-)
+from ..expressions.expressions import (Expression, Operation, Symbol, SymbolWildcard, Variable, Wildcard)
+from ..expressions.constraints import Constraint, MultiConstraint
+from ..expressions.substitution import Substitution
+from ..expressions.frozen import freeze, FrozenExpression
 from ..utils import (
     VariableWithCount, commutative_sequence_variable_partition_iter, fixed_integer_vector_iter,
     integer_partition_vector_iter, generator_chain

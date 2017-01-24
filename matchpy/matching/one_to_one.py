@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 from typing import Iterator, Tuple
 
-from ..expressions import Expression, Substitution, freeze
+from ..expressions.expressions import Expression
+from ..expressions.substitution import Substitution
+from ..expressions.frozen import freeze
 from .common import _match
 
 __all__ = ['match', 'match_anywhere']

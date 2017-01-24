@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 import pytest
 
-from matchpy.expressions import (Arity, CustomConstraint,
-                                        MultiConstraint, Operation, Symbol,
-                                        Variable, Wildcard, freeze)
+from matchpy.expressions.expressions import (Arity,  Operation, Symbol,
+                                        Variable, Wildcard)
+from matchpy.expressions.constraints import CustomConstraint, MultiConstraint
+from matchpy.expressions.frozen import freeze
 from matchpy.matching.many_to_one import ManyToOneMatcher
 from matchpy.matching.common import CommutativePatternsParts
 

@@ -64,9 +64,8 @@ from typing import Iterable
 
 from multiset import Multiset
 
-from .base import Expression
-from .expressions import _OperationMeta, Operation, Variable, Wildcard, Symbol, SymbolWildcard
-from ..utils import slot_cached_property
+from .expressions import Expression, _OperationMeta, Operation, Variable, Wildcard, Symbol, SymbolWildcard
+from ..utils import cached_property
 
 __all__ = ['FrozenExpression', 'freeze', 'unfreeze']
 
@@ -99,8 +98,7 @@ class _FrozenOperationMeta(_FrozenMeta, _OperationMeta, ABCMeta):
         """
         for base in cls.__mro__:
             if isinstance(base, _OperationMeta) and not isinstance(base, _FrozenMeta):
-                attributes_to_copy = _frozen_type_cache[base][1]
-                return FrozenExpression.__new__(cls, base(*args, **kwargs), attributes_to_copy)
+                return FrozenExpression.__new__(cls, base(*args, **kwargs))
         assert False, "unreachable, unless an invalid frozen operation subclass was created manually"
 
     def __repr__(cls):
@@ -121,18 +119,8 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):  # pylint: disable=ab
     >>> isinstance(freeze(a), FrozenExpression)
     True
     """
-    # pylint: disable=assigning-non-slot
 
-    __slots__ = ()
-
-    # These are only added in the subclasses, because otherwise they would conflict with the ones of the
-    # Expression (subclasses)
-    _actual_slots = (
-        '_frozen', 'cached_variables', 'cached_symbols', 'cached_is_constant', 'cached_is_syntactic',
-        'cached_is_linear', 'cached_without_constraints', '_hash'
-    )
-
-    def __new__(cls, expr: Expression, attributes_to_copy: Iterable[str]) -> 'FrozenExpression':
+    def __new__(cls, expr: Expression) -> 'FrozenExpression':
         if cls is FrozenExpression:
             raise TypeError('Cannot instantiate FrozenExpression class directly.')
 
@@ -142,40 +130,22 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):  # pylint: disable=ab
         self = Expression.__new__(cls)
 
         object.__setattr__(self, '_frozen', False)
-        self.constraint = expr.constraint
+        expr.copy_to(self)
 
         if isinstance(expr, Operation):
             self.operands = tuple(freeze(e) for e in expr.operands)
             self.head = expr.head
         elif isinstance(expr, Symbol):
-            self.name = expr.name
             self.head = self
         elif isinstance(expr, Variable):
-            self.name = expr.name
             self.expression = freeze(expr.expression)
             self.head = self.expression.head
-        elif isinstance(expr, Wildcard):
-            self.min_count = expr.min_count
-            self.fixed_size = expr.fixed_size
-            self.head = None
-            if isinstance(expr, SymbolWildcard):
-                self.symbol_type = expr.symbol_type
-        else:
-            assert False, "Unreachable, unless new types of expressions are added which are not supported"
-
-        for attribute in attributes_to_copy:
-            setattr(self, attribute, getattr(expr, attribute))
-
-        if hasattr(expr, '__dict__'):
-            for attribute in expr.__dict__:
-                if attribute != '__dict__':
-                    setattr(self, attribute, getattr(expr, attribute))
 
         object.__setattr__(self, '_frozen', True)
 
         return self
 
-    def __init__(self, expr, attributes_to_copy):  # pylint: disable=super-init-not-called
+    def __init__(self, expr):  # pylint: disable=super-init-not-called
         # All the work is done in __new__()
         pass
 
@@ -185,32 +155,7 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):  # pylint: disable=ab
         else:
             object.__setattr__(self, name, value)
 
-    @slot_cached_property('cached_variables')
-    def variables(self) -> Multiset[str]:
-        """Cached version of :attr:`.Expression.variables`."""
-        return super().variables
-
-    @slot_cached_property('cached_symbols')
-    def symbols(self) -> Multiset[str]:
-        """Cached version of :attr:`.Expression.symbols`."""
-        return super().symbols
-
-    @slot_cached_property('cached_is_constant')
-    def is_constant(self) -> bool:
-        """Cached version of :attr:`.Expression.is_constant`."""
-        return super().is_constant
-
-    @slot_cached_property('cached_is_syntactic')
-    def is_syntactic(self) -> bool:
-        """Cached version of :attr:`.Expression.is_syntactic`."""
-        return super().is_syntactic
-
-    @slot_cached_property('cached_is_linear')
-    def is_linear(self) -> bool:
-        """Cached version of :attr:`.Expression.is_linear`."""
-        return super().is_linear
-
-    @slot_cached_property('cached_without_constraints')
+    @cached_property
     def without_constraints(self) -> 'FrozenExpression':
         """Cached version of :attr:`.Expression.without_constraints`."""
         return freeze(super().without_constraints)
@@ -218,12 +163,6 @@ class FrozenExpression(Expression, metaclass=_FrozenMeta):  # pylint: disable=ab
     def with_renamed_vars(self, renaming) -> 'FrozenExpression':
         """Frozen version of :meth:`.Expression.with_renamed_vars`."""
         return freeze(super().with_renamed_vars(renaming))
-
-    def __hash__(self):
-        # pylint: disable=no-member
-        if not hasattr(self, '_hash'):
-            object.__setattr__(self, '_hash', self._compute_hash())
-        return self._hash
 
 
 _frozen_type_cache = {}  # type: Dict[Type[Expression], Type[FrozenExpression]]
@@ -261,24 +200,14 @@ def freeze(expression: Expression) -> FrozenExpression:
             (FrozenExpression, base),
             {
                 '_original_base': base,
-                '__slots__': FrozenExpression._actual_slots,
                 '__new__': _frozen_new
             }
         )  # yapf: disable
-
-        attributes_to_copy = set()
-        if hasattr(type(expression), '__slots__'):
-            for cls in base.__mro__:
-                if not cls.__module__.startswith(_module_name) and cls is not object:
-                    if '__slots__' not in cls.__dict__:
-                        attributes_to_copy.add('__dict__')
-                    else:
-                        attributes_to_copy.update(cls.__slots__)
-        _frozen_type_cache[base] = (frozen_class, attributes_to_copy)
+        _frozen_type_cache[base] = frozen_class
     else:
-        frozen_class, attributes_to_copy = _frozen_type_cache[base]
+        frozen_class = _frozen_type_cache[base]
 
-    return FrozenExpression.__new__(frozen_class, expression, attributes_to_copy)
+    return FrozenExpression.__new__(frozen_class, expression)
 
 
 def unfreeze(expression: FrozenExpression) -> Expression:
