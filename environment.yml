@@ -1,10 +1,10 @@
 channels:
   - conda-forge
-name: py36
+name: py35
 dependencies:
 - openssl
 - pip
-- python=3.6
+- python=3.5.3
 - readline
 - setuptools
 - sqlite
