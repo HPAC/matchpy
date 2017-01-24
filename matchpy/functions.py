@@ -105,7 +105,7 @@ def replace(expression: Expression, position: Sequence[int], replacement: Union[
     Raises:
         IndexError: If the position is invalid or out of range.
     """
-    if position == ():
+    if len(position) == 0:
         return replacement
     if not isinstance(expression, Operation):
         raise IndexError("Invalid position {!r} for expression {!s}".format(position, expression))
