@@ -13,9 +13,8 @@ from typing import Callable, List, NamedTuple, Sequence, Tuple, Union, Iterable
 
 from multiset import Multiset
 
-from .expressions.expressions import Expression, Operation, Variable
+from .expressions.expressions import Expression, Operation, Variable, freeze
 from .expressions.substitution import Substitution
-from .expressions.frozen import freeze
 from .matching.one_to_one import match
 
 __all__ = ['substitute', 'replace', 'replace_all', 'is_match']
