@@ -251,6 +251,8 @@ def freeze(expression: Expression) -> FrozenExpression:
         The frozen expression.
     """
     # pylint: disable=protected-access
+    if not isinstance(expression, Expression):
+        raise TypeError("freeze: Expected an expression, got {}.".format(type(expression).__name__))
     if isinstance(expression, FrozenExpression):
         return expression
     base = type(expression)
