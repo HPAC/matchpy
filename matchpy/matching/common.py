@@ -3,10 +3,9 @@ from typing import (Callable, Dict, Iterable, Iterator, List, NamedTuple, Option
 
 from multiset import Multiset
 
-from ..expressions import (
-    Expression, FrozenExpression, Operation, Substitution, Symbol, SymbolWildcard, Variable, Wildcard, Constraint,
-    MultiConstraint
-)
+from ..expressions.expressions import (Expression, Operation, Symbol, SymbolWildcard, Variable, Wildcard, freeze)
+from ..expressions.constraints import Constraint, MultiConstraint
+from ..expressions.substitution import Substitution
 from ..utils import (
     VariableWithCount, commutative_sequence_variable_partition_iter, fixed_integer_vector_iter,
     integer_partition_vector_iter, generator_chain
@@ -14,7 +13,7 @@ from ..utils import (
 
 __all__ = ['CommutativePatternsParts', 'Matcher']
 
-Matcher = Callable[[Sequence[FrozenExpression], FrozenExpression, Substitution], Iterator[Substitution]]
+Matcher = Callable[[Sequence[Expression], Expression, Substitution], Iterator[Substitution]]
 VarInfo = NamedTuple('VarInfo', [('min_count', int), ('constraint', Constraint), ('type', Optional[type])])
 
 
@@ -83,7 +82,7 @@ class CommutativePatternsParts(object):
             wildcards.
     """
 
-    def __init__(self, operation: Type[Operation], *expressions: FrozenExpression) -> None:
+    def __init__(self, operation: Type[Operation], *expressions: Expression) -> None:
         """Create a CommutativePatternsParts instance.
 
         Args:

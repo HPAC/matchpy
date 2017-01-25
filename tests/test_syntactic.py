@@ -2,16 +2,15 @@
 import random
 
 import hypothesis.strategies as st
-from hypothesis import assume, example, given
 import pytest
-
-from matchpy.expressions import (Arity, Atom, Operation, Symbol,
-                                        Variable, Wildcard, freeze)
+from hypothesis import assume, example, given
+from matchpy.expressions.expressions import (Arity, Atom, Operation, Symbol,
+                                             Variable, Wildcard, freeze)
 from matchpy.matching.one_to_one import match
 from matchpy.matching.syntactic import OPERATION_END as OP_END
 from matchpy.matching.syntactic import (DiscriminationNet, FlatTerm,
-                                               SequenceMatcher, is_operation,
-                                               is_symbol_wildcard)
+                                        SequenceMatcher, is_operation,
+                                        is_symbol_wildcard)
 
 
 class SpecialSymbol(Symbol): pass
@@ -246,6 +245,7 @@ def test_variable_expression_match_error():
     with pytest.raises(TypeError):
         net.match(pattern)
 
+print(repr(f(a)))
 
 @given(st.sets(expression_strategy, max_size=20))
 @example({freeze(f(a)), freeze(f(_s))})

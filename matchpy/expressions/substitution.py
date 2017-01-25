@@ -15,9 +15,10 @@ from typing import Dict, List, Tuple, Union, cast
 
 from multiset import Multiset
 
-from . import base, expressions
+from . import expressions
 
-VariableReplacement = Union[Tuple['base.Expression', ...], Multiset['base.Expression'], 'base.Expression']
+VariableReplacement = Union[Tuple['expressions.Expression', ...], Multiset['expressions.Expression'],
+                            'expressions.Expression']
 
 
 class Substitution(Dict[str, VariableReplacement]):
@@ -62,7 +63,9 @@ class Substitution(Dict[str, VariableReplacement]):
                 elif replacement != existing_value:
                     raise ValueError
             elif isinstance(existing_value, Multiset):
-                compare_value = Multiset(isinstance(replacement, base.Expression) and [replacement] or replacement)
+                compare_value = Multiset(
+                    isinstance(replacement, expressions.Expression) and [replacement] or replacement
+                )
                 if existing_value == compare_value:
                     if not isinstance(replacement, Multiset):
                         self[variable] = replacement
@@ -95,7 +98,7 @@ class Substitution(Dict[str, VariableReplacement]):
         new_subst.try_add_variable(variable, replacement)
         return new_subst
 
-    def extract_substitution(self, subject: base.Expression, pattern: base.Expression) -> bool:
+    def extract_substitution(self, subject: 'expressions.Expression', pattern: 'expressions.Expression') -> bool:
         """Extract the variable substitution for the given pattern and subject.
 
         This assumes that subject and pattern already match when being considered as linear.
@@ -200,7 +203,7 @@ class Substitution(Dict[str, VariableReplacement]):
 
             >>> subst = Substitution({'x': a})
             >>> subst.rename({'x': 'y'})
-            {'y': Symbol('a')}
+            {'y': MutableSymbol('a')}
 
         Args:
             renaming:
@@ -213,7 +216,8 @@ class Substitution(Dict[str, VariableReplacement]):
         return Substitution((renaming.get(name, name), value) for name, value in self.items())
 
     @staticmethod
-    def _match_value_repr_str(value: Union[List[base.Expression], base.Expression]) -> str:  # pragma: no cover
+    def _match_value_repr_str(value: Union[List['expressions.Expression'], 'expressions.Expression']
+                             ) -> str:  # pragma: no cover
         if isinstance(value, (list, tuple)):
             return '({!s})'.format(', '.join(str(x) for x in value))
         if isinstance(value, Multiset):

@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 import pytest
-
-from matchpy.expressions import (Arity, CustomConstraint,
-                                        MultiConstraint, Operation, Symbol,
-                                        Variable, Wildcard, freeze)
-from matchpy.matching.many_to_one import ManyToOneMatcher
+from matchpy.expressions.constraints import CustomConstraint, MultiConstraint
+from matchpy.expressions.expressions import (Arity, Operation, Symbol,
+                                             Variable, Wildcard, freeze)
 from matchpy.matching.common import CommutativePatternsParts
+from matchpy.matching.many_to_one import ManyToOneMatcher
 
 f = Operation.new('f', Arity.variadic)
 f2 = Operation.new('f2', Arity.variadic)

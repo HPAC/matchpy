@@ -4,7 +4,8 @@ from typing import (Any, Dict, FrozenSet, Generic, Iterator, List, Optional, Seq
 
 from graphviz import Digraph
 
-from ..expressions import (Expression, Operation, Substitution, Symbol, SymbolWildcard, Variable, Wildcard, freeze)
+from ..expressions.expressions import (Expression, Operation, Symbol, SymbolWildcard, Variable, Wildcard, freeze)
+from ..expressions.substitution import Substitution
 from ..utils import cached_property
 
 __all__ = ['FlatTerm', 'is_operation', 'is_symbol_wildcard', 'DiscriminationNet', 'SequenceMatcher']
@@ -123,15 +124,15 @@ class FlatTerm(Sequence[TermAtom]):
     def merged(cls, *flatterms):
         return FlatTerm(cls._combined_wildcards_iter(sum(flatterms, FlatTerm())))
 
-    @staticmethod
-    def _flatterm_iter(expression: Expression) -> Iterator[TermAtom]:
+    @classmethod
+    def _flatterm_iter(cls, expression: Expression) -> Iterator[TermAtom]:
         """Generator that yields the atoms of the expressions in prefix notation with operation end markers."""
         if isinstance(expression, Variable):
-            yield from FlatTerm._flatterm_iter(expression.expression)
+            yield from cls._flatterm_iter(expression.expression)
         elif isinstance(expression, Operation):
-            yield type(expression)
+            yield expression.generic_base_type
             for operand in expression.operands:
-                yield from FlatTerm._flatterm_iter(operand)
+                yield from cls._flatterm_iter(operand)
             yield OPERATION_END
         elif isinstance(expression, SymbolWildcard):
             yield expression.symbol_type
@@ -639,7 +640,7 @@ class SequenceMatcher:
                 raise TypeError("Pattern must be a non-commutative operation.")
 
             if self.operation is None:
-                self.operation = type(pattern)
+                self.operation = pattern.generic_base_type
             elif not isinstance(pattern, self.operation):
                 raise TypeError(
                     "All patterns must be the same operation, expected {} but got {}".

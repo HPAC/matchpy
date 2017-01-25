@@ -31,18 +31,17 @@ from typing import (Container, Dict, Iterable, Iterator, List, NamedTuple, Optio
 from graphviz import Digraph
 from multiset import Multiset
 
-from ..expressions import (
-    Constraint, Expression, FrozenExpression, MultiConstraint, Operation, Substitution, Symbol, SymbolWildcard,
-    Variable, Wildcard, freeze
-)
+from ..expressions.expressions import (Expression, Operation, Symbol, SymbolWildcard, Variable, Wildcard, freeze, MutableExpression)
+from ..expressions.constraints import Constraint, MultiConstraint
+from ..expressions.substitution import Substitution
 from ..utils import (VariableWithCount, commutative_sequence_variable_partition_iter)
 from .bipartite import BipartiteGraph, enum_maximum_matchings_iter
 from .syntactic import OPERATION_END, is_operation
 
 __all__ = ['ManyToOneMatcher']
 
-LabelType = Union[FrozenExpression, Type[Operation]]
-HeadType = Optional[Union[FrozenExpression, Type[Operation], Type[Symbol]]]
+LabelType = Union[Expression, Type[Operation]]
+HeadType = Optional[Union[Expression, Type[Operation], Type[Symbol]]]
 
 _State = NamedTuple('_State', [
     ('transitions', Dict[LabelType, '_Transition']),
@@ -58,7 +57,7 @@ _Transition = NamedTuple('_Transition', [
 ])  # yapf: disable
 
 _MatchContext = NamedTuple('_MatchContext', [
-    ('subjects', Tuple[FrozenExpression]),
+    ('subjects', Tuple[Expression]),
     ('substitution', Substitution),
     ('associative', Optional[type])
 ])  # yapf: disable
@@ -244,12 +243,11 @@ class ManyToOneMatcher:
 
     @staticmethod
     def _get_label_and_head(expression: Expression) -> Tuple[LabelType, HeadType]:
+        head = expression.head
         if isinstance(expression, Operation):
             label = type(expression)
-            head = label._original_base
         else:
             label = expression.without_constraints
-            head = expression.head
             if isinstance(label, SymbolWildcard):
                 head = label.symbol_type
         return label, head
@@ -310,7 +308,7 @@ class ManyToOneMatcher:
         if isinstance(expression, Symbol):
             heads.extend(
                 base for base in type(expression).__mro__
-                if issubclass(base, Symbol) and not issubclass(base, FrozenExpression)
+                if issubclass(base, Symbol) and not issubclass(base, MutableExpression)
             )
         heads.append(None)
         return heads
@@ -433,7 +431,7 @@ class CommutativeMatcher(object):
         self.bipartite = BipartiteGraph()
         self.associative = associative
 
-    def add_pattern(self, operands: Iterable[FrozenExpression]) -> int:
+    def add_pattern(self, operands: Iterable[Expression]) -> int:
         pattern_set, pattern_vars = self._extract_sequence_wildcards(operands)
         sorted_vars = tuple(sorted(pattern_vars.values()))
         sorted_subpatterns = tuple(sorted(pattern_set))
@@ -445,7 +443,7 @@ class CommutativeMatcher(object):
             inserted_id = self.patterns[pattern_key][0]
         return inserted_id
 
-    def add_subject(self, subject: FrozenExpression) -> None:
+    def add_subject(self, subject: Expression) -> None:
         if subject not in self.subjects:
             subject_id, pattern_set = self.subjects[subject] = (len(self.subjects), set())
             self.subjects[subject_id] = subject
@@ -460,7 +458,7 @@ class CommutativeMatcher(object):
             subject_id, _ = self.subjects[subject]
         return subject_id
 
-    def match(self, subjects: Sequence[FrozenExpression],
+    def match(self, subjects: Sequence[Expression],
               substitution: Substitution) -> Iterator[Tuple[int, Substitution]]:
         subject_ids = Multiset()
         pattern_ids = Multiset()
@@ -545,13 +543,12 @@ class CommutativeMatcher(object):
 
     @staticmethod
     def _match_sequence_variables(
-            subjects: Multiset[FrozenExpression],
+            subjects: Multiset[Expression],
             pattern_vars: Sequence[VariableWithCount],
             substitution: Substitution,
     ) -> Iterator[Substitution]:
         for variable_substitution in commutative_sequence_variable_partition_iter(subjects, pattern_vars):
             try:
-                print(variable_substitution)
                 yield substitution.union(variable_substitution)
             except ValueError:
                 pass
@@ -583,8 +580,8 @@ class CommutativeMatcher(object):
                 last_pattern = next_pattern
         return True
 
-class SecondaryAutomaton():
 
+class SecondaryAutomaton():
     def __init__(self, k):
         self.k = k
         self.states = self._build(k)
@@ -624,7 +621,6 @@ class SecondaryAutomaton():
             for key, value in state.items():
                 new_state[key] = keys.index(value)
             new_states[i] = new_state
-            print(new_state)
 
         return new_states
 
@@ -643,5 +639,3 @@ class SecondaryAutomaton():
                 graph.edge(str(state), str(target), label)
 
         return graph
-
-

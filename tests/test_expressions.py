@@ -4,16 +4,17 @@ import itertools
 from unittest.mock import Mock
 
 import pytest
+from matchpy.expressions.expressions import (Arity, FrozenExpression,
+                                             MutableExpression, Operation,
+                                             Symbol, SymbolWildcard, Variable,
+                                             Wildcard, freeze, unfreeze)
+from matchpy.expressions.substitution import Substitution
 from multiset import Multiset
-
-from matchpy.expressions import (Arity, FrozenExpression, Operation,
-                                        Substitution, Symbol, SymbolWildcard,
-                                        Variable, Wildcard, freeze, unfreeze)
 
 from .utils import MockConstraint
 
-a = freeze(Symbol('a'))
-b = freeze(Symbol('b'))
+a = Symbol('a')
+b = Symbol('b')
 
 
 f = Operation.new('f', Arity.variadic)
@@ -403,10 +404,10 @@ class TestExpression:
         assert new_expr == expected_result
         assert new_expr is not expression
 
-        frozen_expression = freeze(expression)
-        new_expr = frozen_expression.without_constraints
+        mutable_expression = unfreeze(expression)
+        new_expr = mutable_expression.without_constraints
         assert new_expr == expected_result
-        assert new_expr is not frozen_expression
+        assert new_expr is not mutable_expression
 
     @pytest.mark.parametrize(
         '   expression,                         renaming,       expected_result',
@@ -428,16 +429,20 @@ class TestExpression:
         assert new_expr == expected_result
         assert new_expr is not expression
 
-        frozen_expression = freeze(expression)
-        new_expr = frozen_expression.with_renamed_vars(renaming)
+        mutable_expression = unfreeze(expression)
+        new_expr = mutable_expression.with_renamed_vars(renaming)
         assert new_expr == expected_result
-        assert new_expr is not frozen_expression
+        assert new_expr is not mutable_expression
 
 
 class CustomSymbolWithDict(Symbol):
     def __init__(self, name):
         super().__init__(name)
         self.custom = 42
+
+    def copy_to(self, other):
+        super().copy_to(other)
+        other.custom = self.custom
 
 
 class CustomSymbolWithoutDict(Symbol):
@@ -447,7 +452,11 @@ class CustomSymbolWithoutDict(Symbol):
         super().__init__(name)
         self.custom = 42
 
-class TestFrozenExpression:
+    def copy_to(self, other):
+        super().copy_to(other)
+        other.custom = self.custom
+
+class TestMutableExpression:
     BUILTIN_PROPERTIES = ['is_constant', 'is_syntactic', 'is_linear', 'symbols', 'variables']
 
     SIMPLE_EXPRESSIONS = [
@@ -463,31 +472,38 @@ class TestFrozenExpression:
     ]
 
     @pytest.mark.parametrize('expression', SIMPLE_EXPRESSIONS)
-    def test_freeze_equivalent(self, expression):
+    def test_frozen_equivalent(self, expression):
         frozen_expr = freeze(expression)
-        assert expression == frozen_expr
-        slots = set().union(*(getattr(cls, '__slots__', []) for cls in type(expression).__mro__))
-        if hasattr(expression, '__dict__'):
-            slots.update(expression.__dict__.keys())
-        for attr in itertools.chain(slots, self.BUILTIN_PROPERTIES):
-            if attr == 'operands':
-                assert getattr(frozen_expr, attr) == tuple(getattr(expression, attr)), "Operands of frozen instance differs"
-            else:
-                assert getattr(frozen_expr, attr) == getattr(expression, attr), "Attribute {!s} of frozen instance differs".format(attr)
+        mutable_expr = unfreeze(expression)
+        assert frozen_expr == mutable_expr
+
+    @pytest.mark.parametrize('expression', SIMPLE_EXPRESSIONS)
+    def test_reunfreeze(self, expression):
+        expression = freeze(expression)
+        mutable_expr = unfreeze(expression)
+        remutable = unfreeze(mutable_expr)
+        assert remutable is mutable_expr
 
     @pytest.mark.parametrize('expression', SIMPLE_EXPRESSIONS)
     def test_refreeze(self, expression):
+        expression = unfreeze(expression)
         frozen_expr = freeze(expression)
         refrozen = freeze(frozen_expr)
         assert refrozen is frozen_expr
 
     @pytest.mark.parametrize('expression', SIMPLE_EXPRESSIONS)
-    def test_unfreeze(self, expression):
-        unfrozen = unfreeze(freeze(expression))
-        assert unfrozen == expression
-        assert expression is unfreeze(expression)
+    def test_freeze(self, expression):
+        mutable = unfreeze(freeze(expression))
+        frozen = freeze(unfreeze(expression))
+        assert mutable == frozen
 
-    def test_from_args(self):
+    def test_mutable_from_args(self):
+        mutable = unfreeze(f(a))
+        expression = type(mutable).from_args(a, b)
+        assert expression == f(a, b)
+        assert isinstance(expression, MutableExpression)
+
+    def test_frozen_from_args(self):
         frozen = freeze(f(a))
         expression = type(frozen).from_args(a, b)
         assert expression == f(a, b)
@@ -496,21 +512,11 @@ class TestFrozenExpression:
     @pytest.mark.parametrize('expression', SIMPLE_EXPRESSIONS)
     @pytest.mark.parametrize('other', SIMPLE_EXPRESSIONS)
     def test_hash(self, expression, other):
-        frozen = freeze(expression)
-        other = freeze(other)
         if expression != other:
-            assert hash(frozen) != hash(other), "hash({!s}) == hash({!s})".format(frozen, other)
+            assert hash(expression) != hash(other), "hash({!s}) == hash({!s})".format(expression, other)
         else:
-            assert hash(frozen) == hash(other), "hash({!s}) != hash({!s})".format(frozen, other)
+            assert hash(expression) == hash(other), "hash({!s}) != hash({!s})".format(expression, other)
 
-    def test_immutability(self):
-        frozen = freeze(f(a))
-
-        with pytest.raises(TypeError):
-            frozen.operands[0] = b
-
-        with pytest.raises(TypeError):
-            frozen.operands = [a, b]
 
 if __name__ == '__main__':
     import matchpy.expressions as tested_module

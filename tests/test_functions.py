@@ -4,8 +4,9 @@ from hypothesis import assume, given
 import pytest
 from multiset import Multiset
 
-from matchpy.expressions import (Arity, Constraint, Operation, Symbol,
-                                        Variable, Wildcard, freeze)
+from matchpy.expressions.expressions import (Arity, Operation, Symbol,
+                                        Variable, Wildcard)
+from matchpy.expressions.constraints import Constraint
 from matchpy.functions import (ReplacementRule, replace, replace_all,
                                       substitute)
 from matchpy.matching.one_to_one import match_anywhere
@@ -24,9 +25,9 @@ fa = Operation.new('fa', Arity.variadic, associative=True)
 fa2 = Operation.new('fa2', Arity.variadic, associative=True)
 fac1 = Operation.new('fac1', Arity.variadic, associative=True, commutative=True)
 fac2 = Operation.new('fac2', Arity.variadic, associative=True, commutative=True)
-a = freeze(Symbol('a'))
-b = freeze(Symbol('b'))
-c = freeze(Symbol('c'))
+a = Symbol('a')
+b = Symbol('b')
+c = Symbol('c')
 s = SpecialSymbol('s')
 _ = Wildcard.dot()
 x_ = Variable.dot('x')
@@ -84,8 +85,8 @@ class TestMatch:
         ]
     )
     def test_constant_match(self, match, expression, pattern, is_match):
-        expression = freeze(expression)
-        pattern = freeze(pattern)
+        expression = expression
+        pattern = pattern
         result = list(match(expression, pattern))
         if is_match:
             assert result == [dict()], "Expression {!s} and {!s} did not match but were supposed to".format(expression, pattern)
@@ -118,8 +119,8 @@ class TestMatch:
         ]
     )
     def test_commutative_match(self, match, expression, pattern, is_match):
-        expression = freeze(expression)
-        pattern = freeze(pattern)
+        expression = expression
+        pattern = pattern
         result = list(match(expression, pattern))
         if is_match:
             assert result == [dict()], "Expression {!s} and {!s} did not match but were supposed to".format(expression, pattern)
@@ -145,8 +146,8 @@ class TestMatch:
         ]
     )
     def test_commutative_syntactic_match(self, match, expression, pattern, match_count):
-        expression = freeze(expression)
-        pattern = freeze(pattern)
+        expression = expression
+        pattern = pattern
         result = list(match(expression, pattern))
         assert len(result) == match_count, 'Wrong number of matches'
 
@@ -161,8 +162,8 @@ class TestMatch:
         ]
     )
     def test_commutative_constraint_match(self, match, expression, pattern, expected_matches):
-        expression = freeze(expression)
-        pattern = freeze(pattern)
+        expression = expression
+        pattern = pattern
         result = list(match(expression, pattern))
         for expected_match in expected_matches:
             assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(expression, pattern, expected_match)
@@ -204,8 +205,8 @@ class TestMatch:
             (f(a),              f(x2_),                             None),
         ])
     def test_wildcard_dot_match(self, match, expression, pattern, expected_match):
-        expression = freeze(expression)
-        pattern = freeze(pattern)
+        expression = expression
+        pattern = pattern
         result = list(match(expression, pattern))
         if expected_match is not None:
             assert result == [expected_match], "Expression {!s} and {!s} did not match as {!s} but were supposed to".format(expression, pattern, expected_match)
@@ -232,8 +233,8 @@ class TestMatch:
         ]
     )
     def test_associative_wildcard_dot_match(self, match, expression, pattern, expected_matches):
-        expression = freeze(expression)
-        pattern = freeze(pattern)
+        expression = expression
+        pattern = pattern
         result = list(match(expression, pattern))
         for expected_match in expected_matches:
             assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(expression, pattern, expected_match)
@@ -299,8 +300,8 @@ class TestMatch:
         ]
     )
     def test_wildcard_star_match(self, match, expression, pattern, expected_matches):
-        expression = freeze(expression)
-        pattern = freeze(pattern)
+        expression = expression
+        pattern = pattern
         result = list(match(expression, pattern))
         for expected_match in expected_matches:
             _convert_match_list_to_tuple(expected_match)
@@ -352,8 +353,8 @@ class TestMatch:
         ]
     )
     def test_wildcard_plus_match(self, match, expression, pattern, expected_matches):
-        expression = freeze(expression)
-        pattern = freeze(pattern)
+        expression = expression
+        pattern = pattern
         result = list(match(expression, pattern))
         for expected_match in expected_matches:
             _convert_match_list_to_tuple(expected_match)
@@ -382,8 +383,8 @@ class TestMatch:
         ]
     )
     def test_wildcard_mixed_match(self, match, expression, pattern, expected_matches):
-        expression = freeze(expression)
-        pattern = freeze(pattern)
+        expression = expression
+        pattern = pattern
         result = list(match(expression, pattern))
         for expected_match in expected_matches:
             _convert_match_list_to_tuple(expected_match)
@@ -407,8 +408,8 @@ class TestMatch:
         ]
     )
     def test_wildcard_symbol_match(self, match, expression, pattern, expected_matches):
-        expression = freeze(expression)
-        pattern = freeze(pattern)
+        expression = expression
+        pattern = pattern
         result = list(match(expression, pattern))
         for expected_match in expected_matches:
             assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(expression, pattern, expected_match)
@@ -443,8 +444,8 @@ class TestMatch:
         ]
     )
     def test_commutative_multiple_fixed_vars(self, match, expression, pattern, expected_matches):
-        expression = freeze(expression)
-        pattern = freeze(pattern)
+        expression = expression
+        pattern = pattern
         result = list(match(expression, pattern))
         assert len(result) == len(expected_matches), 'Unexpected number of matches'
         for expected_match in expected_matches:
@@ -473,8 +474,8 @@ class TestMatch:
         ]
     )
     def test_commutative_multiple_sequence_vars(self, match, expression, pattern, expected_matches):
-        expression = freeze(expression)
-        pattern = freeze(pattern)
+        expression = expression
+        pattern = pattern
         result = list(match(expression, pattern))
         assert len(result) == len(expected_matches), 'Unexpected number of matches'
         for expected_match in expected_matches:
@@ -497,8 +498,8 @@ class TestMatch:
         ]
     )
     def test_mixed_commutative_vars(self, match, expression, pattern, is_match):
-        expression = freeze(expression)
-        pattern = freeze(pattern)
+        expression = expression
+        pattern = pattern
         result = list(match(expression, pattern))
         if is_match:
             assert len(result) > 0
@@ -531,8 +532,8 @@ class TestMatch:
     def test_constraint_match(self, match, expression, pattern_factory, constraint_values, constraint_call_counts, match_count):
         constraints = [MockConstraint(v) for v in constraint_values]
         pattern = pattern_factory(*constraints)
-        expression = freeze(expression)
-        pattern = freeze(pattern)
+        expression = expression
+        pattern = pattern
         result = list(match(expression, pattern))
 
         assert len(result) == match_count, "Wrong number of matched for {!r} and {!r}".format(expression, pattern)
@@ -544,10 +545,10 @@ class TestMatch:
         constraint2 = MockConstraint(True)
         constraint3 = MockConstraint(True)
         constraint4 = MockConstraint(True)
-        expression = freeze(f(a, b))
+        expression = f(a, b)
         pattern = f(Wildcard(0, False, constraint1), Variable('x', _, constraint2), Variable('y', _, constraint3), constraint=constraint4)
 
-        pattern = freeze(pattern)
+        pattern = pattern
         result = list(match(expression, pattern))
 
         assert result == [{'x': a, 'y': b}]
@@ -572,14 +573,14 @@ class TestMatch:
 def func_wrap_strategy(args, func):
     min_size = func.arity[0]
     max_size = func.arity[1] and func.arity[0] or 4
-    return st.lists(args, min_size=min_size, max_size=max_size).map(lambda a: freeze(func(*a)))
+    return st.lists(args, min_size=min_size, max_size=max_size).map(lambda a: func(*a))
 
 
 def expression_recurse_strategy(args):
     return func_wrap_strategy(args, f) | func_wrap_strategy(args, f2)
 
-expression_base_strategy = st.sampled_from([freeze(e) for e in [a, b, c]])
-pattern_base_strategy = st.sampled_from([freeze(e) for e in [a, b, c, x_, y_, x__, y__, x___, y___]])
+expression_base_strategy = st.sampled_from([e for e in [a, b, c]])
+pattern_base_strategy = st.sampled_from([e for e in [a, b, c, x_, y_, x__, y__, x___, y___]])
 expression_strategy = st.recursive(expression_base_strategy, expression_recurse_strategy, max_leaves=10)
 pattern_strategy = st.recursive(pattern_base_strategy, expression_recurse_strategy, max_leaves=10)
 
@@ -702,8 +703,8 @@ class TestReplaceTest:
     ]
 )
 def test_match_anywhere(expression, pattern, expected_results):
-    expression = freeze(expression)
-    pattern = freeze(pattern)
+    expression = expression
+    pattern = pattern
     results = list(match_anywhere(expression, pattern))
 
     assert len(results) == len(expected_results), "Invalid number of results"
