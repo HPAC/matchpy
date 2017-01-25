@@ -331,29 +331,33 @@ class _OperationMeta(ExpressionMeta):
         # __call__ is overridden, so that for one_identity operations with a single argument
         # that argument can be returned instead
         operands = list(operands)
-        if not cls._simplify(operands):
+        one_identity_applies, new_constraint = cls._simplify(operands, constraint)
+        if one_identity_applies:
             return operands[0]
 
         operation = Expression.__new__(cls)
-        operation.__init__(*operands, constraint=constraint)
+        operation.__init__(*operands, constraint=new_constraint)
 
         return operation
 
-    def _simplify(cls, operands: List[Expression]) -> bool:
+    def _simplify(cls, operands: List[Expression], constraint: 'constraints.Constraint') -> bool:
         """Flatten/sort the operands of associative/commutative operations.
 
         Returns:
-            False iff *one_identity* is True and the operation contains a single
+            True iff *one_identity* is True and the operation contains a single
             argument that is not a sequence wildcard.
         """
 
         if cls.associative:
             new_operands = []  # type: List[Expression]
+            new_constraints = [constraint]
             for operand in operands:
-                if isinstance(operand, cls):
+                if isinstance(operand, cls.generic_base_type):
                     new_operands.extend(operand.operands)  # type: ignore
+                    new_constraints.append(operand.constraint)
                 else:
                     new_operands.append(operand)
+            constraint = constraints.MultiConstraint.create(*new_constraints)
             operands.clear()
             operands.extend(new_operands)
 
@@ -362,12 +366,12 @@ class _OperationMeta(ExpressionMeta):
             if isinstance(expr, Variable):
                 expr = expr.expression
             if not isinstance(expr, Wildcard) or (expr.min_count == 1 and expr.fixed_size):
-                return False
+                return True, constraint
 
         if cls.commutative:
             operands.sort()
 
-        return True
+        return False, constraint
 
     def from_args(cls, *args, **kwargs):
         """Create a new instance of the class using the given arguments.

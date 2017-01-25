@@ -9,6 +9,7 @@ from matchpy.expressions.expressions import (Arity, FrozenExpression,
                                              Symbol, SymbolWildcard, Variable,
                                              Wildcard, freeze, unfreeze, Expression)
 from matchpy.expressions.substitution import Substitution
+from matchpy.expressions.constraints import MultiConstraint
 from multiset import Multiset
 
 from .utils import MockConstraint
@@ -142,26 +143,30 @@ b = Symbol('b')
 constraint1 = MockConstraint(True)
 constraint2 = MockConstraint(True)
 
+both_constraints = MultiConstraint.create(constraint1, constraint2)
+
 
 class TestExpression:
     @pytest.mark.parametrize(
-        '   expression,                     simplified',
+        '   expression,                                                         simplified',
         [
-            (f_i(a),                        a),
-            (f_i(a, b),                     f_i(a, b)),
-            (f_i(_),                        _),
-            (f_i(___),                      f_i(___)),
-            (f_i(__),                       f_i(__)),
-            (f_i(x_),                       x_),
-            (f_i(x___),                     f_i(x___)),
-            (f_i(x__),                      f_i(x__)),
-            (f_a(f_a(a)),                   f_a(a)),
-            (f_a(f_a(a, b)),                f_a(a, b)),
-            (f_a(a, f_a(b)),                f_a(a, b)),
-            (f_a(f_a(a), b),                f_a(a, b)),
-            (f_a(f(a)),                     f_a(f(a))),
-            (f_c(a, b),                     f_c(a, b)),
-            (f_c(b, a),                     f_c(a, b)),
+            (f_i(a),                                                            a),
+            (f_i(a, b),                                                         f_i(a, b)),
+            (f_i(_),                                                            _),
+            (f_i(___),                                                          f_i(___)),
+            (f_i(__),                                                           f_i(__)),
+            (f_i(x_),                                                           x_),
+            (f_i(x___),                                                         f_i(x___)),
+            (f_i(x__),                                                          f_i(x__)),
+            (f_a(f_a(a)),                                                       f_a(a)),
+            (f_a(f_a(a, b)),                                                    f_a(a, b)),
+            (f_a(a, f_a(b)),                                                    f_a(a, b)),
+            (f_a(f_a(a), b),                                                    f_a(a, b)),
+            (f_a(f(a)),                                                         f_a(f(a))),
+            (f_c(a, b),                                                         f_c(a, b)),
+            (f_c(b, a),                                                         f_c(a, b)),
+            (f_a(a, f_a(b, constraint=constraint1)),                            f_a(a, b, constraint=constraint1)),
+            (f_a(a, f_a(b, constraint=constraint1), constraint=constraint2),    f_a(a, b, constraint=both_constraints)),
         ]
     )
     def test_operation_simplify(self, expression, simplified):
