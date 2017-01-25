@@ -7,14 +7,14 @@ import pytest
 from matchpy.expressions.expressions import (Arity, FrozenExpression,
                                              MutableExpression, Operation,
                                              Symbol, SymbolWildcard, Variable,
-                                             Wildcard, freeze, unfreeze)
+                                             Wildcard, freeze, unfreeze, Expression)
 from matchpy.expressions.substitution import Substitution
 from multiset import Multiset
 
 from .utils import MockConstraint
 
-a = Symbol('a')
-b = Symbol('b')
+a = freeze(Symbol('a'))
+b = freeze(Symbol('b'))
 
 
 f = Operation.new('f', Arity.variadic)
@@ -357,6 +357,11 @@ class TestExpression:
         else:
             assert not (expression1 < expression2), "{!s} < {!s} but should not be".format(expression1, expression2)
 
+    @pytest.mark.parametrize('expression', [a, f(a), x_, _])
+    def test_lt_error(self, expression):
+        with pytest.raises(TypeError):
+            expression < object()
+
     def test_from_args(self):
         expression = f.from_args(a, b)
         assert expression == f(a, b)
@@ -456,7 +461,28 @@ class CustomSymbolWithoutDict(Symbol):
         super().copy_to(other)
         other.custom = self.custom
 
-class TestMutableExpression:
+class CustomMixin(Expression):
+    pass
+
+class OtherMixin:
+    pass
+
+class FancySymbol(Symbol, CustomMixin, OtherMixin):
+    pass
+
+
+class TestOperation:
+    def test_one_identity_error(self):
+        with pytest.raises(TypeError):
+            Operation.new('Invalid', Arity.unary, one_identity=True)
+        with pytest.raises(TypeError):
+            Operation.new('Invalid', Arity.binary, one_identity=True)
+
+    def test_infix_error(self):
+        with pytest.raises(TypeError):
+            Operation.new('Invalid', Arity.unary, infix=True)
+
+class TestFrozenExpression:
     BUILTIN_PROPERTIES = ['is_constant', 'is_syntactic', 'is_linear', 'symbols', 'variables']
 
     SIMPLE_EXPRESSIONS = [
@@ -512,11 +538,38 @@ class TestMutableExpression:
     @pytest.mark.parametrize('expression', SIMPLE_EXPRESSIONS)
     @pytest.mark.parametrize('other', SIMPLE_EXPRESSIONS)
     def test_hash(self, expression, other):
+        expression = freeze(expression)
+        other = freeze(other)
         if expression != other:
             assert hash(expression) != hash(other), "hash({!s}) == hash({!s})".format(expression, other)
         else:
             assert hash(expression) == hash(other), "hash({!s}) != hash({!s})".format(expression, other)
 
+    @pytest.mark.parametrize('expression', SIMPLE_EXPRESSIONS)
+    def test_hash(self, expression):
+        expression = unfreeze(expression)
+        with pytest.raises(TypeError):
+            hash(expression)
+
+    def test_custom_freeze(self):
+        symbol = FancySymbol('fancy')
+        frozen = freeze(symbol)
+
+        assert frozen == symbol
+        assert isinstance(frozen, FrozenExpression)
+        assert isinstance(frozen, CustomMixin)
+        assert isinstance(frozen, OtherMixin)
+        assert isinstance(frozen, FancySymbol)
+
+
+    def test_freeze_error(self):
+        with pytest.raises(TypeError):
+            freeze(object())
+
+
+    def test_unfreeze_error(self):
+        with pytest.raises(TypeError):
+            unfreeze(object())
 
 if __name__ == '__main__':
     import matchpy.expressions as tested_module

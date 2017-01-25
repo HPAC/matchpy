@@ -117,7 +117,7 @@ class Expression(metaclass=ExpressionMeta):
 
     def __new__(cls, *args, **kwargs):
         if not issubclass(cls, (FrozenExpression, MutableExpression)):
-            cls = _create_mixin_type(cls, MutableExpression, _mutable_type_cache)
+            cls = _create_mixin_type(cls, MutableExpression, _mutable_type_cache, {'__hash__': None})
             return cls.__new__(cls, *args, **kwargs)
         return object.__new__(cls)
 
@@ -181,7 +181,9 @@ class Expression(metaclass=ExpressionMeta):
         raise NotImplementedError()
 
     def copy_to(self, other: 'Expression') -> None:
-        """Copy the expressions attributes to the other one."""
+        """Copy the expressions attributes to the other one.
+
+        TODO: Document this better, because this needs to be overwritten by custom subclasses."""
         other.constraint = self.constraint
 
     def preorder_iter(self, predicate: ExprPredicate=None) -> ExpressionsWithPos:
@@ -570,6 +572,8 @@ class Operation(Expression, metaclass=_OperationMeta):
         )
 
     def __lt__(self, other):
+        if not isinstance(other, Expression):
+            return NotImplemented
         if isinstance(other, Symbol):
             return False
 
@@ -689,6 +693,8 @@ class Symbol(Atom):
         other.name = self.name
 
     def __lt__(self, other):
+        if not isinstance(other, Expression):
+            return NotImplemented
         if isinstance(other, Symbol):
             return self.name < other.name
         return True
@@ -1129,7 +1135,7 @@ _mutable_type_cache = {
 }  # type: Dict[Type[Expression], Type[MutableExpression]]
 
 
-def _create_mixin_type(cls, mixin, cache):
+def _create_mixin_type(cls, mixin, cache, dct={}):
     if issubclass(cls, (FrozenExpression, MutableExpression)):
         cls = next(
             b for b in cls.__mro__
@@ -1140,10 +1146,8 @@ def _create_mixin_type(cls, mixin, cache):
         bases = [cls]
         for base in cls.__bases__:
             if issubclass(base, Expression):
-                bases.append(_create_mixin_type(base, mixin, cache))
-        if all(not issubclass(b, mixin) for b in bases):
-            bases.append(mixin)
-        cache[cls] = type(mixin.prefix + name, tuple(bases), {})
+                bases.append(_create_mixin_type(base, mixin, cache, dct))
+        cache[cls] = type(mixin.prefix + name, tuple(bases), dct)
     return cache[cls]
 
 
@@ -1163,7 +1167,7 @@ def unfreeze(expression: Expression) -> MutableExpression:
         return expression
     if not isinstance(expression, FrozenExpression):
         raise TypeError("freeze: Expected a FrozenExpression, got {} instead.".format(type(expression).__name__))
-    new_type = _create_mixin_type(type(expression), MutableExpression, _mutable_type_cache)
+    new_type = _create_mixin_type(type(expression), MutableExpression, _mutable_type_cache, {'__hash__': None})
     new_expr = Expression.__new__(new_type)
     expression.copy_to(new_expr)
 

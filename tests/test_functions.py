@@ -1,15 +1,13 @@
 # -*- coding: utf-8 -*-
 import hypothesis.strategies as st
-from hypothesis import assume, given
 import pytest
-from multiset import Multiset
-
-from matchpy.expressions.expressions import (Arity, Operation, Symbol,
-                                        Variable, Wildcard)
+from hypothesis import assume, given
 from matchpy.expressions.constraints import Constraint
-from matchpy.functions import (ReplacementRule, replace, replace_all,
-                                      substitute)
+from matchpy.expressions.expressions import (Arity, Operation, Symbol,
+                                             Variable, Wildcard, freeze)
+from matchpy.functions import ReplacementRule, replace, replace_all, substitute
 from matchpy.matching.one_to_one import match_anywhere
+from multiset import Multiset
 
 from .utils import MockConstraint
 
@@ -25,8 +23,8 @@ fa = Operation.new('fa', Arity.variadic, associative=True)
 fa2 = Operation.new('fa2', Arity.variadic, associative=True)
 fac1 = Operation.new('fac1', Arity.variadic, associative=True, commutative=True)
 fac2 = Operation.new('fac2', Arity.variadic, associative=True, commutative=True)
-a = Symbol('a')
-b = Symbol('b')
+a = freeze(Symbol('a'))
+b = freeze(Symbol('b'))
 c = Symbol('c')
 s = SpecialSymbol('s')
 _ = Wildcard.dot()
