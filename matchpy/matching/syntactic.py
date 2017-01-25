@@ -34,12 +34,8 @@ def _get_symbol_wildcard_label(state: '_State', symbol: Symbol) -> Type[Symbol]:
     return next((t for t in state.keys() if is_symbol_wildcard(t) and isinstance(symbol, t)), None)
 
 
-# Broken without latest version of the typing package
-# TermAtom = Union[Symbol, Type[Operation], Type[Symbol], _OperationEnd]
-# So for now use the non-generic version
-TermAtom = Union[Symbol, Wildcard, type, type(OPERATION_END)]
-# TransitionLabel = Union[Symbol, Type[Operation], Type[Symbol], Type[Wildcard], _OperationEnd, _Epsilon]
-TransitionLabel = Union[Symbol, type, type(OPERATION_END), type(EPSILON)]
+TermAtom = Union[Symbol, Wildcard, Type[Operation], Type[Symbol], type(OPERATION_END)]
+TransitionLabel = Union[Symbol, Type[Operation], Type[Symbol], Type[Wildcard], type(OPERATION_END), type(EPSILON)]
 
 
 class FlatTerm(Sequence[TermAtom]):
@@ -139,7 +135,7 @@ class FlatTerm(Sequence[TermAtom]):
         elif isinstance(expression, (Symbol, Wildcard)):
             yield expression
         else:
-            raise TypeError()
+            assert False, "Unreachable unless a new unsupported expression type is added."
 
     @staticmethod
     def _combined_wildcards_iter(flatterm: Iterator[TermAtom]) -> Iterator[TermAtom]:
@@ -563,8 +559,6 @@ class DiscriminationNet(Generic[T]):
         state = self._root
         depth = 0
         result = state.payload[:]
-        if result and first:
-            return result
         for term in flatterm:
             if depth > 0:
                 if is_operation(term):
@@ -572,6 +566,8 @@ class DiscriminationNet(Generic[T]):
                 elif term == OPERATION_END:
                     depth -= 1
             else:
+                if first and state.payload:
+                    return state.payload
                 try:
                     try:
                         state = state[term]
@@ -588,9 +584,6 @@ class DiscriminationNet(Generic[T]):
                             raise TypeError("Expression contains non-terminal atom: {!s}".format(expression))
                 except KeyError:
                     return result if collect else []
-
-                if state.payload and first:
-                    return state.payload
 
                 result.extend(state.payload)
 
@@ -718,5 +711,5 @@ class SequenceMatcher:
 
                     yield pattern, subst
 
-    def as_graph(self) -> Digraph:
+    def as_graph(self) -> Digraph:  # pragma: no cover
         return self._net.as_graph()

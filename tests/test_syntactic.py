@@ -107,6 +107,24 @@ def test_flatterm_eq():
     assert not FlatTerm(f(a)) == FlatTerm(f(b))
 
 
+@pytest.mark.parametrize(
+    '   flatterm,           is_syntactic',
+    [
+        (a,                 True),
+        (f(a),              True),
+        (_,                 True),
+        (__,                False),
+        (fc(a),             False),
+        (f(_, _),           True),
+        (f(__),             False),
+        (f(x_),             True),
+        (f(z___),           False),
+    ]
+)
+def test_flatterm_is_syntactic(flatterm, is_syntactic):
+    flatterm = FlatTerm(flatterm)
+    assert flatterm.is_syntactic == is_syntactic
+
 def test_is_operation():
     assert is_operation(str) is False
     assert is_operation(1) is False
@@ -245,8 +263,6 @@ def test_variable_expression_match_error():
     with pytest.raises(TypeError):
         net.match(pattern)
 
-print(repr(f(a)))
-
 @given(st.sets(expression_strategy, max_size=20))
 @example({freeze(f(a)), freeze(f(_s))})
 def test_randomized_product_net(patterns):
@@ -325,6 +341,7 @@ def test_sequence_matcher_match():
         f(___, x_, x_, ___),
         f(z___, a, b, ___),
         f(___, a, c, z___),
+        f(z___, a, c, z___),
     ]
 
     matcher = SequenceMatcher(*PATTERNS)
@@ -362,3 +379,27 @@ def test_sequence_matcher_match():
 def test_sequence_matcher_errors(patterns, expected_error):
     with pytest.raises(expected_error):
         SequenceMatcher(*patterns)
+
+
+@pytest.mark.parametrize(
+    '   pattern,                    can_match',
+    [
+        (a,                         False),
+        (fc(a),                     False),
+        (f(___),                    False),
+        (f(___, a),                 False),
+        (f(a, b, c),                False),
+        (f(_, b, ___),              False),
+        (f(___, b, _),              False),
+        (f(__, b, ___),             False),
+        (f(___, b, __),             False),
+        (f(a, b, ___),              False),
+        (f(___, b, c),              False),
+        (f(___, b, c),              False),
+        (f(___, b, c, ___),         True),
+        (f(___, b, ___),            True),
+        (f(___, g(x_), ___),        True),
+    ]
+)
+def test_sequence_matcher_can_match(pattern, can_match):
+    assert SequenceMatcher.can_match(pattern) == can_match

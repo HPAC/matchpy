@@ -3,15 +3,16 @@ import itertools
 import os
 
 import hypothesis.strategies as st
-from hypothesis import assume, example, given
 import pytest
+from hypothesis import assume, example, given
 from multiset import Multiset
 
 from matchpy.utils import (VariableWithCount, base_solution_linear,
-                                  cached_property,
-                                  commutative_sequence_variable_partition_iter,
-                                  extended_euclid, fixed_integer_vector_iter,
-                                  get_short_lambda_source, solve_linear_diop)
+                           cached_property,
+                           commutative_sequence_variable_partition_iter,
+                           extended_euclid, fixed_integer_vector_iter,
+                           get_short_lambda_source, slot_cached_property,
+                           solve_linear_diop)
 
 
 def is_unique_list(l):
@@ -248,6 +249,27 @@ def test_cached_property():
     assert A.call_count == 2
     assert A.example.__doc__ == "Docstring Test"
 
-if __name__ == '__main__':
-    import matchpy.utils as tested_module
-    pytest.main(['--doctest-modules', __file__, tested_module.__file__])
+
+def test_slot_cached_property():
+    class A:
+        __slots__ = ('cache', )
+        call_count = 0
+        @slot_cached_property('cache')
+        def example(self):
+            """Docstring Test"""
+            A.call_count += 1
+            return 42
+
+    a = A()
+    b = A()
+
+    assert A.call_count == 0
+    assert a.example == 42
+    assert A.call_count == 1
+    assert a.example == 42
+    assert A.call_count == 1
+    assert b.example == 42
+    assert A.call_count == 2
+    assert b.example == 42
+    assert A.call_count == 2
+    assert A.example.__doc__ == "Docstring Test"

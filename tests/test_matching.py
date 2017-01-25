@@ -160,7 +160,7 @@ class TestCommutativePatternsParts:
         assert result_constraint == info.constraint
 
 
-class TestAutomaton:
+class TestManyToOneMatcher:
     def test_different_constraints(self):
         c1 = CustomConstraint(lambda x: len(str(x)) > 1)
         c2 = CustomConstraint(lambda x: len(str(x)) == 1)

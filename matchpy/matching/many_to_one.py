@@ -581,7 +581,8 @@ class CommutativeMatcher(object):
         return True
 
 
-class SecondaryAutomaton():
+class SecondaryAutomaton():  # pragma: no cover
+    # TODO: Decide whether to integrate this
     def __init__(self, k):
         self.k = k
         self.states = self._build(k)
