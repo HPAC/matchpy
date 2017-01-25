@@ -117,9 +117,8 @@ class Expression(metaclass=ExpressionMeta):
 
     def __new__(cls, *args, **kwargs):
         if not issubclass(cls, (FrozenExpression, MutableExpression)):
-            cls = _create_mixin_type(cls, FrozenExpression, _frozen_type_cache)
+            cls = _create_mixin_type(cls, MutableExpression, _mutable_type_cache)
             return cls.__new__(cls, *args, **kwargs)
-            #raise TypeError("Cannot instantiate {} directly, it must be either a mutable or frozen variant of it.".format(cls))
         return object.__new__(cls)
 
     @cached_property
@@ -528,7 +527,7 @@ class Operation(Expression, metaclass=_OperationMeta):
 
         >>> Times = Operation.new('*', Arity.polyadic, 'Times', associative=True, commutative=True, one_identity=True)
         >>> Times
-        Operation['*', Arity.polyadic, associative, commutative, one_identity]
+        Times['*', Arity.polyadic, associative, commutative, one_identity]
         >>> str(Times(Symbol('a'), Symbol('b')))
         '*(a, b)'
 
@@ -574,8 +573,8 @@ class Operation(Expression, metaclass=_OperationMeta):
         if isinstance(other, Symbol):
             return False
 
-        if not isinstance(other, type(self)):
-            return type(self).__name__ < type(other).__name__
+        if not isinstance(other, self.generic_base_type):
+            return self.generic_base_type.__name__ < other.generic_base_type.__name__
 
         if len(self.operands) != len(other.operands):
             return len(self.operands) < len(other.operands)
@@ -639,7 +638,7 @@ class Operation(Expression, metaclass=_OperationMeta):
 
     def copy_to(self, other: 'Operation') -> None:
         super().copy_to(other)
-        other.operands = self.operands.copy()
+        other.operands = self.operands[:]
 
 
 class Atom(Expression):  # pylint: disable=abstract-method
@@ -885,11 +884,13 @@ class Variable(Expression):
         )
 
     def __lt__(self, other):
+        if not isinstance(other, Expression):
+            return NotImplemented
         if isinstance(other, Symbol):
             return False
         if isinstance(other, Variable):
             return self.name < other.name
-        return type(self).__name__ < type(other).__name__
+        return self.generic_base_type.__name__ < other.generic_base_type.__name__
 
     def __getitem__(self, key: Tuple[int, ...]) -> Expression:
         if len(key) == 0:
@@ -1034,7 +1035,11 @@ class Wildcard(Atom):
         return '{!s}({!r}, {!r})'.format(type(self).__name__, self.min_count, self.fixed_size)
 
     def __lt__(self, other):
-        return (not isinstance(other, Wildcard)) and type(self).__name__ < type(other).__name__
+        if not isinstance(other, Expression):
+            return NotImplemented
+        if not isinstance(other, Wildcard):
+            return self.generic_base_type.__name__ < other.generic_base_type.__name__
+        return self.min_count < other.min_count or (self.fixed_size and not other.fixed_size)
 
     def __eq__(self, other):
         if not isinstance(other, self.generic_base_type):

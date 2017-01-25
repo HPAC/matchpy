@@ -4,10 +4,10 @@ import itertools
 from unittest.mock import Mock
 
 import pytest
-from matchpy.expressions.expressions import (Arity, MutableExpression,
-                                             Operation, Symbol, SymbolWildcard,
-                                             Variable, Wildcard, freeze,
-                                             unfreeze)
+from matchpy.expressions.expressions import (Arity, FrozenExpression,
+                                             MutableExpression, Operation,
+                                             Symbol, SymbolWildcard, Variable,
+                                             Wildcard, freeze, unfreeze)
 from matchpy.expressions.substitution import Substitution
 from multiset import Multiset
 
@@ -472,27 +472,42 @@ class TestMutableExpression:
     ]
 
     @pytest.mark.parametrize('expression', SIMPLE_EXPRESSIONS)
-    def test_unfreeze_equivalent(self, expression):
+    def test_frozen_equivalent(self, expression):
+        frozen_expr = freeze(expression)
         mutable_expr = unfreeze(expression)
-        assert expression == mutable_expr
+        assert frozen_expr == mutable_expr
 
     @pytest.mark.parametrize('expression', SIMPLE_EXPRESSIONS)
     def test_reunfreeze(self, expression):
+        expression = freeze(expression)
         mutable_expr = unfreeze(expression)
         remutable = unfreeze(mutable_expr)
         assert remutable is mutable_expr
 
     @pytest.mark.parametrize('expression', SIMPLE_EXPRESSIONS)
-    def test_freeze(self, expression):
-        unmutable = freeze(unfreeze(expression))
-        assert unmutable == expression
-        assert expression is freeze(expression)
+    def test_refreeze(self, expression):
+        expression = unfreeze(expression)
+        frozen_expr = freeze(expression)
+        refrozen = freeze(frozen_expr)
+        assert refrozen is frozen_expr
 
-    def test_from_args(self):
+    @pytest.mark.parametrize('expression', SIMPLE_EXPRESSIONS)
+    def test_freeze(self, expression):
+        mutable = unfreeze(freeze(expression))
+        frozen = freeze(unfreeze(expression))
+        assert mutable == frozen
+
+    def test_mutable_from_args(self):
         mutable = unfreeze(f(a))
         expression = type(mutable).from_args(a, b)
         assert expression == f(a, b)
         assert isinstance(expression, MutableExpression)
+
+    def test_frozen_from_args(self):
+        frozen = freeze(f(a))
+        expression = type(frozen).from_args(a, b)
+        assert expression == f(a, b)
+        assert isinstance(expression, FrozenExpression)
 
     @pytest.mark.parametrize('expression', SIMPLE_EXPRESSIONS)
     @pytest.mark.parametrize('other', SIMPLE_EXPRESSIONS)

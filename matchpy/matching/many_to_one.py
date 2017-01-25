@@ -549,7 +549,6 @@ class CommutativeMatcher(object):
     ) -> Iterator[Substitution]:
         for variable_substitution in commutative_sequence_variable_partition_iter(subjects, pattern_vars):
             try:
-                print(variable_substitution)
                 yield substitution.union(variable_substitution)
             except ValueError:
                 pass
@@ -622,7 +621,6 @@ class SecondaryAutomaton():
             for key, value in state.items():
                 new_state[key] = keys.index(value)
             new_states[i] = new_state
-            print(new_state)
 
         return new_states
 

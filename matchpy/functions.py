@@ -86,8 +86,8 @@ def replace(expression: Expression, position: Sequence[int], replacement: Union[
     The original `expression` itself is not modified, but a modified copy is returned. If the replacement
     is a list of expressions, it will be expanded into the list of operands of the respective operation:
 
-    >>> replace(f(a), (0, ), [b, c])
-    f(Symbol('b'), Symbol('c'))
+    >>> print(replace(f(a), (0, ), [b, c]))
+    f(b, c)
 
     Parameters:
         expression:
@@ -165,8 +165,8 @@ def replace_all(expression: Expression, rules: Iterable[ReplacementRule], max_co
                 for pattern, replacement in grouped[subexpr.head]:
                     try:
                         subst = next(match(subexpr, pattern))
-                        result = replacement(**subst)
-                        expression = freeze(replace(expression, pos, result))
+                        result = freeze(replacement(**subst))
+                        expression = replace(expression, pos, result)
                         replaced = True
                         break
                     except StopIteration:

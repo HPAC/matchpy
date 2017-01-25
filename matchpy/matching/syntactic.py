@@ -640,7 +640,7 @@ class SequenceMatcher:
                 raise TypeError("Pattern must be a non-commutative operation.")
 
             if self.operation is None:
-                self.operation = type(pattern)
+                self.operation = pattern.generic_base_type
             elif not isinstance(pattern, self.operation):
                 raise TypeError(
                     "All patterns must be the same operation, expected {} but got {}".

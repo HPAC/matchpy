@@ -203,7 +203,7 @@ class Substitution(Dict[str, VariableReplacement]):
 
             >>> subst = Substitution({'x': a})
             >>> subst.rename({'x': 'y'})
-            {'y': Symbol('a')}
+            {'y': MutableSymbol('a')}
 
         Args:
             renaming:
