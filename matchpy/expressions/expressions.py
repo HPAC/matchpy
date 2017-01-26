@@ -117,7 +117,7 @@ class Expression(metaclass=ExpressionMeta):
 
     def __new__(cls, *args, **kwargs):
         if not issubclass(cls, (FrozenExpression, MutableExpression)):
-            cls = _create_mixin_type(cls, MutableExpression, _mutable_type_cache, {'__hash__': None})
+            cls = _create_mixin_type(cls, FrozenExpression, _frozen_type_cache, {})
             return cls.__new__(cls, *args, **kwargs)
         return object.__new__(cls)
 

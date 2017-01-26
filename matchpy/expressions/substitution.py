@@ -153,7 +153,7 @@ class Substitution(Dict[str, VariableReplacement]):
                 return False
             return True
         elif isinstance(pattern, expressions.Operation):
-            assert isinstance(subject, type(pattern))
+            assert isinstance(subject, pattern.generic_base_type)
             assert len(subject.operands) == len(pattern.operands)
             op_expression = cast(expressions.Operation, subject)
             for subj, patt in zip(op_expression.operands, pattern.operands):
