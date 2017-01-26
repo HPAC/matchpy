@@ -231,3 +231,6 @@ class Substitution(Dict[str, VariableReplacement]):
 
     def __repr__(self):
         return '{{{}}}'.format(', '.join('{!r}: {!r}'.format(k, v) for k, v in sorted(self.items())))
+
+    def __copy__(self):
+        return type(self)(self)
