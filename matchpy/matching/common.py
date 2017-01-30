@@ -109,6 +109,7 @@ class CommutativePatternsParts(object):
         self.wildcard_fixed = None
 
         for expression in expressions:
+            expression = freeze(expression)
             if expression.is_constant:
                 self.constant[expression] += 1
             elif expression.head is None:

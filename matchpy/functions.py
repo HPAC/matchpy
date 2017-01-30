@@ -2,13 +2,15 @@
 """This module contains various functions for working with expressions.
 
 - With `substitute()` you can replace occurrences of variables with an expression or sequence of expressions.
-- With `replace()` you can replace a subexpression at a specific position with a differen expression or
+- With `replace()` you can replace a subexpression at a specific position with a different expression or
   sequence of expressions.
+- With `replace_many()` works the same as `replace()`, but you can replace multiple positions at once.
 - With `replace_all()` you can apply a set of replacement rules repeatedly to an expression.
 - With `is_match()` you can check whether a pattern matches a subject expression.
 """
 import itertools
 import math
+import operator
 from typing import Callable, List, NamedTuple, Sequence, Tuple, Union, Iterable
 
 from multiset import Multiset
@@ -17,10 +19,12 @@ from .expressions.expressions import Expression, Operation, Variable, freeze
 from .expressions.substitution import Substitution
 from .matching.one_to_one import match
 
-__all__ = ['substitute', 'replace', 'replace_all', 'is_match']
+__all__ = ['substitute', 'replace', 'replace_all', 'replace_many', 'is_match']
+
+Replacement = Union[Expression, List[Expression]]
 
 
-def substitute(expression: Expression, substitution: Substitution) -> Tuple[Union[Expression, List[Expression]], bool]:
+def substitute(expression: Expression, substitution: Substitution) -> Tuple[Replacement, bool]:
     """Replaces variables in the given `expression` by the given `substitution`.
 
     >>> print(substitute(f(x_), {'x': a})[0])
@@ -79,8 +83,7 @@ def substitute(expression: Expression, substitution: Substitution) -> Tuple[Unio
     return expression, False
 
 
-def replace(expression: Expression, position: Sequence[int], replacement: Union[Expression, Sequence[Expression]]) \
-        -> Union[Expression, Sequence[Expression]]:
+def replace(expression: Expression, position: Sequence[int], replacement: Replacement) -> Replacement:
     r"""Replaces the subexpression of `expression` at the given `position` with the given `replacement`.
 
     The original `expression` itself is not modified, but a modified copy is returned. If the replacement
@@ -121,6 +124,80 @@ def replace(expression: Expression, position: Sequence[int], replacement: Union[
     operands = list(expression.operands)
     operands[pos] = subexpr
     return op_class.from_args(*operands)
+
+
+def replace_many(expression: Expression, replacements: Sequence[Tuple[Sequence[int], Replacement]]) -> Replacement:
+    r"""Replaces the subexpressions of *expression* at the given positions with the given replacements.
+
+    The original *expression* itself is not modified, but a modified copy is returned. If the replacement
+    is a sequence of expressions, it will be expanded into the list of operands of the respective operation.
+
+    This function works the same as `replace`, but allows multiple positions to be replaced at the same time.
+    However, compared to just replacing each position individually with `replace`, this does work when positions are
+    modified due to replacing a position with a sequence:
+
+    >>> expr = f(a, b)
+    >>> expected_result = replace_many(expr, [((0, ), [c, c]), ((1, ), a)])
+    >>> print(expected_result)
+    f(c, c, a)
+
+    However, using `replace` for one position at a time gives the wrong result:
+
+    >>> step1 = replace(expr, (0, ), [c, c])
+    >>> print(step1)
+    f(c, c, b)
+    >>> step2 = replace(step1, (1, ), a)
+    >>> print(step2)
+    f(c, a, b)
+
+    Parameters:
+        expression:
+            An :class:`Expression` where a (sub)expression is to be replaced.
+        replacements:
+            A collection of tuples consisting of a position in the expression and a replacement for that position.
+            With just a single replacement pair, this is equivalent to using `replace`:
+
+            >>> replace(a, (), b) == replace_many(a, [((), b)])
+            True
+
+    Returns:
+        The resulting expression from the replacements.
+
+    Raises:
+        IndexError: If a position is invalid or out of range or if you try to replace a subterm of a term you are
+        already replacing.
+    """
+    if len(replacements) == 0:
+        return expression
+    replacements = sorted(replacements)
+    if len(replacements[0][0]) == 0:
+        if len(replacements) > 1:
+            raise IndexError(
+                "Cannot replace child positions for expression {}, got {!r}".format(expression, replacements[1:])
+            )
+        return replacements[0][1]
+    if len(replacements) == 1:
+        return replace(expression, replacements[0][0], replacements[0][1])
+    if not isinstance(expression, Operation):
+        raise IndexError("Invalid replacements {!r} for expression {!s}".format(replacements, expression))
+    operands = expression.operands
+    new_operands = []
+    last_index = 0
+    op_class = type(expression)
+    for index, group in itertools.groupby(replacements, lambda r: r[0][0]):
+        new_operands.extend(operands[last_index:index])
+        replacements = [(pos[1:], r) for pos, r in group]
+        if len(replacements) == 1:
+            replacement = replace(operands[index], replacements[0][0], replacements[0][1])
+        else:
+            replacement = replace_many(operands[index], replacements)
+        if isinstance(replacement, Expression):
+            new_operands.append(replacement)
+        else:
+            new_operands.extend(replacement)
+        last_index = index + 1
+    new_operands.extend(operands[last_index:len(operands)])
+    return op_class.from_args(*new_operands)
 
 
 ReplacementRule = NamedTuple('ReplacementRule', [('pattern', Expression), ('replacement', Callable[..., Expression])])

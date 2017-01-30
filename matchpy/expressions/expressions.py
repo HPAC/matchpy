@@ -234,10 +234,6 @@ class Expression(metaclass=ExpressionMeta):
 
 
 class FrozenExpression(Expression):
-    prefix = 'Frozen'
-
-
-class MutableExpression(Expression):  # pylint: disable=abstract-method,too-many-instance-attributes
     """Base class for :term:`frozen` expressions.
 
     .. warning::
@@ -246,10 +242,27 @@ class MutableExpression(Expression):  # pylint: disable=abstract-method,too-many
 
     Only use this class for :func:`isinstance` checks:
 
-    >>> isinstance(a, FrozenExpression)
-    False
     >>> isinstance(freeze(a), FrozenExpression)
     True
+    >>> isinstance(unfreeze(a), FrozenExpression)
+    False
+    """
+    prefix = 'Frozen'
+
+
+class MutableExpression(Expression):
+    """Base class for :term:`mutable` expressions.
+
+    .. warning::
+
+        DO NOT instantiate this class directly, use :func:`unfreeze` instead!
+
+    Only use this class for :func:`isinstance` checks:
+
+    >>> isinstance(unfreeze(a), MutableExpression)
+    True
+    >>> isinstance(freeze(a), MutableExpression)
+    False
     """
 
     prefix = 'Mutable'

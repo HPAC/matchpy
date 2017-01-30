@@ -5,7 +5,7 @@ from hypothesis import assume, given
 from matchpy.expressions.constraints import Constraint
 from matchpy.expressions.expressions import (Arity, Operation, Symbol,
                                              Variable, Wildcard, freeze)
-from matchpy.functions import ReplacementRule, replace, replace_all, substitute
+from matchpy.functions import ReplacementRule, replace, replace_all, substitute, replace_many
 from matchpy.matching.one_to_one import match_anywhere
 from multiset import Multiset
 
@@ -644,7 +644,12 @@ class TestSubstitute:
             substitute(Variable('x', Variable('y', a)), {'y': []})
 
 
+def many_replace_wrapper(expression, position, replacement):
+    return replace_many(expression, [(position, replacement)])
+
+
 class TestReplaceTest:
+    @pytest.mark.parametrize('replace', [replace, many_replace_wrapper])
     @pytest.mark.parametrize(
         '   expression,             position,   replacement,    expected_result',
         [
@@ -670,12 +675,13 @@ class TestReplaceTest:
             (f(f(a, b), f(a, b)),   (1, ),      c,              f(f(a, b), c)),
         ]
     )
-    def test_substitution_match(self, expression, position, replacement, expected_result):
+    def test_substitution_match(self, replace, expression, position, replacement, expected_result):
         result = replace(expression, position, replacement)
         assert result == expected_result, "Replacement did not yield expected result ({!r} {!r} -> {!r})".format(expression, position, replacement)
-        assert result != expression, "Replacement modified the original expression"
+        assert result is not expression, "Replacement modified the original expression"
 
-    def test_too_big_position_error(self):
+    @pytest.mark.parametrize('replace', [replace, many_replace_wrapper])
+    def test_too_big_position_error(self, replace):
         with pytest.raises(IndexError):
             replace(a, (0, ), b)
         with pytest.raises(IndexError):
@@ -684,6 +690,38 @@ class TestReplaceTest:
             replace(f(a), (1, ), b)
         with pytest.raises(IndexError):
             replace(f(a, b), (2, ), b)
+
+
+class TestReplaceManyTest:
+    @pytest.mark.parametrize(
+        '   expression,             replacements,                           expected_result',
+        [
+            (f(a, b),               [((0, ),  b), ((1, ),  a)],             f(b, a)),
+            (f(a, b),               [((0, ),  [c, c]), ((1, ),  a)],        f(c, c, a)),
+            (f(a, b),               [((0, ),  b), ((1, ),  [c, c])],        f(b, c, c)),
+            (f(f2(a, b), c),        [((0, 0),  b), ((0, 1),  a)],           f(f2(b, a), c)),
+            (fc(c, f2(a, b)),       [((1, 0),  b), ((1, 1),  a)],           fc(c, f2(b, a))),
+            (f(f2(a, b), f2(c)),    [((1, 0),  b), ((0, 1),  a)],           f(f2(a, a), f2(b))),
+            (f(f2(a, b), f2(c)),    [((0, 1),  a), ((1, 0),  b)],           f(f2(a, a), f2(b))),
+            (fc(f2(c), f2(a, b)),   [((0, 0),  b), ((1, 1),  a)],           fc(f2(b), f2(a, a))),
+            (fc(f2(c), f2(a, b)),   [((1, 1),  a), ((0, 0),  b)],           fc(f2(b), f2(a, a))),
+        ]
+    )
+    def test_substitution_match(self, expression, replacements, expected_result):
+        result = replace_many(expression, replacements)
+        assert result == expected_result, "Replacement did not yield expected result ({!r} -> {!r})".format(expression, replacements)
+        assert result is not expression, "Replacement modified the original expression"
+
+    def test_inconsistent_position_error(self):
+        with pytest.raises(IndexError):
+            replace_many(f(a), [((), b), ((0, ), b)])
+        with pytest.raises(IndexError):
+            replace_many(a, [((), b), ((0, ), b)])
+
+    def test_empty_replace(self):
+        expression = f(a, b)
+        result = replace_many(expression, [])
+        assert expression is result, "Empty replacements should not change the expression."
 
 
 @pytest.mark.parametrize(
