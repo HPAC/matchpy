@@ -6,6 +6,7 @@ from graphviz import Digraph
 
 from ..expressions.expressions import (Expression, Operation, Symbol, SymbolWildcard, Variable, Wildcard, freeze)
 from ..expressions.substitution import Substitution
+from ..expressions.constraints import MultiConstraint
 from ..utils import cached_property
 
 __all__ = ['FlatTerm', 'is_operation', 'is_symbol_wildcard', 'DiscriminationNet', 'SequenceMatcher']
@@ -588,6 +589,15 @@ class DiscriminationNet(Generic[T]):
                 result.extend(state.payload)
 
         return result if collect else state.payload
+
+    def full_match(self, expression: Union[Expression, FlatTerm]) -> Iterator[Tuple[Expression, Substitution]]:
+        for pattern in self.match(expression):
+            subst = Substitution()
+            if subst.extract_substitution(expression, pattern):
+                constraint = MultiConstraint.create(*(e.constraint for e, _ in pattern.preorder_iter()))
+                print(constraint)
+                if constraint is None or constraint(subst):
+                    yield pattern, subst
 
     def as_graph(self) -> Digraph:  # pragma: no cover
         dot = Digraph()

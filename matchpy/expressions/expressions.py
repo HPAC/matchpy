@@ -1,67 +1,23 @@
 # -*- coding: utf-8 -*-
-"""This module contains the expression classes."""
+"""This module contains the expression classes.
 
-"""TODO work on this (outdated)
-
-Contains functions to make expressions :term:`frozen`, so that they become :term:`hashable`.
-
-Normal expressions are mutable and hence not :term:`hashable`:
+Normal expressions are immutable and hence :term:`hashable`:
 
 >>> expr = f(b, x_)
 >>> print(expr)
 f(b, x_)
->>> expr.operands = [a, x_]
->>> print(expr)
-f(a, x_)
->>> hash(expr)
-Traceback (most recent call last):
-...
-TypeError: unhashable type: 'f'
-
-Use the `freeze()` function to freeze an expression and make it :term:`hashable`:
-
->>> frozen = freeze(expr)
->>> frozen == expr
-True
->>> print(frozen)
-f(a, x_)
->>> hash(frozen) == hash(frozen)
+>>> hash(expr) == hash(expr)
 True
 
-Attempting to modify a :term:`frozen` `.Expression` will raise an exception:
+Hence you should not modify an expression directly because some properties are cached:
 
->>> frozen.operands = [a]
-Traceback (most recent call last):
-...
-TypeError: Cannot modify a FrozenExpression
-
-You can check whether an expression is :term:`frozen` using `isinstance`:
-
->>> isinstance(frozen, FrozenExpression)
-True
->>> isinstance(expr, FrozenExpression)
+>>> expr.is_constant
 False
-
-Expressions can be unfrozen using `unfreeze()`:
-
->>> unfrozen = unfreeze(frozen)
->>> unfrozen == expr
-True
->>> print(unfrozen)
-f(a, x_)
-
-This expression can be modified again:
-
->>> unfrozen.operands = [a]
->>> print(unfrozen)
-f(a)
-
-This does not affect the original expression or the :term:`frozen` one:
-
->>> print(frozen)
-f(a, x_)
+>>> expr.operands = [a]
+>>> expr.is_constant
+False
 >>> print(expr)
-f(a, x_)
+f(a)
 """
 import itertools
 import keyword
@@ -247,6 +203,7 @@ class FrozenExpression(Expression):
     >>> isinstance(unfreeze(a), FrozenExpression)
     False
     """
+
     prefix = 'Frozen'
 
 

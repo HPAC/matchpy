@@ -29,7 +29,7 @@ c = Symbol('c')
 s = SpecialSymbol('s')
 _ = Wildcard.dot()
 x_ = Variable.dot('x')
-x2_ = Variable.fixed('x', 2)
+# x2_ = Variable.fixed('x', 2) THESE WILL NOT BE SUPPORTED IN THE FUTURE
 y_ = Variable.dot('y')
 z_ = Variable.dot('z')
 s_ = Variable.symbol('s')
@@ -82,10 +82,10 @@ class TestMatch:
             (f(f(a, b)),        f(f(a, b)),     True)
         ]
     )
-    def test_constant_match(self, match, expression, pattern, is_match):
+    def test_constant_match(self, match_syntactic, expression, pattern, is_match):
         expression = expression
         pattern = pattern
-        result = list(match(expression, pattern))
+        result = list(match_syntactic(expression, pattern))
         if is_match:
             assert result == [dict()], "Expression {!s} and {!s} did not match but were supposed to".format(expression, pattern)
         else:
@@ -198,14 +198,14 @@ class TestMatch:
             (f(f(a, b)),        f(x_),                              {'x': f(a, b)}),
             (f2(a, b),          f(x_, y_),                          None),
             (f(f(a, b)),        f(f(x_, y_)),                       {'x': a,       'y': b}),
-            (f(a, b, c),        f(x2_),                             None),
-            (f(a, b),           f(x2_),                             {'x': (a, b)}),
-            (f(a),              f(x2_),                             None),
+            #(f(a, b, c),        f(x2_),                             None),
+            #(f(a, b),           f(x2_),                             {'x': (a, b)}),
+            #(f(a),              f(x2_),                             None),
         ])
-    def test_wildcard_dot_match(self, match, expression, pattern, expected_match):
+    def test_wildcard_dot_match(self, match_syntactic, expression, pattern, expected_match):
         expression = expression
         pattern = pattern
-        result = list(match(expression, pattern))
+        result = list(match_syntactic(expression, pattern))
         if expected_match is not None:
             assert result == [expected_match], "Expression {!s} and {!s} did not match as {!s} but were supposed to".format(expression, pattern, expected_match)
         else:
@@ -225,9 +225,9 @@ class TestMatch:
             (fa(a, a, b, a, a),     fa(x_, b, x_),  [{'x': fa(a, a)}]),
             (fa(a, b, c),           fa(x_, y_),     [{'x': a,           'y': fa(b, c)},
                                                      {'x': fa(a, b),    'y': c}]),
-            (fa(a, b, c),           fa(x2_),        [{'x': (a, fa(b, c))}]),
-            (fa(a, b),              fa(x2_),        [{'x': (a, b)}]),
-            (fa(a),                 fa(x2_),        []),
+            #(fa(a, b, c),           fa(x2_),        [{'x': (a, fa(b, c))}]),
+            #(fa(a, b),              fa(x2_),        [{'x': (a, b)}]),
+            #(fa(a),                 fa(x2_),        []),
         ]
     )
     def test_associative_wildcard_dot_match(self, match, expression, pattern, expected_matches):
@@ -434,11 +434,11 @@ class TestMatch:
             (fc(a, b, a, b),        fc(_, a, y_, y_),               [{'y': b}]),
             (fc(a, b, a, b),        fc(_, b, y_, y_),               [{'y': a}]),
             (fc(a, b, b, b),        fc(_, b, y_, y_),               [{'y': b}]),
-            (fc(a, b, a, a),        fc(x2_, _, _),                  [{'x': Multiset([a, b])},
-                                                                     {'x': Multiset([a, a])}]),
-            (fc(a, b, b, a),        fc(x2_, _, _),                  [{'x': Multiset([a, b])},
-                                                                     {'x': Multiset([a, a])},
-                                                                     {'x': Multiset([b, b])}]),
+            # (fc(a, b, a, a),        fc(x2_, _, _),                  [{'x': Multiset([a, b])},
+            #                                                          {'x': Multiset([a, a])}]),
+            # (fc(a, b, b, a),        fc(x2_, _, _),                  [{'x': Multiset([a, b])},
+            #                                                          {'x': Multiset([a, a])},
+            #                                                          {'x': Multiset([b, b])}]),
         ]
     )
     def test_commutative_multiple_fixed_vars(self, match, expression, pattern, expected_matches):
@@ -505,38 +505,48 @@ class TestMatch:
             assert len(result) == 0
 
     @pytest.mark.parametrize(
-        'expression,    pattern_factory,                                                    constraint_values,  constraint_call_counts, match_count',
+        'expression,    pattern_factory,                                                    constraint_values,  match_count',
         [
-            (a,         lambda c: Wildcard(1, True, c),                                     [False],            [1],                    0),
-            (a,         lambda c: Wildcard(1, True, c),                                     [True],             [1],                    1),
-            (f(a, b),   lambda c1, c2: f(Wildcard(1, True, c1), Wildcard(1, True, c2)),     [False, True],      [1, 0],                 0),
-            (f(a, b),   lambda c1, c2: f(Wildcard(1, True, c1), Wildcard(1, True, c2)),     [False, False],     [1, 0],                 0),
-            (f(a, b),   lambda c1, c2: f(Wildcard(1, True, c1), Wildcard(1, True, c2)),     [True,  False],     [1, 1],                 0),
-            (f(a, b),   lambda c1, c2: f(Wildcard(1, True, c1), Wildcard(1, True, c2)),     [True,  True],      [1, 1],                 1),
-            (f(a, b),   lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)),   [False, False],     [3, 0],                 0),
-            (f(a, b),   lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)),   [False, True],      [3, 0],                 0),
-            (f(a, b),   lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)),   [True,  False],     [3, 3],                 0),
-            (f(a, b),   lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)),   [True,  True],      [3, 3],                 3),
-            (a,         lambda c: Variable('x', _, c),                                      [True],             [1],                    1),
-            (a,         lambda c: Variable('x', _, c),                                      [False],            [1],                    0),
-            (f(a, a),   lambda c1, c2: f(Variable('x', _, c1), Variable('x', _, c2)),       [False, False],     [1, 0],                 0),
-            (f(a, a),   lambda c1, c2: f(Variable('x', _, c1), Variable('x', _, c2)),       [True,  False],     [1, 1],                 0),
-            (f(a, a),   lambda c1, c2: f(Variable('x', _, c1), Variable('x', _, c2)),       [False, True],      [1, 0],                 0),
-            (f(a, a),   lambda c1, c2: f(Variable('x', _, c1), Variable('x', _, c2)),       [True,  True],      [1, 1],                 1),
-            (f(a),      lambda c: f(a, constraint=c),                                       [False],            [1],                    0),
-            (f(a),      lambda c: f(a, constraint=c),                                       [True],             [1],                    1),
+            (a,         lambda c: Wildcard(1, True, c),                                     [False],            0),
+            (a,         lambda c: Wildcard(1, True, c),                                     [True],             1),
+            (f(a, b),   lambda c1, c2: f(Wildcard(1, True, c1), Wildcard(1, True, c2)),     [False, True],      0),
+            (f(a, b),   lambda c1, c2: f(Wildcard(1, True, c1), Wildcard(1, True, c2)),     [False, False],     0),
+            (f(a, b),   lambda c1, c2: f(Wildcard(1, True, c1), Wildcard(1, True, c2)),     [True,  False],     0),
+            (f(a, b),   lambda c1, c2: f(Wildcard(1, True, c1), Wildcard(1, True, c2)),     [True,  True],      1),
+            (a,         lambda c: Variable('x', _, c),                                      [True],             1),
+            (a,         lambda c: Variable('x', _, c),                                      [False],            0),
+            (f(a, a),   lambda c1, c2: f(Variable('x', _, c1), Variable('x', _, c2)),       [False, False],     0),
+            (f(a, a),   lambda c1, c2: f(Variable('x', _, c1), Variable('x', _, c2)),       [True,  False],     0),
+            (f(a, a),   lambda c1, c2: f(Variable('x', _, c1), Variable('x', _, c2)),       [False, True],      0),
+            (f(a, a),   lambda c1, c2: f(Variable('x', _, c1), Variable('x', _, c2)),       [True,  True],      1),
+            (f(a),      lambda c: f(a, constraint=c),                                       [False],            0),
+            (f(a),      lambda c: f(a, constraint=c),                                       [True],             1),
         ]
     )
-    def test_constraint_match(self, match, expression, pattern_factory, constraint_values, constraint_call_counts, match_count):
+    def test_constraint_syntactic_match(self, match_syntactic, expression, pattern_factory, constraint_values, match_count):
+        constraints = [MockConstraint(v) for v in constraint_values]
+        pattern = pattern_factory(*constraints)
+        expression = expression
+        pattern = pattern
+        result = list(match_syntactic(expression, pattern))
+        assert len(result) == match_count, "Wrong number of matched for {!r} and {!r}".format(expression, pattern)
+
+    @pytest.mark.parametrize(
+        'expression,    pattern_factory,                                                    constraint_values,  match_count',
+        [
+            (f(a, b),   lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)),   [False, False],     0),
+            (f(a, b),   lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)),   [False, True],      0),
+            (f(a, b),   lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)),   [True,  False],     0),
+            (f(a, b),   lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)),   [True,  True],      3),
+        ]
+    )
+    def test_constraint_seq_var_match(self, match, expression, pattern_factory, constraint_values, match_count):
         constraints = [MockConstraint(v) for v in constraint_values]
         pattern = pattern_factory(*constraints)
         expression = expression
         pattern = pattern
         result = list(match(expression, pattern))
-
         assert len(result) == match_count, "Wrong number of matched for {!r} and {!r}".format(expression, pattern)
-        for constraint, call_count in zip(constraints, constraint_call_counts):
-            assert constraint.call_count >= call_count
 
     def test_constraint_call_values(self, match):
         constraint1 = MockConstraint(True)
