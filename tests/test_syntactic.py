@@ -250,7 +250,7 @@ def test_generate_net_and_match(pattern, expr, is_match):
     result = net.match(freeze(expr))
 
     if is_match:
-        assert result == [final_label], "Matching failed for {!s} and {!s}".format(pattern, expr)
+        assert result == [(pattern, final_label)], "Matching failed for {!s} and {!s}".format(pattern, expr)
     else:
         assert result == [], "Matching should fail for {!s} and {!s}".format(pattern, expr)
 
@@ -289,7 +289,7 @@ def test_randomized_product_net(patterns):
         exprs.append(flatterm)
 
     for pattern, expr in zip(patterns, exprs):
-        result = net.match(expr)
+        result = [p for p, _ in net.match(expr)]
 
         assert pattern in result, "{!s} did not match {!s} in the automaton".format(pattern, expr)
 
@@ -325,7 +325,7 @@ def test_product_net(i):
         net.add(pattern)
 
     for expression in PRODUCT_NET_EXPRESSIONS:
-        result = net.match(expression)
+        result = [p for p, _ in net.match(expression)]
 
         for pattern in patterns:
             try:

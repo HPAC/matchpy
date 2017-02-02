@@ -285,16 +285,17 @@ class DiscriminationNet(Generic[T]):
 
     def __init__(self):
         self._root = _State()
+        self._patterns = []
 
     def add(self, pattern: Union[Expression, FlatTerm], final_label: T=None) -> None:
         """TODO"""
-        if final_label is None:
-            final_label = freeze(pattern) if not isinstance(pattern, FlatTerm) else pattern
+        index = len(self._patterns)
+        self._patterns.append((pattern, final_label))
         flatterm = FlatTerm(freeze(pattern)) if not isinstance(pattern, FlatTerm) else pattern
         if pattern.is_syntactic or len(flatterm) == 1:
-            net = self._generate_syntactic_net(flatterm, final_label)
+            net = self._generate_syntactic_net(flatterm, index)
         else:
-            net = self._generate_net(flatterm, final_label)
+            net = self._generate_net(flatterm, index)
 
         if self._root:
             self._root = self._product_net(self._root, net)
@@ -555,11 +556,11 @@ class DiscriminationNet(Generic[T]):
 
         return root
 
-    def match(self, expression: Union[Expression, FlatTerm], collect: bool=False, first=False) -> List[T]:
+    def match(self, expression: Union[Expression, FlatTerm], collect: bool=False, first=False) -> List[Tuple[Expression, T]]:
         flatterm = FlatTerm(freeze(expression)) if isinstance(expression, Expression) else expression
         state = self._root
         depth = 0
-        result = state.payload[:]
+        result = [self._patterns[index] for index in state.payload]
         for term in flatterm:
             if depth > 0:
                 if is_operation(term):
@@ -568,7 +569,7 @@ class DiscriminationNet(Generic[T]):
                     depth -= 1
             else:
                 if first and state.payload:
-                    return state.payload
+                    return [self._patterns[index] for index in state.payload]
                 try:
                     try:
                         state = state[term]
@@ -586,18 +587,17 @@ class DiscriminationNet(Generic[T]):
                 except KeyError:
                     return result if collect else []
 
-                result.extend(state.payload)
+                result.extend(self._patterns[index] for index in state.payload)
 
-        return result if collect else state.payload
+        return result if collect else [self._patterns[index] for index in state.payload]
 
-    def full_match(self, expression: Union[Expression, FlatTerm]) -> Iterator[Tuple[Expression, Substitution]]:
-        for pattern in self.match(expression):
+    def full_match(self, expression: Union[Expression, FlatTerm]) -> Iterator[Tuple[T, Substitution]]:
+        for pattern, label in self.match(expression):
             subst = Substitution()
             if subst.extract_substitution(expression, pattern):
                 constraint = MultiConstraint.create(*(e.constraint for e, _ in pattern.preorder_iter()))
-                print(constraint)
                 if constraint is None or constraint(subst):
-                    yield pattern, subst
+                    yield label, subst
 
     def as_graph(self) -> Digraph:  # pragma: no cover
         dot = Digraph()
@@ -636,7 +636,7 @@ class SequenceMatcher:
     def __init__(self, *patterns):
         self._net = DiscriminationNet()
         super().__init__()
-        self.patterns = []
+        self._patterns = []
         self.operation = None
         for i, pattern in enumerate(patterns):
             if not isinstance(pattern, Operation) or pattern.commutative:
@@ -656,7 +656,7 @@ class SequenceMatcher:
             first_name = self._check_wildcard_and_get_name(pattern.operands[0])
             last_name = self._check_wildcard_and_get_name(pattern.operands[-1])
 
-            self.patterns.append((pattern, first_name, last_name))
+            self._patterns.append((pattern, first_name, last_name))
 
             flatterm = FlatTerm.merged(*(FlatTerm(freeze(o)) for o in pattern.operands[1:-1]))
             self._net.add(flatterm, i)
@@ -698,8 +698,8 @@ class SequenceMatcher:
         for i in range(len(flatterms)):
             flatterm = FlatTerm.merged(*flatterms[i:])
 
-            for match_index in self._net.match(flatterm, first=True):
-                pattern, first_name, last_name = self.patterns[match_index]
+            for _, match_index in self._net.match(flatterm, first=True):
+                pattern, first_name, last_name = self._patterns[match_index]
                 operand_count = len(pattern.operands) - 2
                 expr_operands = expression.operands[i:i + operand_count]
                 patt_operands = pattern.operands[1:-1]
