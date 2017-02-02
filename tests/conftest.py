@@ -27,7 +27,7 @@ def match_many_to_one(expression, pattern):
 def syntactic_matcher(expression, pattern):
     matcher = DiscriminationNet()
     matcher.add(pattern)
-    for _, substitution in matcher.full_match(expression):
+    for _, substitution in matcher.match(expression):
         yield substitution
 
 @pytest.fixture

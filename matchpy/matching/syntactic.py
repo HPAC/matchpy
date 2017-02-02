@@ -287,7 +287,7 @@ class DiscriminationNet(Generic[T]):
         self._root = _State()
         self._patterns = []
 
-    def add(self, pattern: Union[Expression, FlatTerm], final_label: T=None) -> None:
+    def add(self, pattern: Union[Expression, FlatTerm], final_label: T=None) -> int:
         """TODO"""
         index = len(self._patterns)
         self._patterns.append((pattern, final_label))
@@ -301,6 +301,7 @@ class DiscriminationNet(Generic[T]):
             self._root = self._product_net(self._root, net)
         else:
             self._root = net
+        return index
 
     @staticmethod
     def _create_child_state(state: _State[T], label: TransitionLabel) -> _State[T]:
@@ -556,11 +557,11 @@ class DiscriminationNet(Generic[T]):
 
         return root
 
-    def match(self, expression: Union[Expression, FlatTerm], collect: bool=False, first=False) -> List[Tuple[Expression, T]]:
+    def _match(self, expression: Union[Expression, FlatTerm], collect: bool=False, first=False) -> List[Tuple[Expression, T]]:
         flatterm = FlatTerm(freeze(expression)) if isinstance(expression, Expression) else expression
         state = self._root
         depth = 0
-        result = [self._patterns[index] for index in state.payload]
+        result = state.payload[:]
         for term in flatterm:
             if depth > 0:
                 if is_operation(term):
@@ -569,7 +570,7 @@ class DiscriminationNet(Generic[T]):
                     depth -= 1
             else:
                 if first and state.payload:
-                    return [self._patterns[index] for index in state.payload]
+                    return state.payload[:]
                 try:
                     try:
                         state = state[term]
@@ -587,12 +588,13 @@ class DiscriminationNet(Generic[T]):
                 except KeyError:
                     return result if collect else []
 
-                result.extend(self._patterns[index] for index in state.payload)
+                result.extend(state.payload)
 
-        return result if collect else [self._patterns[index] for index in state.payload]
+        return result if collect else state.payload[:]
 
-    def full_match(self, expression: Union[Expression, FlatTerm]) -> Iterator[Tuple[T, Substitution]]:
-        for pattern, label in self.match(expression):
+    def match(self, expression: Union[Expression, FlatTerm]) -> Iterator[Tuple[T, Substitution]]:
+        for index in self._match(expression):
+            pattern, label = self._patterns[index]
             subst = Substitution()
             if subst.extract_substitution(expression, pattern):
                 constraint = MultiConstraint.create(*(e.constraint for e, _ in pattern.preorder_iter()))
@@ -698,7 +700,8 @@ class SequenceMatcher:
         for i in range(len(flatterms)):
             flatterm = FlatTerm.merged(*flatterms[i:])
 
-            for _, match_index in self._net.match(flatterm, first=True):
+            for index in self._net._match(flatterm, first=True):
+                match_index = self._net._patterns[index][1]
                 pattern, first_name, last_name = self._patterns[match_index]
                 operand_count = len(pattern.operands) - 2
                 expr_operands = expression.operands[i:i + operand_count]

@@ -245,12 +245,11 @@ expression_strategy = st.recursive(expression_base_strategy, expression_recurse_
 )
 def test_generate_net_and_match(pattern, expr, is_match):
     net = DiscriminationNet()
-    final_label = random.randrange(1000)
-    net.add(freeze(pattern), final_label)
-    result = net.match(freeze(expr))
+    index = net.add(freeze(pattern))
+    result = net._match(freeze(expr))
 
     if is_match:
-        assert result == [(pattern, final_label)], "Matching failed for {!s} and {!s}".format(pattern, expr)
+        assert result == [index], "Matching failed for {!s} and {!s}".format(pattern, expr)
     else:
         assert result == [], "Matching should fail for {!s} and {!s}".format(pattern, expr)
 
@@ -261,7 +260,7 @@ def test_variable_expression_match_error():
     net.add(pattern)
 
     with pytest.raises(TypeError):
-        net.match(pattern)
+        list(net.match(pattern))
 
 @given(st.sets(expression_strategy, max_size=20))
 @example({freeze(f(a)), freeze(f(_s))})
@@ -288,10 +287,9 @@ def test_randomized_product_net(patterns):
             flatterm = [random.choice(CONSTANT_EXPRESSIONS)]
         exprs.append(flatterm)
 
-    for pattern, expr in zip(patterns, exprs):
-        result = [p for p, _ in net.match(expr)]
-
-        assert pattern in result, "{!s} did not match {!s} in the automaton".format(pattern, expr)
+    for index, (pattern, expr) in enumerate(zip(patterns, exprs)):
+        result = net._match(expr)
+        assert index in result, "{!s} did not match {!s} in the DiscriminationNet".format(pattern, expr)
 
 PRODUCT_NET_PATTERNS = [
     freeze(f(a, _, _)),
