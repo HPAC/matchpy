@@ -175,9 +175,9 @@ class ManyToOneMatcher:
                 subfinals = []
                 graph.subgraph(state.matcher.automaton._as_graph(subfinals))
                 submatch_label = 'Sub Matcher End'
-                for pattern_index, subpatterns, variables in state.matcher.patterns.values():
-                    var_formatted = ', '.join('{}[{}]x{}'.format(n, m, c) for n, c, m in variables)
-                    submatch_label += '\n{}: {} {}'.format(pattern_index, subpatterns, var_formatted)
+                for pattern_index, subpatterns, variables, constraint in state.matcher.patterns.values():
+                    var_formatted = ', '.join('{}[{}]x{}{}'.format(n, m, c, 'W' if w else '') for (n, c, m), w in variables)
+                    submatch_label += '\n{}: {} {} if {}'.format(pattern_index, subpatterns, var_formatted, constraint)
                 graph.node(name + '-end', submatch_label, {'shape': 'box'})
                 for f in subfinals:
                     graph.edge(f, name + '-end')
@@ -223,7 +223,7 @@ class ManyToOneMatcher:
                 break
         else:
             if commutative:
-                matcher = CommutativeMatcher(expression.associative)
+                matcher = CommutativeMatcher(type(expression).generic_base_type if expression.associative else None)
             state = self._create_state(matcher)
             transition = _Transition(label, state, constraint, variable_name)
             transitions.append(transition)
@@ -432,13 +432,13 @@ class CommutativeMatcher(object):
         self.associative = associative
 
     def add_pattern(self, operands: Iterable[Expression]) -> int:
-        pattern_set, pattern_vars = self._extract_sequence_wildcards(operands)
+        pattern_set, pattern_vars, constraint = self._extract_sequence_wildcards(operands)
         sorted_vars = tuple(sorted(pattern_vars.values()))
         sorted_subpatterns = tuple(sorted(pattern_set))
-        pattern_key = sorted_subpatterns + sorted_vars
+        pattern_key = sorted_subpatterns + sorted_vars + (constraint, )
         if pattern_key not in self.patterns:
             inserted_id = len(self.patterns)
-            self.patterns[pattern_key] = (inserted_id, pattern_set, sorted_vars)
+            self.patterns[pattern_key] = (inserted_id, pattern_set, sorted_vars, constraint)
         else:
             inserted_id = self.patterns[pattern_key][0]
         return inserted_id
@@ -466,7 +466,7 @@ class CommutativeMatcher(object):
             subject_id, subject_pattern_ids = self.subjects[subject]
             subject_ids.add(subject_id)
             pattern_ids.update(subject_pattern_ids)
-        for pattern_index, pattern_set, pattern_vars in self.patterns.values():
+        for pattern_index, pattern_set, pattern_vars, constraint in self.patterns.values():
             if pattern_set:
                 if not pattern_set <= pattern_ids:
                     continue
@@ -476,42 +476,45 @@ class CommutativeMatcher(object):
                         remaining_ids = subject_ids - matched_subjects
                         remaining = Multiset(self.subjects[id] for id in remaining_ids)  # pylint: disable=not-an-iterable
                         sequence_var_iter = self._match_sequence_variables(
-                            remaining, pattern_vars, bipartite_substitution
+                            remaining, pattern_vars, bipartite_substitution, constraint
                         )
                         for result_substitution in sequence_var_iter:
                             yield pattern_index, result_substitution
                     elif len(subjects) == len(pattern_set):
                         yield pattern_index, bipartite_substitution
             elif pattern_vars:
-                sequence_var_iter = self._match_sequence_variables(Multiset(subjects), pattern_vars, substitution)
+                sequence_var_iter = self._match_sequence_variables(Multiset(subjects), pattern_vars, substitution, constraint)
                 for variable_substitution in sequence_var_iter:
                     yield pattern_index, variable_substitution
             elif len(subjects) == 0:
                 yield pattern_index, substitution
 
     def _extract_sequence_wildcards(self, operands: Iterable[Expression]
-                                   ) -> Tuple[Multiset[int], Dict[str, VariableWithCount]]:
+                                   ) -> Tuple[Multiset[int], Dict[str, Tuple[VariableWithCount, bool]], Constraint]:
         pattern_set = Multiset()
         pattern_vars = dict()
+        constraint = None
         for operand in operands:
             if not self._is_sequence_wildcard(operand):
                 pattern_set.add(self.automaton.add(operand))
             else:
                 varname = getattr(operand, 'name', None)
+                constraint = MultiConstraint.create(constraint, operand.constraint)
                 wildcard = operand.expression if isinstance(operand, Variable) else operand
                 if varname is None:
                     if varname in pattern_vars:
-                        _, _, min_count = pattern_vars[varname]
+                        (_, _, min_count), _ = pattern_vars[varname]
                     else:
                         min_count = 0
-                    pattern_vars[varname] = VariableWithCount(varname, 1, wildcard.min_count + min_count)
+                    pattern_vars[varname] = (VariableWithCount(varname, 1, wildcard.min_count + min_count), False)
                 else:
                     if varname in pattern_vars:
-                        _, count, _ = pattern_vars[varname]
+                        (_, count, _), wrap = pattern_vars[varname]
                     else:
                         count = 0
-                    pattern_vars[varname] = VariableWithCount(varname, count + 1, wildcard.min_count)
-        return pattern_set, pattern_vars
+                        wrap = wildcard.fixed_size and self.associative
+                    pattern_vars[varname] = (VariableWithCount(varname, count + 1, wildcard.min_count), wrap)
+        return pattern_set, pattern_vars, constraint
 
     def _is_sequence_wildcard(self, expression: Expression) -> bool:
         if isinstance(expression, Variable):
@@ -541,17 +544,28 @@ class CommutativeMatcher(object):
             matched_subjects = Multiset(subexpression for subexpression, _ in matching)
             yield bipartite_substitution, matched_subjects
 
-    @staticmethod
     def _match_sequence_variables(
-            subjects: Multiset[Expression],
-            pattern_vars: Sequence[VariableWithCount],
-            substitution: Substitution,
+        self,
+        subjects: Multiset[Expression],
+        pattern_vars: Sequence[VariableWithCount],
+        substitution: Substitution,
+        constraint: Constraint,
     ) -> Iterator[Substitution]:
-        for variable_substitution in commutative_sequence_variable_partition_iter(subjects, pattern_vars):
+        only_counts = [info for info, _ in pattern_vars]
+        wrapped_vars = [name for (name, _, _), wrap in pattern_vars if wrap]
+        for variable_substitution in commutative_sequence_variable_partition_iter(subjects, only_counts):
+            for var in wrapped_vars:
+                orderands = variable_substitution[var]
+                if len(orderands) > 1:
+                    variable_substitution[var] = self.associative.from_args(*orderands)
+                else:
+                    variable_substitution[var] = next(iter(orderands))
             try:
-                yield substitution.union(variable_substitution)
+                result_substitution = substitution.union(variable_substitution)
             except ValueError:
-                pass
+                continue
+            if constraint is None or constraint(result_substitution):
+                yield result_substitution
 
     def _build_bipartite(self, subjects: Multiset[int], patterns: Multiset[int]) -> Subgraph:
         bipartite = BipartiteGraph()

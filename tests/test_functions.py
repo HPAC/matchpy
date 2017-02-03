@@ -21,7 +21,7 @@ fc = Operation.new('fc', Arity.variadic, commutative=True)
 fc2 = Operation.new('fc2', Arity.variadic, commutative=True)
 fa = Operation.new('fa', Arity.variadic, associative=True)
 fa2 = Operation.new('fa2', Arity.variadic, associative=True)
-fac1 = Operation.new('fac1', Arity.variadic, associative=True, commutative=True)
+fac = Operation.new('fac', Arity.variadic, associative=True, commutative=True)
 fac2 = Operation.new('fac2', Arity.variadic, associative=True, commutative=True)
 a = freeze(Symbol('a'))
 b = freeze(Symbol('b'))
@@ -225,12 +225,32 @@ class TestMatch:
             (fa(a, a, b, a, a),     fa(x_, b, x_),  [{'x': fa(a, a)}]),
             (fa(a, b, c),           fa(x_, y_),     [{'x': a,           'y': fa(b, c)},
                                                      {'x': fa(a, b),    'y': c}]),
+            (fa(a),                 fa(_),          [{}]),
+            (fa(a, b),              fa(_),          [{}]),
             #(fa(a, b, c),           fa(x2_),        [{'x': (a, fa(b, c))}]),
             #(fa(a, b),              fa(x2_),        [{'x': (a, b)}]),
             #(fa(a),                 fa(x2_),        []),
         ]
     )
     def test_associative_wildcard_dot_match(self, match, expression, pattern, expected_matches):
+        expression = expression
+        pattern = pattern
+        result = list(match(expression, pattern))
+        for expected_match in expected_matches:
+            assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(expression, pattern, expected_match)
+        for result_match in result:
+            assert result_match in expected_matches, "Expression {!s} and {!s} yielded the unexpected match {!s}".format(expression, pattern, result_match)
+
+    @pytest.mark.parametrize(
+        '   expression,             pattern,        expected_matches',
+        [
+            (fac(a),                fac(_),         [{}]),
+            (fac(a),                fac(x_),        [{'x': a}]),
+            (fac(a, b),             fac(_),         [{}]),
+            (fac(a, b),             fac(x_),        [{'x': fac(a, b)}]),
+        ]
+    )
+    def test_associative_commutative_wildcard_dot_match(self, match, expression, pattern, expected_matches):
         expression = expression
         pattern = pattern
         result = list(match(expression, pattern))
@@ -391,18 +411,25 @@ class TestMatch:
             assert result_match in expected_matches, "Expression {!s} and {!s} yielded the unexpected match {!s}".format(expression, pattern, result_match)
 
     @pytest.mark.parametrize(
-        '   expression,           pattern,      expected_matches',
+        '   expression,             pattern,        expected_matches',
         [
-            (a,                   s_,           [{'s': a}]),
-            (s,                   s_,           [{'s': s}]),
-            (f(a),                s_,           []),
-            (a,                   ss_,          []),
-            (f(a),                ss_,          []),
-            (s,                   ss_,          [{'ss': s}]),
-            (fc(a),               fc(ss_),      []),
-            (fc(s),               fc(ss_),      [{'ss': s}]),
-            (fc(a, s),            fc(ss_, ___), [{'ss': s}]),
-            (fc(a, s),            fc(s_, ___),  [{'s': s}, {'s': a}]),
+            (a,                     s_,             [{'s': a}]),
+            (s,                     s_,             [{'s': s}]),
+            (f(a),                  s_,             []),
+            (a,                     ss_,            []),
+            (f(a),                  ss_,            []),
+            (s,                     ss_,            [{'ss': s}]),
+            (fa(a),                 fa(s_),         [{'s': a}]),
+            (fa(f(a)),              fa(s_),         []),
+            (fc(a),                 fc(ss_),        []),
+            (fc(s),                 fc(ss_),        [{'ss': s}]),
+            (fc(a, s),              fc(ss_, ___),   [{'ss': s}]),
+            (fc(a, s),              fc(s_, ___),    [{'s': s}, {'s': a}]),
+            (fac(a),                fac(ss_),       []),
+            (fac(s),                fac(ss_),       [{'ss': s}]),
+            (fac(a, s),             fac(ss_, ___),  [{'ss': s}]),
+            (fac(a, s),             fac(s_, ___),   [{'s': s}, {'s': a}]),
+            (fac(a, s),             fac(s_),        []),
         ]
     )
     def test_wildcard_symbol_match(self, match, expression, pattern, expected_matches):
@@ -493,9 +520,43 @@ class TestMatch:
             (f(fc(b, a), f(a, b)),  f(fc(x__), f(x__)),     True),
             (f(fc(b, a), f(b, a)),  f(fc(x__), f(x__)),     True),
             (f(fc(a, b), f(b, a)),  f(fc(x__), f(x__)),     True),
+            (f(fc(a, b), fc(a, b)), f(fc(x__), fc(x__)),    True),
         ]
     )
     def test_mixed_commutative_vars(self, match, expression, pattern, is_match):
+        expression = expression
+        pattern = pattern
+        result = list(match(expression, pattern))
+        if is_match:
+            assert len(result) > 0
+        else:
+            assert len(result) == 0
+
+    @pytest.mark.parametrize(
+        '   expression,                         pattern,                    is_match',
+        [
+            (f(f(a), fac(a)),                   f(f(x_), fac(x_)),          True),
+            (f(fac(a), f(a)),                   f(fac(x_), f(x_)),          True),
+            (f(f(a, b), fac(a, b)),             f(f(x_), fac(x_)),          False),
+            (f(fac(a, b), f(a, b)),             f(fac(x_), f(x_)),          False),
+            (f(fc(a), fac(a)),                  f(fc(x_), fac(x_)),         True),
+            (f(fac(a), fc(a)),                  f(fac(x_), fc(x_)),         True),
+            (f(fc(a, b), fac(a, b)),            f(fc(x_), fac(x_)),         False),
+            (f(fac(a, b), fc(a, b)),            f(fac(x_), fc(x_)),         False),
+            (f(fa(a), fac(a)),                  f(fa(x_), fac(x_)),         True),
+            (f(fac(a), fa(a)),                  f(fac(x_), fa(x_)),         True),
+            (f(fa(a, b), fac(a, b)),            f(fa(x_), fac(x_)),         False),
+            (f(fac(a, b), fa(a, b)),            f(fac(x_), fa(x_)),         False),
+            (f(f(fac(a, b)), fac(a, b)),        f(f(x_), fac(x_)),          True),
+            (f(fac(a, b), f(fac(a, b))),        f(fac(x_), f(x_)),          True),
+            (f(fa(a, b), fac(fa(a, b))),        f(fa(x_), fac(x_)),         True),
+            (f(fac(fa(a, b)), fa(a, b)),        f(fac(x_), fa(x_)),         True),
+            (f(fa(a, b), fc(a, b)),             f(fa(x_), fc(x_, ___)),     False),
+            (f(fa(a), fc(a, a)),                f(fa(x_), fc(x_, x_)),      True),
+            (f(fac(a, b), fac(a, a, b, b)),     f(fac(x_), fac(x_, x_)),    True),
+        ]
+    )
+    def test_mixed_associative_commutative_vars(self, match, expression, pattern, is_match):
         expression = expression
         pattern = pattern
         result = list(match(expression, pattern))
@@ -532,15 +593,34 @@ class TestMatch:
         assert len(result) == match_count, "Wrong number of matched for {!r} and {!r}".format(expression, pattern)
 
     @pytest.mark.parametrize(
-        'expression,    pattern_factory,                                                    constraint_values,  match_count',
+        'expression,        pattern_factory,                                                    constraint_values,  match_count',
         [
-            (f(a, b),   lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)),   [False, False],     0),
-            (f(a, b),   lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)),   [False, True],      0),
-            (f(a, b),   lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)),   [True,  False],     0),
-            (f(a, b),   lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)),   [True,  True],      3),
+            (f(a, b),       lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)),   [False, False],     0),
+            (f(a, b),       lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)),   [False, True],      0),
+            (f(a, b),       lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)),   [True,  False],     0),
+            (f(a, b),       lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)),   [True,  True],      3),
+            (fc(a, a),      lambda c1, c2: fc(Variable('x', _, c1), Variable('x', _, c2)),      [False, False],     0),
+            (fc(a, a),      lambda c1, c2: fc(Variable('x', _, c1), Variable('x', _, c2)),      [True,  False],     0),
+            (fc(a, a),      lambda c1, c2: fc(Variable('x', _, c1), Variable('x', _, c2)),      [False, True],      0),
+            (fc(a, a),      lambda c1, c2: fc(Variable('x', _, c1), Variable('x', _, c2)),      [True,  True],      1),
+            (f(a, fc(a)),   lambda c1, c2: f(Variable('x', _, c1), fc(Variable('x', _, c2))),   [False, False],     0),
+            (f(a, fc(a)),   lambda c1, c2: f(Variable('x', _, c1), fc(Variable('x', _, c2))),   [True, False],      0),
+            (f(a, fc(a)),   lambda c1, c2: f(Variable('x', _, c1), fc(Variable('x', _, c2))),   [False, True],      0),
+            (f(a, fc(a)),   lambda c1, c2: f(Variable('x', _, c1), fc(Variable('x', _, c2))),   [True, True],       1),
+            (fc(a, a),      lambda c1, c2: fc(Variable('x', _, c1), Variable('x', _, c2)),      [True,  True],      1),
+            (fc(a, f(a)),   lambda c1, c2: fc(Variable('x', _, c1), f(Variable('x', _, c2))),   [False, False],     0),
+            (fc(a, f(a)),   lambda c1, c2: fc(Variable('x', _, c1), f(Variable('x', _, c2))),   [True, False],      0),
+            (fc(a, f(a)),   lambda c1, c2: fc(Variable('x', _, c1), f(Variable('x', _, c2))),   [False, True],      0),
+            (fc(a, f(a)),   lambda c1, c2: fc(Variable('x', _, c1), f(Variable('x', _, c2))),   [True, True],       1),
+            (fc(a, f(a)),   lambda c1, c2: fc(Variable('x', _, c1), f(x_, constraint=c2)),      [False, False],     0),
+            (fc(a, f(a)),   lambda c1, c2: fc(Variable('x', _, c1), f(x_, constraint=c2)),      [True, False],      0),
+            (fc(a, f(a)),   lambda c1, c2: fc(Variable('x', _, c1), f(x_, constraint=c2)),      [False, True],      0),
+            (fc(a, f(a)),   lambda c1, c2: fc(Variable('x', _, c1), f(x_, constraint=c2)),      [True, True],       1),
+            (fc(a, a),      lambda c: fc(Variable('x', ___, c)),                                [False],            0),
+            (fc(a, a),      lambda c: fc(Variable('x', ___, c)),                                [True],             1),
         ]
     )
-    def test_constraint_seq_var_match(self, match, expression, pattern_factory, constraint_values, match_count):
+    def test_constraint_non_syntactic_match(self, match, expression, pattern_factory, constraint_values, match_count):
         constraints = [MockConstraint(v) for v in constraint_values]
         pattern = pattern_factory(*constraints)
         expression = expression
