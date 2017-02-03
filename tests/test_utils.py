@@ -2,17 +2,16 @@
 import itertools
 import os
 
+from hypothesis import assume, example, given
 import hypothesis.strategies as st
 import pytest
-from hypothesis import assume, example, given
 from multiset import Multiset
 
-from matchpy.utils import (VariableWithCount, base_solution_linear,
-                           cached_property,
-                           commutative_sequence_variable_partition_iter,
-                           extended_euclid, fixed_integer_vector_iter,
-                           get_short_lambda_source, slot_cached_property,
-                           solve_linear_diop, integer_partition_vector_iter)
+from matchpy.utils import (
+    VariableWithCount, base_solution_linear, cached_property, commutative_sequence_variable_partition_iter,
+    extended_euclid, fixed_integer_vector_iter, get_short_lambda_source, integer_partition_vector_iter,
+    slot_cached_property, solve_linear_diop
+)
 
 
 def is_unique_list(l):
@@ -21,6 +20,7 @@ def is_unique_list(l):
             if v1 == v2:
                 return False
     return True
+
 
 class TestFixedIntegerVectorIterator:
     @given(st.lists(st.integers(min_value=0, max_value=10), max_size=5), st.integers(50))
@@ -40,14 +40,34 @@ def test_extended_euclid(a, b):
 
 
 class TestBaseSolutionLinear:
-    @given(st.integers(min_value=1, max_value=1000), st.integers(min_value=1, max_value=1000), st.integers(min_value=0, max_value=1000))
+    @given(
+        st.integers(
+            min_value=1, max_value=1000
+        ),
+        st.integers(
+            min_value=1, max_value=1000
+        ),
+        st.integers(
+            min_value=0, max_value=1000
+        )
+    )
     def test_correctness(self, a, b, c):
         for x, y in base_solution_linear(a, b, c):
             assert x >= 0
             assert y >= 0
             assert a * x + b * y == c, "Invalid solution {!r},{!r}".format(x, y)
 
-    @given(st.integers(min_value=1, max_value=1000), st.integers(min_value=1, max_value=1000), st.integers(min_value=0, max_value=1000))
+    @given(
+        st.integers(
+            min_value=1, max_value=1000
+        ),
+        st.integers(
+            min_value=1, max_value=1000
+        ),
+        st.integers(
+            min_value=0, max_value=1000
+        )
+    )
     def test_completeness(self, a, b, c):
         solutions = set(base_solution_linear(a, b, c))
         for x in range(c + 1):
@@ -55,7 +75,17 @@ class TestBaseSolutionLinear:
                 if a * x + b * y == c:
                     assert (x, y) in solutions, "Missing solution {!r},{!r}".format(x, y)
 
-    @given(st.integers(min_value=1, max_value=1000), st.integers(min_value=1, max_value=1000), st.integers(min_value=0, max_value=1000))
+    @given(
+        st.integers(
+            min_value=1, max_value=1000
+        ),
+        st.integers(
+            min_value=1, max_value=1000
+        ),
+        st.integers(
+            min_value=0, max_value=1000
+        )
+    )
     def test_uniqueness(self, a, b, c):
         solutions = list(base_solution_linear(a, b, c))
         assert is_unique_list(solutions), "Duplicate solution found"
@@ -69,7 +99,7 @@ class TestBaseSolutionLinear:
             (1,     -1,     1),
             (1,     1,      -1),
         ]
-    )
+    )  # yapf: disable
     def test_error(self, a, b, c):
         with pytest.raises(ValueError):
             next(base_solution_linear(a, b, c))
@@ -124,7 +154,7 @@ class TestSolveLinearDiop:
         self._limit_possible_solution_count(coeffs, c)
         for solution in solve_linear_diop(c, *coeffs):
             assert len(solution) == len(coeffs), "Solution size differs from coefficient count"
-            result = sum(c*x for c, x in zip(coeffs, solution))
+            result = sum(c * x for c, x in zip(coeffs, solution))
             for x in solution:
                 assert x >= 0
             assert result == c, "Invalid solution {!r}".format(solution)
@@ -136,7 +166,7 @@ class TestSolveLinearDiop:
         solutions = set(solve_linear_diop(c, *coeffs))
         values = [range(c // x) for x in coeffs]
         for solution2 in itertools.product(*values):
-            result = sum(c*x for c, x in zip(coeffs, solution2))
+            result = sum(c * x for c, x in zip(coeffs, solution2))
             if result == c:
                 assert solution2 in solutions, "Missing solution {!r}".format(solution2)
 
@@ -228,7 +258,7 @@ class TestCommutativeSequenceVariablePartitionIter:
             ([(2, 0), (1, 0)],      'aab',      2),
             ([(2, 1), (1, 0)],      'aab',      1),
         ]
-    )
+    )  # yapf: disable
     def test_correctness(self, variables, values, expected_iter_count):
         values = Multiset(values)
         variables = [VariableWithCount('var{:d}'.format(i), c, m) for i, (c, m) in enumerate(variables)]
@@ -243,6 +273,8 @@ class TestCommutativeSequenceVariablePartitionIter:
             count += 1
         assert count == expected_iter_count, "Invalid number of substitution in the iterable"
 
+
+# yapf: disable
 # =========================================================================
 # DON'T CHANGE THE FORMATTING OF THESE LINES, IT IS IMPORTANT FOR THE TESTS
 lambda_example = lambda a: a > 0, 0
@@ -251,6 +283,7 @@ lambda_multiline_example = [
     lambda x, y: x == y
 ]
 # =========================================================================
+# yapf: enable
 
 @pytest.mark.parametrize(
     '   lambda_func,                    expected_source',
@@ -268,7 +301,7 @@ lambda_multiline_example = [
         (not_a_lambda,                  None),
         (5,                             None),
     ]
-)
+)  # yapf: disable
 def test_get_short_lambda_source(lambda_func, expected_source):
     source = get_short_lambda_source(lambda_func)
     assert source == expected_source
@@ -277,6 +310,7 @@ def test_get_short_lambda_source(lambda_func, expected_source):
 def test_cached_property():
     class A:
         call_count = 0
+
         @cached_property
         def example(self):
             """Docstring Test"""
@@ -302,6 +336,7 @@ def test_slot_cached_property():
     class A:
         __slots__ = ('cache', )
         call_count = 0
+
         @slot_cached_property('cache')
         def example(self):
             """Docstring Test"""

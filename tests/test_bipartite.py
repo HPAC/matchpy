@@ -6,9 +6,7 @@ import hypothesis.strategies as st
 from hypothesis import given
 import pytest
 
-from matchpy.matching.bipartite import (BipartiteGraph,
-                                               _DirectedMatchGraph,
-                                               enum_maximum_matchings_iter)
+from matchpy.matching.bipartite import BipartiteGraph, _DirectedMatchGraph, enum_maximum_matchings_iter
 
 
 @st.composite
@@ -65,7 +63,7 @@ def test_completeness(n, m):
         ({0: {2}, 1: {2}, 2: {0}},  [0, 2]),
         ({0: {2}, 1: {2}, 2: {1}},  [1, 2]),
     ]
-)
+)  # yapf: disable
 def test_directed_graph_find_cycle(graph, expected_cycle):
     dmg = _DirectedMatchGraph({}, {})
     dmg.update(graph)
@@ -87,7 +85,7 @@ class TestBipartiteGraphTest:
             graph[0] = True
 
         with pytest.raises(TypeError):
-            graph[0,] = True
+            graph[0, ] = True
 
         with pytest.raises(TypeError):
             graph[0, 1, 2] = True
@@ -101,7 +99,7 @@ class TestBipartiteGraphTest:
             _ = graph[0]
 
         with pytest.raises(TypeError):
-            _ = graph[0,]
+            _ = graph[0, ]
 
         with pytest.raises(TypeError):
             _ = graph[0, 1, 2]
@@ -122,7 +120,7 @@ class TestBipartiteGraphTest:
             del graph[0]
 
         with pytest.raises(TypeError):
-            del graph[0,]
+            del graph[0, ]
 
         with pytest.raises(TypeError):
             del graph[0, 1, 2]
@@ -148,8 +146,3 @@ class TestBipartiteGraphTest:
         assert not {(1, 2): True} == BipartiteGraph({(1, 1): True})
         assert not BipartiteGraph() == ''
         assert not '' == BipartiteGraph()
-
-
-if __name__ == '__main__':
-    import matchpy.bipartite as tested_module
-    pytest.main(['--doctest-modules', __file__, tested_module.__file__])

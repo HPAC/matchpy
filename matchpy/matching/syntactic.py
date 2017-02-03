@@ -557,7 +557,8 @@ class DiscriminationNet(Generic[T]):
 
         return root
 
-    def _match(self, expression: Union[Expression, FlatTerm], collect: bool=False, first=False) -> List[Tuple[Expression, T]]:
+    def _match(self, expression: Union[Expression, FlatTerm], collect: bool=False,
+               first=False) -> List[Tuple[Expression, T]]:
         flatterm = FlatTerm(freeze(expression)) if isinstance(expression, Expression) else expression
         state = self._root
         depth = 0

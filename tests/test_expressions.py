@@ -1,152 +1,17 @@
 # -*- coding: utf-8 -*-
 import inspect
 import itertools
-from unittest.mock import Mock
 
 import pytest
-from matchpy.expressions.expressions import (Arity, FrozenExpression,
-                                             MutableExpression, Operation,
-                                             Symbol, SymbolWildcard, Variable,
-                                             Wildcard, freeze, unfreeze, Expression)
-from matchpy.expressions.substitution import Substitution
-from matchpy.expressions.constraints import MultiConstraint
 from multiset import Multiset
 
+from matchpy.expressions.expressions import (
+    Arity, FrozenExpression, MutableExpression, Operation, Symbol, SymbolWildcard, Variable, Wildcard, freeze, unfreeze,
+    Expression
+)
+from matchpy.expressions.constraints import MultiConstraint
 from .utils import MockConstraint
-
-a = freeze(Symbol('a'))
-b = freeze(Symbol('b'))
-
-
-f = Operation.new('f', Arity.variadic)
-f_i = Operation.new('f_i', Arity.variadic, one_identity=True)
-f_a = Operation.new('f_a', Arity.variadic, associative=True)
-f_c = Operation.new('f_c', Arity.variadic, commutative=True)
-f_ac = Operation.new('f', Arity.variadic, associative=True, commutative=True)
-
-c = Symbol('c')
-
-_ = Wildcard.dot()
-x_ = Variable.dot('x')
-y_ = Variable.dot('y')
-z_ = Variable.dot('z')
-xs_ = Variable.symbol('x')
-__ = Wildcard.plus()
-x__ = Variable.plus('x')
-y__ = Variable.plus('y')
-z__ = Variable.plus('z')
-___ = Wildcard.star()
-x___ = Variable.star('x')
-y___ = Variable.star('y')
-z___ = Variable.star('z')
-
-
-class TestSubstitution:
-    @pytest.mark.parametrize(
-        '   substitution,                   variable,   value,                 expected_result',
-        [
-            ({},                            'x',        a,                     {'x': a}),
-            ({'x': a},                      'x',        a,                     {'x': a}),
-            ({'x': a},                      'x',        b,                     ValueError),
-            ({'x': a},                      'x',        (a, b),                ValueError),
-            ({'x': (a, b)},                 'x',        (a, b),                {'x': (a, b)}),
-            ({'x': (a, b)},                 'x',        (a, a),                ValueError),
-            ({'x': (a, b)},                 'x',        Multiset([a, b]),      {'x': (a, b)}),
-            ({'x': (a, b)},                 'x',        Multiset([a]),         ValueError),
-            ({'x': Multiset([a, b])},       'x',        Multiset([a, b]),      {'x': Multiset([a, b])}),
-            ({'x': Multiset([a, b])},       'x',        Multiset([]),          ValueError),
-            ({'x': Multiset([a, b])},       'x',        (a, b),                {'x': (a, b)}),
-            ({'x': Multiset([a, b])},       'x',        (a, a),                ValueError),
-            ({'x': Multiset([a])},          'x',        (a,),                  {'x': (a,)}),
-            ({'x': Multiset([a])},          'x',        (b,),                  ValueError),
-            ({'x': Multiset([a])},          'x',        a,                     {'x': a}),
-            ({'x': Multiset([a])},          'x',        b,                     ValueError),
-        ]
-    )
-    def test_union_with_var(self, substitution, variable, value, expected_result):
-        substitution = Substitution(substitution)
-        if expected_result is ValueError:
-            with pytest.raises(ValueError):
-                _ = substitution.union_with_variable(variable, value)
-        else:
-            result = substitution.union_with_variable(variable, value)
-            assert result == expected_result
-
-    @pytest.mark.parametrize(
-        '   substitution1,                  substitution2,                  expected_result',
-        [
-            ({},                            {},                             {}),
-            ({'x': a},                      {},                             {'x': a}),
-            ({'x': a},                      {'y': b},                       {'x': a, 'y': b}),
-            ({'x': a},                      {'x': b},                       ValueError),
-            ({'x': a},                      {'x': a},                       {'x': a}),
-        ]
-    )
-    def test_union(self, substitution1, substitution2, expected_result):
-        substitution1 = Substitution(substitution1)
-        substitution2 = Substitution(substitution2)
-        if expected_result is ValueError:
-            with pytest.raises(ValueError):
-                _ = substitution1.union(substitution2)
-            with pytest.raises(ValueError):
-                _ = substitution2.union(substitution1)
-        else:
-            result = substitution1.union(substitution2)
-            assert result == expected_result
-            assert result is not substitution1
-            assert result is not substitution2
-            result = substitution2.union(substitution1)
-            assert result == expected_result
-            assert result is not substitution1
-            assert result is not substitution2
-
-    @pytest.mark.parametrize(
-        '   substitution,                   subject,    pattern,                expected_result',
-        [
-            ({},                            a,          a,                      {}),
-            ({},                            a,          x_,                     {'x': a}),
-            ({'x': a},                      a,          x_,                     {'x': a}),
-            ({'x': b},                      a,          x_,                     False),
-            ({},                            f(a),       f(a),                   {}),
-            ({},                            f(a),       f(x_),                  {'x': a}),
-            ({'x': a},                      f(a),       f(x_),                  {'x': a}),
-            ({'x': b},                      f(a),       f(x_),                  False),
-            ({},                            f(a, a),    f(x_, x_),              {'x': a}),
-            ({},                            f(a, b),    f(x_, x_),              False),
-            ({},                            f(a, b),    f(x_, y_),              {'x': a, 'y': b}),
-        ]
-    )
-    def test_extract_substitution(self, substitution, subject, pattern, expected_result):
-        substitution = Substitution(substitution)
-        if expected_result is False:
-            assert substitution.extract_substitution(subject, pattern) is False
-        else:
-            assert substitution.extract_substitution(subject, pattern) is True
-            assert substitution == expected_result
-
-    @pytest.mark.parametrize(
-        '   substitution,                  renaming,                  expected_result',
-        [
-            ({},                            {},                       {}),
-            ({'x': a},                      {},                       {'x': a}),
-            ({'x': a},                      {'x': 'y'},               {'y': a}),
-            ({'x': a},                      {'y': 'x'},               {'x': a}),
-        ]
-    )
-    def test_rename(self, substitution, renaming, expected_result):
-        assert Substitution(substitution).rename(renaming) == expected_result
-
-    def test_copy(self):
-        substitution = Substitution({'x': a})
-
-        copy = substitution.__copy__()
-
-        assert copy == substitution
-        assert copy is not substitution
-
-
-a = Symbol('a')
-b = Symbol('b')
+from .common import *
 
 constraint1 = MockConstraint(True)
 constraint2 = MockConstraint(True)
@@ -176,7 +41,7 @@ class TestExpression:
             (f_a(a, f_a(b, constraint=constraint1)),                            f_a(a, b, constraint=constraint1)),
             (f_a(a, f_a(b, constraint=constraint1), constraint=constraint2),    f_a(a, b, constraint=both_constraints)),
         ]
-    )
+    )  # yapf: disable
     def test_operation_simplify(self, expression, simplified):
         assert expression == simplified
 
@@ -192,7 +57,7 @@ class TestExpression:
             (Operation.new('f', Arity.binary),                      [x_, x___], ValueError),
             (Operation.new('f', Arity.binary),                      [x_, x_],   None),
         ]
-    )
+    )  # yapf: disable
     def test_operation_errors(self, operation, operands, expected_error):
         if expected_error is not None:
             with pytest.raises(expected_error):
@@ -210,7 +75,7 @@ class TestExpression:
             (f(a, b),       True),
             (f(x_),         False),
         ]
-    )
+    )  # yapf: disable
     def test_is_constant(self, expression, is_constant):
         assert expression.is_constant == is_constant
 
@@ -241,7 +106,7 @@ class TestExpression:
             (f_ac(x_),      False),
             (f_ac(x__),     False),
         ]
-    )
+    )  # yapf: disable
     def test_is_syntactic(self, expression, is_syntactic):
         assert expression.is_syntactic == is_syntactic
 
@@ -261,7 +126,7 @@ class TestExpression:
             (f(x_, f(x_)),      False),
             (f(x_, a, f(x_)),   False),
         ]
-    )
+    )  # yapf: disable
     def test_is_linear(self, expression, is_linear):
         assert expression.is_linear == is_linear
 
@@ -277,7 +142,7 @@ class TestExpression:
             (f(a, a),           ['a', 'a', 'f']),
             (f(f(a), f(b, c)),  ['a', 'b', 'c', 'f', 'f', 'f']),
         ]
-    )
+    )  # yapf: disable
     def test_symbols(self, expression, symbols):
         assert expression.symbols == Multiset(symbols)
 
@@ -294,7 +159,7 @@ class TestExpression:
             (f(x_, a, y_),          ['x', 'y']),
             (f(f(x_), f(b, x_)),    ['x', 'x']),
         ]
-    )
+    )  # yapf: disable
     def test_variables(self, expression, variables):
         assert expression.variables == Multiset(variables)
 
@@ -309,7 +174,8 @@ class TestExpression:
                                                          (_,                (1, 0, 0))]),
             (f(a, f(x_)),   lambda e: e.head == f,      [(f(a, f(x_)),      ()),
                                                          (f(x_),            (1, ))])
-        ])
+        ]
+    )  # yapf: disable
     def test_preorder_iter(self, expression, predicate, preorder_list):
         result = list(expression.preorder_iter(predicate))
         assert result == preorder_list
@@ -331,7 +197,8 @@ class TestExpression:
             ((1, 2),        IndexError),
             ((2, ),         _),
             ((3, ),         IndexError),
-        ])
+        ]
+    )  # yapf: disable
     def test_getitem(self, position, expected_result):
         if inspect.isclass(expected_result) and issubclass(expected_result, Exception):
             with pytest.raises(expected_result):
@@ -362,7 +229,7 @@ class TestExpression:
             (x_,            _,              True),
             (a,             _,              True),
         ]
-    )
+    )  # yapf: disable
     def test_lt(self, expression1, expression2, first_is_bigger_than_second):
         if first_is_bigger_than_second:
             assert expression1 < expression2, "{!s} < {!s} did not hold".format(expression1, expression2)
@@ -416,7 +283,7 @@ class TestExpression:
             (f(Variable.dot('x', constraint1)),                             f(x_)),
             (f(Variable.dot('x', constraint1), constraint=constraint2),     f(x_)),
         ]
-    )
+    )  # yapf: disable
     def test_without_constraints(self, expression, expected_result):
         new_expr = expression.without_constraints
         assert new_expr == expected_result
@@ -441,7 +308,7 @@ class TestExpression:
             (f(x_),                             {'x': 'y'},     f(y_)),
             (f(x_, constraint=constraint1),     {'x': 'y'},     f(y_, constraint=constraint1)),
         ]
-    )
+    )  # yapf: disable
     def test_with_renamed_vars(self, expression, renaming, expected_result):
         new_expr = expression.with_renamed_vars(renaming)
         assert new_expr == expected_result
@@ -474,11 +341,14 @@ class CustomSymbolWithoutDict(Symbol):
         super().copy_to(other)
         other.custom = self.custom
 
+
 class CustomMixin(Expression):
     pass
 
+
 class OtherMixin:
     pass
+
 
 class FancySymbol(Symbol, CustomMixin, OtherMixin):
     pass
@@ -495,6 +365,7 @@ class TestOperation:
         with pytest.raises(TypeError):
             Operation.new('Invalid', Arity.unary, infix=True)
 
+
 class TestFrozenExpression:
     BUILTIN_PROPERTIES = ['is_constant', 'is_syntactic', 'is_linear', 'symbols', 'variables']
 
@@ -505,9 +376,9 @@ class TestFrozenExpression:
         x_,
         ___,
         Variable('x', f(_)),
-        xs_,
+        s_,
         CustomSymbolWithDict('custom1'),
-        CustomSymbolWithoutDict('custom2')
+        CustomSymbolWithoutDict('custom2'),
     ]
 
     @pytest.mark.parametrize('expression', SIMPLE_EXPRESSIONS)
@@ -574,16 +445,10 @@ class TestFrozenExpression:
         assert isinstance(frozen, OtherMixin)
         assert isinstance(frozen, FancySymbol)
 
-
     def test_freeze_error(self):
         with pytest.raises(TypeError):
             freeze(object())
 
-
     def test_unfreeze_error(self):
         with pytest.raises(TypeError):
             unfreeze(object())
-
-if __name__ == '__main__':
-    import matchpy.expressions as tested_module
-    pytest.main(['--doctest-modules', __file__, tested_module.__file__])

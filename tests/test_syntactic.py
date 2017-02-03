@@ -1,36 +1,15 @@
 # -*- coding: utf-8 -*-
 import random
 
+from hypothesis import assume, example, given
 import hypothesis.strategies as st
 import pytest
-from hypothesis import assume, example, given
-from matchpy.expressions.expressions import (Arity, Atom, Operation, Symbol,
-                                             Variable, Wildcard, freeze)
+
+from matchpy.expressions.expressions import Atom, Operation, Symbol, Variable, Wildcard, freeze
 from matchpy.matching.one_to_one import match
 from matchpy.matching.syntactic import OPERATION_END as OP_END
-from matchpy.matching.syntactic import (DiscriminationNet, FlatTerm,
-                                        SequenceMatcher, is_operation,
-                                        is_symbol_wildcard)
-
-
-class SpecialSymbol(Symbol): pass
-
-f = Operation.new('f', Arity.variadic)
-fc = Operation.new('fc', Arity.variadic, commutative=True)
-g = Operation.new('g', Arity.variadic)
-h = Operation.new('h', Arity.unary)
-a = Symbol('a')
-b = Symbol('b')
-c = Symbol('c')
-d = SpecialSymbol('d')
-_ = Wildcard.dot()
-x_ = Variable.dot('x')
-__ = Wildcard.plus()
-y__ = Variable.plus('y')
-___ = Wildcard.star()
-z___ = Variable.star('z')
-_s = Wildcard.symbol(Symbol)
-
+from matchpy.matching.syntactic import DiscriminationNet, FlatTerm, SequenceMatcher, is_operation, is_symbol_wildcard
+from .common import *
 
 CONSTANT_EXPRESSIONS = [freeze(e) for e in [a, b, c, d]]
 
@@ -45,16 +24,16 @@ CONSTANT_EXPRESSIONS = [freeze(e) for e in [a, b, c, d]]
         (Variable('v', f(_)),   [f, _, OP_END]),
         (f(),                   [f, OP_END]),
         (f(a),                  [f, a, OP_END]),
-        (g(b),                  [g, b, OP_END]),
+        (f2(b),                  [f2, b, OP_END]),
         (f(a, b),               [f, a, b, OP_END]),
         (f(x_),                 [f, _, OP_END]),
         (f(__),                 [f, __, OP_END]),
-        (f(g(a)),               [f, g, a, OP_END, OP_END]),
-        (f(g(a), b),            [f, g, a, OP_END, b, OP_END]),
-        (f(a, g(b)),            [f, a, g, b, OP_END, OP_END]),
-        (f(a, g(b), c),         [f, a, g, b, OP_END, c, OP_END]),
-        (f(g(b), g(c)),         [f, g, b, OP_END, g, c, OP_END, OP_END]),
-        (f(f(g(b)), g(c)),      [f, f, g, b, OP_END, OP_END, g, c, OP_END, OP_END]),
+        (f(f2(a)),               [f, f2, a, OP_END, OP_END]),
+        (f(f2(a), b),            [f, f2, a, OP_END, b, OP_END]),
+        (f(a, f2(b)),            [f, a, f2, b, OP_END, OP_END]),
+        (f(a, f2(b), c),         [f, a, f2, b, OP_END, c, OP_END]),
+        (f(f2(b), f2(c)),         [f, f2, b, OP_END, f2, c, OP_END, OP_END]),
+        (f(f(f2(b)), f2(c)),      [f, f, f2, b, OP_END, OP_END, f2, c, OP_END, OP_END]),
         (f(_, _),               [f, Wildcard.dot(2), OP_END]),
         (f(_, __),              [f, Wildcard(2, False), OP_END]),
         (f(_, __, __),          [f, Wildcard(3, False), OP_END]),
@@ -63,7 +42,7 @@ CONSTANT_EXPRESSIONS = [freeze(e) for e in [a, b, c, d]]
         (f(___, __),            [f, __, OP_END]),
         (f(_, a, __),           [f, _, a, __, OP_END]),
     ]
-)
+)  # yapf: disable
 def test_flatterm_init(expr, result):
     term = list(FlatTerm(expr))
     assert term == result
@@ -73,6 +52,7 @@ def test_flatterm_init_error():
     with pytest.raises(TypeError):
         FlatTerm(None)
 
+
 def test_flatterm_add():
     assert FlatTerm(a) + [b] == FlatTerm([a, b])
     assert FlatTerm(a) + (b, ) == FlatTerm([a, b])
@@ -81,12 +61,14 @@ def test_flatterm_add():
     with pytest.raises(TypeError):
         FlatTerm() + 5
 
+
 def test_flatterm_contains():
     flatterm = FlatTerm(f(a))
 
     assert f in flatterm
     assert a in flatterm
     assert b not in flatterm
+
 
 def test_flatterm_getitem():
     flatterm = FlatTerm(f(a))
@@ -97,6 +79,7 @@ def test_flatterm_getitem():
 
     with pytest.raises(IndexError):
         flatterm[3]
+
 
 def test_flatterm_eq():
     assert FlatTerm(a) == FlatTerm(a)
@@ -114,16 +97,17 @@ def test_flatterm_eq():
         (f(a),              True),
         (_,                 True),
         (__,                False),
-        (fc(a),             False),
+        (f_c(a),            False),
         (f(_, _),           True),
         (f(__),             False),
         (f(x_),             True),
         (f(z___),           False),
     ]
-)
+)  # yapf: disable
 def test_flatterm_is_syntactic(flatterm, is_syntactic):
     flatterm = FlatTerm(flatterm)
     assert flatterm.is_syntactic == is_syntactic
+
 
 def test_is_operation():
     assert is_operation(str) is False
@@ -148,7 +132,8 @@ def func_wrap_strategy(args, func):
 
 
 def expression_recurse_strategy(args):
-    return func_wrap_strategy(args, f) | func_wrap_strategy(args, g)
+    return func_wrap_strategy(args, f) | func_wrap_strategy(args, f2)
+
 
 expression_base_strategy = st.sampled_from([freeze(e) for e in [a, b, c, _, __, ___, _s]])
 expression_strategy = st.recursive(expression_base_strategy, expression_recurse_strategy, max_leaves=10)
@@ -159,13 +144,13 @@ expression_strategy = st.recursive(expression_base_strategy, expression_recurse_
     [
         (a,                         a,                                      True),
         (_,                         a,                                      True),
-        (_,                         g(a),                                   True),
-        (_,                         g(h(a)),                                True),
-        (_,                         g(a, b),                                True),
+        (_,                         f2(a),                                  True),
+        (_,                         f2(f3(a)),                              True),
+        (_,                         f2(a, b),                               True),
         (f(_),                      f(a),                                   True),
-        (f(_),                      f(g(a)),                                True),
-        (f(_),                      f(g(h(a))),                             True),
-        (f(_),                      f(g(a, b)),                             True),
+        (f(_),                      f(f2(a)),                               True),
+        (f(_),                      f(f2(f3(a))),                           True),
+        (f(_),                      f(f2(a, b)),                            True),
         (f(a, a),                   f(a),                                   False),
         (f(a, a),                   f(a, a),                                True),
         (f(a, a),                   f(a, b),                                False),
@@ -210,39 +195,39 @@ expression_strategy = st.recursive(expression_base_strategy, expression_recurse_
         (f(___, a, __, a),          f(b, b, a, a),                          False),
         (f(___, a, __, a),          f(b, a, a, a),                          True),
         (f(___, a, __, a),          f(a, b, b, a),                          True),
-        (f(___, g(a)),              f(g(a)),                                True),
-        (f(___, g(a)),              f(a, g(a)),                             True),
-        (f(___, g(a)),              f(g(a), g(a)),                          True),
-        (f(___, g(a)),              f(g(a), g(b)),                          False),
-        (f(___, g(a)),              f(g(b), g(a)),                          True),
-        (f(___, g(_)),              f(g(a), g(b)),                          True),
-        (f(___, g(_)),              f(g(b), g(a)),                          True),
-        (f(___, g(_)),              f(g(b), g(h(a))),                       True),
-        (f(___, g(_)),              f(g(b), g(g(a, b))),                    True),
-        (f(___, g(_)),              f(g(b), g(h(a), a)),                    False),
-        (f(___, g(___)),            f(g(a), g(b)),                          True),
-        (f(___, g(___)),            f(g(b), g(a, b)),                       True),
-        (f(___, g(___, a)),         f(g(a), g(b)),                          False),
-        (f(___, g(___, a)),         f(g(b), g(a, b)),                       False),
-        (f(___, g(___, a)),         f(g(b), g(a, a)),                       True),
-        (f(___, g(___, a)),         f(g(a, b), g(a, a)),                    True),
-        (f(___, g(___, a)),         f(g(b, b), g(b, a)),                    True),
-        (f(___, g(___, a), b),      f(g(b, a), b, g(b, a)),                 False),
-        (f(___, g(___, a), b),      f(g(b, a), b, g(b, a), b),              True),
-        (f(___, g(h(a))),           f(g(a)),                                False),
-        (f(___, g(h(a))),           f(g(h(b))),                             False),
-        (f(___, g(h(a))),           f(g(h(a), b)),                          False),
-        (f(___, g(h(a))),           f(g(h(a))),                             True),
+        (f(___, f2(a)),              f(f2(a)),                              True),
+        (f(___, f2(a)),              f(a, f2(a)),                           True),
+        (f(___, f2(a)),              f(f2(a), f2(a)),                       True),
+        (f(___, f2(a)),              f(f2(a), f2(b)),                       False),
+        (f(___, f2(a)),              f(f2(b), f2(a)),                       True),
+        (f(___, f2(_)),              f(f2(a), f2(b)),                       True),
+        (f(___, f2(_)),              f(f2(b), f2(a)),                       True),
+        (f(___, f2(_)),              f(f2(b), f2(f3(a))),                   True),
+        (f(___, f2(_)),              f(f2(b), f2(f2(a, b))),                True),
+        (f(___, f2(_)),              f(f2(b), f2(f3(a), a)),                False),
+        (f(___, f2(___)),            f(f2(a), f2(b)),                       True),
+        (f(___, f2(___)),            f(f2(b), f2(a, b)),                    True),
+        (f(___, f2(___, a)),         f(f2(a), f2(b)),                       False),
+        (f(___, f2(___, a)),         f(f2(b), f2(a, b)),                    False),
+        (f(___, f2(___, a)),         f(f2(b), f2(a, a)),                    True),
+        (f(___, f2(___, a)),         f(f2(a, b), f2(a, a)),                 True),
+        (f(___, f2(___, a)),         f(f2(b, b), f2(b, a)),                 True),
+        (f(___, f2(___, a), b),      f(f2(b, a), b, f2(b, a)),              False),
+        (f(___, f2(___, a), b),      f(f2(b, a), b, f2(b, a), b),           True),
+        (f(___, f2(f3(a))),           f(f2(a)),                             False),
+        (f(___, f2(f3(a))),           f(f2(f3(b))),                         False),
+        (f(___, f2(f3(a))),           f(f2(f3(a), b)),                      False),
+        (f(___, f2(f3(a))),           f(f2(f3(a))),                         True),
         (f(___, a, a, b, ___),      f(a, a, a, b),                          True),
         (f(___, a, a, b),           f(a, a, a, b),                          True),
         (f(___, a, b),              f(a, a, a, b),                          True),
-        (f(___, g(a), ___, g(b)),   f(g(b), g(a), g(a), g(b)),              True),
-        (f(___, g(a), ___, g(b)),   f(g(a), g(a), g(b), g(b)),              True),
+        (f(___, f2(a), ___, f2(b)),   f(f2(b), f2(a), f2(a), f2(b)),        True),
+        (f(___, f2(a), ___, f2(b)),   f(f2(a), f2(a), f2(b), f2(b)),        True),
         (f(___, a, _s),             f(a, a),                                True),
         (f(___, a, _s),             f(a, a, a),                             True),
         (__,                        a,                                      True),
     ]
-)
+)  # yapf: disable
 def test_generate_net_and_match(pattern, expr, is_match):
     net = DiscriminationNet()
     index = net.add(freeze(pattern))
@@ -261,6 +246,7 @@ def test_variable_expression_match_error():
 
     with pytest.raises(TypeError):
         list(net.match(pattern))
+
 
 @given(st.sets(expression_strategy, max_size=20))
 @example({freeze(f(a)), freeze(f(_s))})
@@ -291,14 +277,15 @@ def test_randomized_product_net(patterns):
         result = net._match(expr)
         assert index in result, "{!s} did not match {!s} in the DiscriminationNet".format(pattern, expr)
 
+
 PRODUCT_NET_PATTERNS = [
     freeze(f(a, _, _)),
     freeze(f(_, a, _)),
     freeze(f(_, _, a)),
     freeze(f(__)),
-    freeze(f(g(_), ___)),
-    freeze(f(___, g(_))),
-    freeze(_)
+    freeze(f(f2(_), ___)),
+    freeze(f(___, f2(_))),
+    freeze(_),
 ]
 
 PRODUCT_NET_EXPRESSIONS = [
@@ -306,12 +293,13 @@ PRODUCT_NET_EXPRESSIONS = [
     f(b, a, a),
     f(a, b, a),
     f(a, a, b),
-    f(g(a), a, a),
-    f(g(a), a, g(b)),
-    f(g(a), g(b), g(b)),
-    f(a, g(b), g(b), a),
-    f(g(a)),
+    f(f2(a), a, a),
+    f(f2(a), a, f2(b)),
+    f(f2(a), f2(b), f2(b)),
+    f(a, f2(b), f2(b), a),
+    f(f2(a)),
 ]
+
 
 @pytest.mark.xfail(reason="Currently this is broken in some cases, but it is unused, so not fixing it atm.")
 @pytest.mark.parametrize('i', range(len(PRODUCT_NET_PATTERNS)))
@@ -361,8 +349,8 @@ def test_sequence_matcher_match():
     '   patterns,                   expected_error',
     [
         ([a],                       TypeError),
-        ([fc(a)],                   TypeError),
-        ([f(___, a, ___), g(a)],    TypeError),
+        ([f_c(a)],                  TypeError),
+        ([f(___, a, ___), f2(a)],   TypeError),
         ([f(___)],                  ValueError),
         ([f(___, a)],               ValueError),
         ([f(a, b, c)],              ValueError),
@@ -373,7 +361,7 @@ def test_sequence_matcher_match():
         ([f(a, b, ___)],            ValueError),
         ([f(___, b, c)],            ValueError),
     ]
-)
+)  # yapf: disable
 def test_sequence_matcher_errors(patterns, expected_error):
     with pytest.raises(expected_error):
         SequenceMatcher(*patterns)
@@ -383,7 +371,7 @@ def test_sequence_matcher_errors(patterns, expected_error):
     '   pattern,                    can_match',
     [
         (a,                         False),
-        (fc(a),                     False),
+        (f_c(a),                    False),
         (f(___),                    False),
         (f(___, a),                 False),
         (f(a, b, c),                False),
@@ -396,8 +384,8 @@ def test_sequence_matcher_errors(patterns, expected_error):
         (f(___, b, c),              False),
         (f(___, b, c, ___),         True),
         (f(___, b, ___),            True),
-        (f(___, g(x_), ___),        True),
+        (f(___, f2(x_), ___),       True),
     ]
-)
+)  # yapf: disable
 def test_sequence_matcher_can_match(pattern, can_match):
     assert SequenceMatcher.can_match(pattern) == can_match

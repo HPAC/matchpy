@@ -23,18 +23,22 @@ import itertools
 import keyword
 from abc import ABCMeta, abstractmethod
 from enum import Enum, EnumMeta
-from typing import (Callable, Iterator, List,  # pylint: disable=unused-import
-                    NamedTuple, Optional, Set, Tuple, TupleMeta, Type, Union)
+from typing import (Callable, Iterator, List, NamedTuple, Optional, # pylint: disable=unused-import
+                    Set, Tuple, TupleMeta, Type, Union)
 
 from multiset import Multiset
 
 from . import constraints  # pylint: disable=unused-import
 from ..utils import cached_property
 
-__all__ = ['MutableExpression', 'freeze', 'unfreeze', 'FrozenExpression', 'Expression', 'Arity', 'Atom', 'Symbol', 'Variable', 'Wildcard', 'Operation', 'SymbolWildcard']
+__all__ = [
+    'MutableExpression', 'freeze', 'unfreeze', 'FrozenExpression', 'Expression', 'Arity', 'Atom', 'Symbol', 'Variable',
+    'Wildcard', 'Operation', 'SymbolWildcard'
+]
 
 ExprPredicate = Optional[Callable[['Expression'], bool]]
 ExpressionsWithPos = Iterator[Tuple['Expression', Tuple[int, ...]]]
+
 
 class ExpressionMeta(ABCMeta):
     def __init__(cls, name, bases, dct):
@@ -859,8 +863,8 @@ class Variable(Expression):
 
     def __eq__(self, other):
         return (
-            isinstance(other, self.generic_base_type) and self.name == other.name and self.expression == other.expression and
-            self.constraint == other.constraint
+            isinstance(other, self.generic_base_type) and self.name == other.name and
+            self.expression == other.expression and self.constraint == other.constraint
         )
 
     def __lt__(self, other):

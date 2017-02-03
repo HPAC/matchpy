@@ -3,10 +3,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from matchpy.expressions.constraints import (Constraint,
-                                                     CustomConstraint,
-                                                     EqualVariablesConstraint,
-                                                     MultiConstraint)
+from matchpy.expressions.constraints import Constraint, CustomConstraint, EqualVariablesConstraint, MultiConstraint
 
 
 class DummyConstraint(Constraint):
@@ -21,6 +18,7 @@ class DummyConstraint(Constraint):
 
     def with_renamed_vars(self, renaming):
         return self
+
 
 C_dummy1 = DummyConstraint()
 C_dummy2 = DummyConstraint()
@@ -58,7 +56,7 @@ CUSTOM_CONSTRAINTS = [C_custom1, C_custom2, C_custom3]
         ([C_dummy1, MultiConstraint(C_dummy1)],             C_dummy1),
         ([C_dummy1, MultiConstraint(C_dummy1, C_dummy2)],   MultiConstraint(C_dummy1, C_dummy2)),
     ]
-)
+)  # yapf: disable
 def test_multi_constraint_create(constraints, expected_result):
     result = MultiConstraint.create(*constraints)
 
@@ -105,7 +103,7 @@ def test_multi_constraint_hash(c1, c2):
         (['x', 'y'],    {'x': 0, 'y': 0},       True),
         (['x', 'y'],    {'x': 0, 'y': 1},       False),
     ]
-)
+)  # yapf: disable
 def test_equal_variables_constraint_call(variables, substitution, expected_result):
     constraint = EqualVariablesConstraint(*variables)
     result = constraint(substitution)
@@ -137,7 +135,7 @@ def test_equal_variables_constraint_hash(c1, c2):
         (C_custom3,     {'x': 1, 'y': 0},           False),
         (C_custom3,     {'x': 1, 'y': 1},           True),
     ]
-)
+)  # yapf: disable
 def test_custom_constraint_call(constraint, substitution, expected_result):
     result = constraint(substitution)
     assert result == expected_result
@@ -186,6 +184,7 @@ def test_multi_constraint_with_renamed_vars():
 def test_custom_constraint_with_renamed_vars():
     actual_x = None
     actual_y = None
+
     def constraint(x, y):
         nonlocal actual_x
         nonlocal actual_y

@@ -304,10 +304,7 @@ def _match_operation(expressions, operation, subst, matcher):
 
 
 def _match_commutative_operation(
-        subject_operands: Iterable[Expression],
-        pattern: CommutativePatternsParts,
-        substitution: Substitution,
-        matcher
+        subject_operands: Iterable[Expression], pattern: CommutativePatternsParts, substitution: Substitution, matcher
 ) -> Iterator[Substitution]:
     subjects = Multiset(subject_operands)  # type: Multiset[Expression]
     if not pattern.constant <= subjects:
@@ -386,7 +383,7 @@ def _match_commutative_operation(
                         normal.add(wrapped)
                         sequence_subst[v] = normal if l > 1 else next(iter(normal))
                     else:
-                        assert len(value) == 1 and l == 1, "Fixed variables with a different arity than 1 are not supported."
+                        assert len(value) == 1 and l == 1, "Fixed variables with length != 1 are not supported."
                         sequence_subst[v] = next(iter(value))
             try:
                 result = substitution.union(sequence_subst)

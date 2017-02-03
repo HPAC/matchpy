@@ -23,16 +23,18 @@ f(y_, b) matched with {y ↦ a}
 """
 
 import math
+from collections import deque
 from itertools import groupby
 from operator import itemgetter
-from collections import deque
-from typing import (Container, Dict, Iterable, Iterator, List, NamedTuple, Optional, Sequence, Set, Tuple, Type, Union)
+from typing import Container, Dict, Iterable, Iterator, List, NamedTuple, Optional, Sequence, Set, Tuple, Type, Union
 
 from graphviz import Digraph
 from multiset import Multiset
 
-from ..expressions.expressions import (Expression, Operation, Symbol, SymbolWildcard, Variable, Wildcard, freeze, MutableExpression)
 from ..expressions.constraints import Constraint, MultiConstraint
+from ..expressions.expressions import (
+    Expression, MutableExpression, Operation, Symbol, SymbolWildcard, Variable, Wildcard, freeze
+)
 from ..expressions.substitution import Substitution
 from ..utils import (VariableWithCount, commutative_sequence_variable_partition_iter)
 from .bipartite import BipartiteGraph, enum_maximum_matchings_iter
@@ -176,7 +178,9 @@ class ManyToOneMatcher:
                 graph.subgraph(state.matcher.automaton._as_graph(subfinals))
                 submatch_label = 'Sub Matcher End'
                 for pattern_index, subpatterns, variables, constraint in state.matcher.patterns.values():
-                    var_formatted = ', '.join('{}[{}]x{}{}'.format(n, m, c, 'W' if w else '') for (n, c, m), w in variables)
+                    var_formatted = ', '.join(
+                        '{}[{}]x{}{}'.format(n, m, c, 'W' if w else '') for (n, c, m), w in variables
+                    )
                     submatch_label += '\n{}: {} {} if {}'.format(pattern_index, subpatterns, var_formatted, constraint)
                 graph.node(name + '-end', submatch_label, {'shape': 'box'})
                 for f in subfinals:
@@ -450,8 +454,7 @@ class CommutativeMatcher(object):
             subject_id, _ = self.subjects[subject]
         return subject_id
 
-    def match(self, subjects: Sequence[Expression],
-              substitution: Substitution) -> Iterator[Tuple[int, Substitution]]:
+    def match(self, subjects: Sequence[Expression], substitution: Substitution) -> Iterator[Tuple[int, Substitution]]:
         subject_ids = Multiset()
         pattern_ids = Multiset()
         for subject in subjects:
@@ -475,7 +478,9 @@ class CommutativeMatcher(object):
                     elif len(subjects) == len(pattern_set):
                         yield pattern_index, bipartite_substitution
             elif pattern_vars:
-                sequence_var_iter = self._match_sequence_variables(Multiset(subjects), pattern_vars, substitution, constraint)
+                sequence_var_iter = self._match_sequence_variables(
+                    Multiset(subjects), pattern_vars, substitution, constraint
+                )
                 for variable_substitution in sequence_var_iter:
                     yield pattern_index, variable_substitution
             elif len(subjects) == 0:
@@ -537,11 +542,11 @@ class CommutativeMatcher(object):
             yield bipartite_substitution, matched_subjects
 
     def _match_sequence_variables(
-        self,
-        subjects: Multiset[Expression],
-        pattern_vars: Sequence[VariableWithCount],
-        substitution: Substitution,
-        constraint: Constraint,
+            self,
+            subjects: Multiset[Expression],
+            pattern_vars: Sequence[VariableWithCount],
+            substitution: Substitution,
+            constraint: Constraint,
     ) -> Iterator[Substitution]:
         only_counts = [info for info, _ in pattern_vars]
         wrapped_vars = [name for (name, _, _), wrap in pattern_vars if wrap]

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from matchpy.expressions.constraints import Constraint
 
+
 class MockConstraint(Constraint):
     def __init__(self, return_value):
         self.return_value = return_value
