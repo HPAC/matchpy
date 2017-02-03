@@ -285,13 +285,8 @@ class ManyToOneMatcher:
         elif isinstance(label, Wildcard) and not isinstance(label, SymbolWildcard):
             min_count = label.min_count
             if label.fixed_size and not associative:
-                if min_count == 1:
-                    if subject is None:
-                        return
-                elif len(subjects) >= min_count:
-                    matched_subject = tuple(subjects[:min_count])
-                    new_subjects = subjects[min_count:]
-                else:
+                assert min_count == 1, "Fixed wildcards with length != 1 are not supported."
+                if subject is None:
                     return
             else:
                 yield from self._match_sequence_variable(label, transition, context)
@@ -320,13 +315,10 @@ class ManyToOneMatcher:
         for i in range(min_count, len(subjects) + 1):
             matched_subject = tuple(subjects[:i])
             if associative and wildcard.fixed_size:
-                if i > min_count:
-                    wrapped = associative.from_args(*matched_subject[min_count - 1:])
-                    if min_count == 1:
-                        matched_subject = wrapped
-                    else:
-                        matched_subject = matched_subject[:min_count - 1] + (wrapped, )
-                elif min_count == 1:
+                assert min_count == 1, "Fixed wildcards with length != 1 are not supported."
+                if i > 1:
+                    matched_subject = associative.from_args(*matched_subject)
+                else:
                     matched_subject = matched_subject[0]
             new_substitution = self._check_constraint(transition, substitution, matched_subject)
             if new_substitution is not None:

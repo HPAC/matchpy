@@ -139,6 +139,16 @@ class TestBipartiteGraphTest:
         assert graph.limited_to({1}, {0, 1}) == {(1, 0): True, (1, 1): True}
         assert graph.limited_to({0, 1}, {0, 1}) == graph
 
+    def test_eq(self):
+        assert BipartiteGraph() == {}
+        assert {} == BipartiteGraph()
+        assert BipartiteGraph({(1, 1): True}) == {(1, 1): True}
+        assert {(1, 1): True} == BipartiteGraph({(1, 1): True})
+        assert not BipartiteGraph({(1, 2): True}) == {(1, 1): True}
+        assert not {(1, 2): True} == BipartiteGraph({(1, 1): True})
+        assert not BipartiteGraph() == ''
+        assert not '' == BipartiteGraph()
+
 
 if __name__ == '__main__':
     import matchpy.bipartite as tested_module

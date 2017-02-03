@@ -136,6 +136,14 @@ class TestSubstitution:
     def test_rename(self, substitution, renaming, expected_result):
         assert Substitution(substitution).rename(renaming) == expected_result
 
+    def test_copy(self):
+        substitution = Substitution({'x': a})
+
+        copy = substitution.__copy__()
+
+        assert copy == substitution
+        assert copy is not substitution
+
 
 a = Symbol('a')
 b = Symbol('b')

@@ -5,8 +5,9 @@ from hypothesis import assume, given
 from matchpy.expressions.constraints import Constraint
 from matchpy.expressions.expressions import (Arity, Operation, Symbol,
                                              Variable, Wildcard, freeze)
-from matchpy.functions import ReplacementRule, replace, replace_all, substitute, replace_many
+from matchpy.functions import ReplacementRule, replace, replace_all, substitute, replace_many, is_match
 from matchpy.matching.one_to_one import match_anywhere
+from matchpy.matching.one_to_one import match as match_one_to_one
 from multiset import Multiset
 
 from .utils import MockConstraint
@@ -658,6 +659,17 @@ class TestMatch:
         assert matches == []
 
 
+@pytest.mark.parametrize(
+    '   expr,       pattern,    do_match',
+    [
+        (a,         a,          True),
+        (a,         b,          False),
+        (f(a),      f(x_),      True),
+    ]
+)
+def test_is_match(expr, pattern, do_match):
+    assert is_match(expr, pattern) == do_match
+
 def func_wrap_strategy(args, func):
     min_size = func.arity[0]
     max_size = func.arity[1] and func.arity[0] or 4
@@ -807,6 +819,8 @@ class TestReplaceManyTest:
             replace_many(f(a), [((), b), ((0, ), b)])
         with pytest.raises(IndexError):
             replace_many(a, [((), b), ((0, ), b)])
+        with pytest.raises(IndexError):
+            replace_many(a, [((0, ), b), ((1, ), b)])
 
     def test_empty_replace(self):
         expression = f(a, b)
@@ -837,6 +851,16 @@ def test_match_anywhere(expression, pattern, expected_results):
 
     for result in expected_results:
         assert result in results, "Results differ from expected"
+
+
+def test_match_anywhere_error():
+    with pytest.raises(ValueError):
+        next(match_anywhere(f(x_), f(x_)))
+
+
+def test_match_error():
+    with pytest.raises(ValueError):
+        match_one_to_one(f(x_), f(x_))
 
 
 def test_logic_simplify():

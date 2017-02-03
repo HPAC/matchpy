@@ -12,7 +12,7 @@ from matchpy.utils import (VariableWithCount, base_solution_linear,
                            commutative_sequence_variable_partition_iter,
                            extended_euclid, fixed_integer_vector_iter,
                            get_short_lambda_source, slot_cached_property,
-                           solve_linear_diop)
+                           solve_linear_diop, integer_partition_vector_iter)
 
 
 def is_unique_list(l):
@@ -59,6 +59,54 @@ class TestBaseSolutionLinear:
     def test_uniqueness(self, a, b, c):
         solutions = list(base_solution_linear(a, b, c))
         assert is_unique_list(solutions), "Duplicate solution found"
+
+    @pytest.mark.parametrize(
+        '   a,      b,      c',
+        [
+            (0,     1,      1),
+            (-1,    1,      1),
+            (1,     0,      1),
+            (1,     -1,     1),
+            (1,     1,      -1),
+        ]
+    )
+    def test_error(self, a, b, c):
+        with pytest.raises(ValueError):
+            next(base_solution_linear(a, b, c))
+
+
+class TestIntegerPartitionVectorIter:
+    @pytest.mark.parametrize('n', range(0, 11))
+    @pytest.mark.parametrize('m', range(0, 4))
+    def test_correctness(self, n, m):
+        for part in integer_partition_vector_iter(n, m):
+            assert all(p >= 0 for p in part)
+            assert sum(part) == n
+            assert len(part) == m
+
+    @pytest.mark.parametrize('n', range(0, 11))
+    @pytest.mark.parametrize('m', range(0, 4))
+    def test_completeness_and_uniqueness(self, n, m):
+        solutions = set(integer_partition_vector_iter(n, m))
+
+        if m == 0 and n > 0:
+            expected_count = 0
+        else:
+            # the total number of distinct partitions is given by (n+m-1)!/((m-1)!*n!)
+            expected_count = 1
+            for i in range(1, m):
+                expected_count *= n + m - i
+            for i in range(1, m):
+                expected_count /= i
+
+        assert len(solutions) == expected_count
+        assert len(set(solutions)) == expected_count
+
+    def test_error(self):
+        with pytest.raises(ValueError):
+            next(integer_partition_vector_iter(-1, 1))
+        with pytest.raises(ValueError):
+            next(integer_partition_vector_iter(1, -1))
 
 
 class TestSolveLinearDiop:

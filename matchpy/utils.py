@@ -86,8 +86,10 @@ def integer_partition_vector_iter(total: int, parts: int) -> Iterator[Tuple[int]
         All non-negative vectors that have the given sum and have the given dimension.
 
     """
+    if total < 0:
+        raise ValueError("Total must not be negative")
     if parts < 0:
-        return
+        raise ValueError("Number of parts must not be negative")
     if parts == 0:
         if total == 0:
             yield tuple()
@@ -331,7 +333,9 @@ def base_solution_linear(a: int, b: int, c: int) -> Iterator[Tuple[int, int]]:
             If any of the coefficients is not a positive integer.
     """
     if a <= 0 or b <= 0:
-        raise ValueError('Coefficients must be positive integers.')
+        raise ValueError('Coefficients a and b must be positive integers.')
+    if c < 0:
+        raise ValueError('Constant c must not be negative.')
 
     d = math.gcd(a, math.gcd(b, c))
     a = a // d
