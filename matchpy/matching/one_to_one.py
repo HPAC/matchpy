@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from typing import Iterator, Tuple
 
-from ..expressions.expressions import Expression, freeze
+from ..expressions.expressions import Expression
 from ..expressions.substitution import Substitution
 from .common import _match
 
@@ -28,7 +28,7 @@ def match(subject: Expression, pattern: Expression) -> Iterator[Substitution]:
     """
     if not subject.is_constant:
         raise ValueError("The subject for matching must be constant.")
-    return _match([freeze(subject)], freeze(pattern), Substitution())
+    return _match([subject], pattern, Substitution())
 
 
 def match_anywhere(subject: Expression, pattern: Expression) -> Iterator[Tuple[Substitution, Tuple[int, ...]]]:

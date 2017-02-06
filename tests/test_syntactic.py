@@ -5,13 +5,13 @@ from hypothesis import assume, example, given
 import hypothesis.strategies as st
 import pytest
 
-from matchpy.expressions.expressions import Atom, Operation, Symbol, Variable, Wildcard, freeze
+from matchpy.expressions.expressions import Atom, Operation, Symbol, Variable, Wildcard
 from matchpy.matching.one_to_one import match
 from matchpy.matching.syntactic import OPERATION_END as OP_END
 from matchpy.matching.syntactic import DiscriminationNet, FlatTerm, SequenceMatcher, is_operation, is_symbol_wildcard
 from .common import *
 
-CONSTANT_EXPRESSIONS = [freeze(e) for e in [a, b, c, d]]
+CONSTANT_EXPRESSIONS = [e for e in [a, b, c, d]]
 
 
 @pytest.mark.parametrize(
@@ -24,16 +24,16 @@ CONSTANT_EXPRESSIONS = [freeze(e) for e in [a, b, c, d]]
         (Variable('v', f(_)),   [f, _, OP_END]),
         (f(),                   [f, OP_END]),
         (f(a),                  [f, a, OP_END]),
-        (f2(b),                  [f2, b, OP_END]),
+        (f2(b),                 [f2, b, OP_END]),
         (f(a, b),               [f, a, b, OP_END]),
         (f(x_),                 [f, _, OP_END]),
         (f(__),                 [f, __, OP_END]),
-        (f(f2(a)),               [f, f2, a, OP_END, OP_END]),
-        (f(f2(a), b),            [f, f2, a, OP_END, b, OP_END]),
-        (f(a, f2(b)),            [f, a, f2, b, OP_END, OP_END]),
-        (f(a, f2(b), c),         [f, a, f2, b, OP_END, c, OP_END]),
-        (f(f2(b), f2(c)),         [f, f2, b, OP_END, f2, c, OP_END, OP_END]),
-        (f(f(f2(b)), f2(c)),      [f, f, f2, b, OP_END, OP_END, f2, c, OP_END, OP_END]),
+        (f(f2(a)),              [f, f2, a, OP_END, OP_END]),
+        (f(f2(a), b),           [f, f2, a, OP_END, b, OP_END]),
+        (f(a, f2(b)),           [f, a, f2, b, OP_END, OP_END]),
+        (f(a, f2(b), c),        [f, a, f2, b, OP_END, c, OP_END]),
+        (f(f2(b), f2(c)),       [f, f2, b, OP_END, f2, c, OP_END, OP_END]),
+        (f(f(f2(b)), f2(c)),    [f, f, f2, b, OP_END, OP_END, f2, c, OP_END, OP_END]),
         (f(_, _),               [f, Wildcard.dot(2), OP_END]),
         (f(_, __),              [f, Wildcard(2, False), OP_END]),
         (f(_, __, __),          [f, Wildcard(3, False), OP_END]),
@@ -128,14 +128,14 @@ def test_is_symbol_wildcard():
 def func_wrap_strategy(args, func):
     min_size = func.arity[0]
     max_size = func.arity[1] and func.arity[0] or 4
-    return st.lists(args, min_size=min_size, max_size=max_size).map(lambda a: freeze(func(*a)))
+    return st.lists(args, min_size=min_size, max_size=max_size).map(lambda a: func(*a))
 
 
 def expression_recurse_strategy(args):
     return func_wrap_strategy(args, f) | func_wrap_strategy(args, f2)
 
 
-expression_base_strategy = st.sampled_from([freeze(e) for e in [a, b, c, _, __, ___, _s]])
+expression_base_strategy = st.sampled_from([e for e in [a, b, c, _, __, ___, _s]])
 expression_strategy = st.recursive(expression_base_strategy, expression_recurse_strategy, max_leaves=10)
 
 
@@ -145,11 +145,11 @@ expression_strategy = st.recursive(expression_base_strategy, expression_recurse_
         (a,                         a,                                      True),
         (_,                         a,                                      True),
         (_,                         f2(a),                                  True),
-        (_,                         f2(f3(a)),                              True),
+        (_,                         f2(f_u(a)),                             True),
         (_,                         f2(a, b),                               True),
         (f(_),                      f(a),                                   True),
         (f(_),                      f(f2(a)),                               True),
-        (f(_),                      f(f2(f3(a))),                           True),
+        (f(_),                      f(f2(f_u(a))),                          True),
         (f(_),                      f(f2(a, b)),                            True),
         (f(a, a),                   f(a),                                   False),
         (f(a, a),                   f(a, a),                                True),
@@ -202,9 +202,9 @@ expression_strategy = st.recursive(expression_base_strategy, expression_recurse_
         (f(___, f2(a)),              f(f2(b), f2(a)),                       True),
         (f(___, f2(_)),              f(f2(a), f2(b)),                       True),
         (f(___, f2(_)),              f(f2(b), f2(a)),                       True),
-        (f(___, f2(_)),              f(f2(b), f2(f3(a))),                   True),
+        (f(___, f2(_)),              f(f2(b), f2(f_u(a))),                  True),
         (f(___, f2(_)),              f(f2(b), f2(f2(a, b))),                True),
-        (f(___, f2(_)),              f(f2(b), f2(f3(a), a)),                False),
+        (f(___, f2(_)),              f(f2(b), f2(f_u(a), a)),               False),
         (f(___, f2(___)),            f(f2(a), f2(b)),                       True),
         (f(___, f2(___)),            f(f2(b), f2(a, b)),                    True),
         (f(___, f2(___, a)),         f(f2(a), f2(b)),                       False),
@@ -214,10 +214,10 @@ expression_strategy = st.recursive(expression_base_strategy, expression_recurse_
         (f(___, f2(___, a)),         f(f2(b, b), f2(b, a)),                 True),
         (f(___, f2(___, a), b),      f(f2(b, a), b, f2(b, a)),              False),
         (f(___, f2(___, a), b),      f(f2(b, a), b, f2(b, a), b),           True),
-        (f(___, f2(f3(a))),           f(f2(a)),                             False),
-        (f(___, f2(f3(a))),           f(f2(f3(b))),                         False),
-        (f(___, f2(f3(a))),           f(f2(f3(a), b)),                      False),
-        (f(___, f2(f3(a))),           f(f2(f3(a))),                         True),
+        (f(___, f2(f_u(a))),           f(f2(a)),                            False),
+        (f(___, f2(f_u(a))),           f(f2(f_u(b))),                       False),
+        (f(___, f2(f_u(a))),           f(f2(f_u(a), b)),                    False),
+        (f(___, f2(f_u(a))),           f(f2(f_u(a))),                       True),
         (f(___, a, a, b, ___),      f(a, a, a, b),                          True),
         (f(___, a, a, b),           f(a, a, a, b),                          True),
         (f(___, a, b),              f(a, a, a, b),                          True),
@@ -230,8 +230,8 @@ expression_strategy = st.recursive(expression_base_strategy, expression_recurse_
 )  # yapf: disable
 def test_generate_net_and_match(pattern, expr, is_match):
     net = DiscriminationNet()
-    index = net.add(freeze(pattern))
-    result = net._match(freeze(expr))
+    index = net.add(pattern)
+    result = net._match(expr)
 
     if is_match:
         assert result == [index], "Matching failed for {!s} and {!s}".format(pattern, expr)
@@ -241,7 +241,7 @@ def test_generate_net_and_match(pattern, expr, is_match):
 
 def test_variable_expression_match_error():
     net = DiscriminationNet()
-    pattern = freeze(f(x_))
+    pattern = f(x_)
     net.add(pattern)
 
     with pytest.raises(TypeError):
@@ -249,7 +249,7 @@ def test_variable_expression_match_error():
 
 
 @given(st.sets(expression_strategy, max_size=20))
-@example({freeze(f(a)), freeze(f(_s))})
+@example({f(a), f(_s)})
 def test_randomized_product_net(patterns):
     assume(all(not isinstance(p, Atom) for p in patterns))
 
@@ -279,13 +279,13 @@ def test_randomized_product_net(patterns):
 
 
 PRODUCT_NET_PATTERNS = [
-    freeze(f(a, _, _)),
-    freeze(f(_, a, _)),
-    freeze(f(_, _, a)),
-    freeze(f(__)),
-    freeze(f(f2(_), ___)),
-    freeze(f(___, f2(_))),
-    freeze(_),
+    f(a, _, _),
+    f(_, a, _),
+    f(_, _, a),
+    f(__),
+    f(f2(_, ___)),
+    f(___, f2(_)),
+    _,
 ]
 
 PRODUCT_NET_EXPRESSIONS = [
@@ -332,7 +332,7 @@ def test_sequence_matcher_match():
 
     matcher = SequenceMatcher(*PATTERNS)
 
-    expr = freeze(f(a, b, c, a, a, b, a, c, b))
+    expr = f(a, b, c, a, a, b, a, c, b)
 
     matches = list(matcher.match(expr))
 
@@ -342,7 +342,7 @@ def test_sequence_matcher_match():
     assert (PATTERNS[1], {'z': (a, b, c, a)}) in matches
     assert (PATTERNS[2], {'z': (b, )}) in matches
 
-    assert list(matcher.match(freeze(a))) == []
+    assert list(matcher.match(a)) == []
 
 
 @pytest.mark.parametrize(

@@ -4,7 +4,7 @@ from typing import (Any, Dict, FrozenSet, Generic, Iterator, List, Optional, Seq
 
 from graphviz import Digraph
 
-from ..expressions.expressions import (Expression, Operation, Symbol, SymbolWildcard, Variable, Wildcard, freeze)
+from ..expressions.expressions import Expression, Operation, Symbol, SymbolWildcard, Variable, Wildcard
 from ..expressions.substitution import Substitution
 from ..expressions.constraints import MultiConstraint
 from ..utils import cached_property
@@ -127,7 +127,7 @@ class FlatTerm(Sequence[TermAtom]):
         if isinstance(expression, Variable):
             yield from cls._flatterm_iter(expression.expression)
         elif isinstance(expression, Operation):
-            yield expression.generic_base_type
+            yield type(expression)
             for operand in expression.operands:
                 yield from cls._flatterm_iter(operand)
             yield OPERATION_END
@@ -291,7 +291,7 @@ class DiscriminationNet(Generic[T]):
         """TODO"""
         index = len(self._patterns)
         self._patterns.append((pattern, final_label))
-        flatterm = FlatTerm(freeze(pattern)) if not isinstance(pattern, FlatTerm) else pattern
+        flatterm = FlatTerm(pattern) if not isinstance(pattern, FlatTerm) else pattern
         if pattern.is_syntactic or len(flatterm) == 1:
             net = self._generate_syntactic_net(flatterm, index)
         else:
@@ -559,7 +559,7 @@ class DiscriminationNet(Generic[T]):
 
     def _match(self, expression: Union[Expression, FlatTerm], collect: bool=False,
                first=False) -> List[Tuple[Expression, T]]:
-        flatterm = FlatTerm(freeze(expression)) if isinstance(expression, Expression) else expression
+        flatterm = FlatTerm(expression) if isinstance(expression, Expression) else expression
         state = self._root
         depth = 0
         result = state.payload[:]
@@ -646,7 +646,7 @@ class SequenceMatcher:
                 raise TypeError("Pattern must be a non-commutative operation.")
 
             if self.operation is None:
-                self.operation = pattern.generic_base_type
+                self.operation = type(pattern)
             elif not isinstance(pattern, self.operation):
                 raise TypeError(
                     "All patterns must be the same operation, expected {} but got {}".
@@ -661,7 +661,7 @@ class SequenceMatcher:
 
             self._patterns.append((pattern, first_name, last_name))
 
-            flatterm = FlatTerm.merged(*(FlatTerm(freeze(o)) for o in pattern.operands[1:-1]))
+            flatterm = FlatTerm.merged(*(FlatTerm(o) for o in pattern.operands[1:-1]))
             self._net.add(flatterm, i)
 
     @staticmethod

@@ -3,7 +3,7 @@ from typing import (Callable, Dict, Iterable, Iterator, List, NamedTuple, Option
 
 from multiset import Multiset
 
-from ..expressions.expressions import (Expression, Operation, Symbol, SymbolWildcard, Variable, Wildcard, freeze)
+from ..expressions.expressions import Expression, Operation, Symbol, SymbolWildcard, Variable, Wildcard
 from ..expressions.constraints import Constraint, MultiConstraint
 from ..expressions.substitution import Substitution
 from ..utils import (
@@ -109,7 +109,7 @@ class CommutativePatternsParts(object):
         self.wildcard_fixed = None
 
         for expression in expressions:
-            expression = freeze(expression)
+            expression = expression
             if expression.is_constant:
                 self.constant[expression] += 1
             elif expression.head is None:
@@ -270,8 +270,7 @@ def _build_full_partition(sequence_var_partition: Sequence[int], subjects: Seque
 
         if wrap_associative and len(operand_expressions) > wrap_associative:
             fixed = wrap_associative - 1
-            op_factory = type(operation).from_args
-            operand_expressions = tuple(operand_expressions[:fixed]) + (op_factory(*operand_expressions[fixed:]), )
+            operand_expressions = tuple(operand_expressions[:fixed]) + (type(operation)(*operand_expressions[fixed:]), )
 
         result.append(operand_expressions)
 
@@ -299,7 +298,7 @@ def _match_operation(expressions, operation, subst, matcher):
     if not operation.commutative:
         yield from _non_commutative_match(expressions, operation, subst, matcher)
     else:
-        parts = CommutativePatternsParts(type(operation).generic_base_type, *operation.operands)
+        parts = CommutativePatternsParts(type(operation), *operation.operands)
         yield from _match_commutative_operation(expressions, parts, subst, matcher)
 
 
@@ -379,7 +378,7 @@ def _match_commutative_operation(
                     value = cast(Multiset[Expression], sequence_subst[v])
                     if len(value) > l:
                         normal = Multiset(list(value)[:l - 1])
-                        wrapped = pattern.operation.from_args(*(value - normal))
+                        wrapped = pattern.operation(*(value - normal))
                         normal.add(wrapped)
                         sequence_subst[v] = normal if l > 1 else next(iter(normal))
                     else:

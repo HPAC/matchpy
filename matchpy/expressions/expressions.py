@@ -31,25 +31,13 @@ from multiset import Multiset
 from . import constraints  # pylint: disable=unused-import
 from ..utils import cached_property
 
-__all__ = [
-    'MutableExpression', 'freeze', 'unfreeze', 'FrozenExpression', 'Expression', 'Arity', 'Atom', 'Symbol', 'Variable',
-    'Wildcard', 'Operation', 'SymbolWildcard'
-]
+__all__ = ['Expression', 'Arity', 'Atom', 'Symbol', 'Variable', 'Wildcard', 'Operation', 'SymbolWildcard']
 
 ExprPredicate = Optional[Callable[['Expression'], bool]]
 ExpressionsWithPos = Iterator[Tuple['Expression', Tuple[int, ...]]]
 
 
-class ExpressionMeta(ABCMeta):
-    def __init__(cls, name, bases, dct):
-        ABCMeta.__init__(cls, name, bases, dct)
-        if cls.__module__ == __name__ and cls.__name__ in ('Expression', 'MutableExpression', 'FrozenExpression'):
-            return
-        if not issubclass(cls, (MutableExpression, FrozenExpression)):
-            cls.generic_base_type = cls
-
-
-class Expression(metaclass=ExpressionMeta):
+class Expression(metaclass=ABCMeta):
     """Base class for all expressions.
 
     Do not subclass this class directly but rather :class:`Symbol` or :class:`Operation`.
@@ -74,12 +62,6 @@ class Expression(metaclass=ExpressionMeta):
                 to verify it.
         """
         self.constraint = constraint
-
-    def __new__(cls, *args, **kwargs):
-        if not issubclass(cls, (FrozenExpression, MutableExpression)):
-            cls = _create_mixin_type(cls, FrozenExpression, _frozen_type_cache, {})
-            return cls.__new__(cls, *args, **kwargs)
-        return object.__new__(cls)
 
     @cached_property
     def variables(self) -> Multiset[str]:
@@ -140,12 +122,6 @@ class Expression(metaclass=ExpressionMeta):
         """Return a copy of the expression with renamed variables."""
         raise NotImplementedError()
 
-    def copy_to(self, other: 'Expression') -> None:
-        """Copy the expressions attributes to the other one.
-
-        TODO: Document this better, because this needs to be overwritten by custom subclasses."""
-        other.constraint = self.constraint
-
     def preorder_iter(self, predicate: ExprPredicate=None) -> ExpressionsWithPos:
         """Iterates over all subexpressions that match the (optional) `predicate`.
 
@@ -193,44 +169,6 @@ class Expression(metaclass=ExpressionMeta):
         raise NotImplementedError()
 
 
-class FrozenExpression(Expression):
-    """Base class for :term:`frozen` expressions.
-
-    .. warning::
-
-        DO NOT instantiate this class directly, use :func:`freeze` instead!
-
-    Only use this class for :func:`isinstance` checks:
-
-    >>> isinstance(freeze(a), FrozenExpression)
-    True
-    >>> isinstance(unfreeze(a), FrozenExpression)
-    False
-    """
-
-    prefix = 'Frozen'
-
-
-class MutableExpression(Expression):
-    """Base class for :term:`mutable` expressions.
-
-    .. warning::
-
-        DO NOT instantiate this class directly, use :func:`unfreeze` instead!
-
-    Only use this class for :func:`isinstance` checks:
-
-    >>> isinstance(unfreeze(a), MutableExpression)
-    True
-    >>> isinstance(freeze(a), MutableExpression)
-    False
-    """
-
-    prefix = 'Mutable'
-
-    __hash__ = None
-
-
 # This class is needed so that Tuple and Enum play nicely with each other
 class _ArityMeta(TupleMeta, EnumMeta):
     @classmethod
@@ -264,12 +202,11 @@ class Arity(_ArityBase, Enum, metaclass=_ArityMeta):
         return "{!s}.{!s}".format(type(self).__name__, self._name_)
 
 
-class _OperationMeta(ExpressionMeta):
+class _OperationMeta(ABCMeta):
     """Metaclass for `Operation`
 
     This metaclass is mainly used to override :meth:`__call__` to provide simplification when creating a
-    new operation expression. This is done to avoid problems when overriding ``__new__`` of the operation class
-    and clashes with the `.FrozenOperation` class.
+    new operation expression. This is done to avoid problems when overriding ``__new__`` of the operation class.
     """
 
     def __init__(cls, name, bases, dct):
@@ -281,8 +218,7 @@ class _OperationMeta(ExpressionMeta):
         if cls.arity == Arity.unary and cls.infix:
             raise TypeError('{}: Unary operations cannot use infix notation.'.format(name))
 
-        if not issubclass(cls, (MutableExpression, FrozenExpression)):
-            cls.head = cls
+        cls.head = cls
 
     def __repr__(cls):
         if cls is Operation:
@@ -326,7 +262,7 @@ class _OperationMeta(ExpressionMeta):
             new_operands = []  # type: List[Expression]
             new_constraints = [constraint]
             for operand in operands:
-                if isinstance(operand, cls.generic_base_type):
+                if isinstance(operand, cls):
                     new_operands.extend(operand.operands)  # type: ignore
                     new_constraints.append(operand.constraint)
                 else:
@@ -346,22 +282,6 @@ class _OperationMeta(ExpressionMeta):
             operands.sort()
 
         return False, constraint
-
-    def from_args(cls, *args, **kwargs):
-        """Create a new instance of the class using the given arguments.
-
-        This is used so that it can be overridden by `._FrozenOperationMeta`. Use this to create a new instance
-        of an operation with changed operands instead of using the instantiation operation directly.
-        Because the  `.FrozenExpression` has a different initializer, this would break for :term:`frozen`
-        operations otherwise.
-
-        Args:
-            *args:
-                Positional arguments for the operation initializer.
-            **kwargs:
-                Keyword arguments for the operation initializer.
-        """
-        return cls(*args, **kwargs)
 
 
 class Operation(Expression, metaclass=_OperationMeta):
@@ -554,9 +474,9 @@ class Operation(Expression, metaclass=_OperationMeta):
             return NotImplemented
         if isinstance(other, Symbol):
             return False
-
-        if not isinstance(other, self.generic_base_type):
-            return self.generic_base_type.__name__ < other.generic_base_type.__name__
+        cls = type(self)
+        if not isinstance(other, cls):
+            return cls.__name__ < cls.__name__
 
         if len(self.operands) != len(other.operands):
             return len(self.operands) < len(other.operands)
@@ -570,7 +490,7 @@ class Operation(Expression, metaclass=_OperationMeta):
         return False
 
     def __eq__(self, other):
-        if not isinstance(other, self.generic_base_type):
+        if not isinstance(other, type(self)):
             return NotImplemented
         return (
             self.constraint == other.constraint and len(self.operands) == len(other.operands) and
@@ -600,7 +520,7 @@ class Operation(Expression, metaclass=_OperationMeta):
         return sum((x.symbols for x in self.operands), Multiset([self.name]))
 
     def _without_constraints(self):
-        return type(self).from_args(*(o.without_constraints for o in self.operands))
+        return type(self)(*(o.without_constraints for o in self.operands))
 
     def _is_linear(self, variables: Set[str]) -> bool:
         return all(o._is_linear(variables) for o in self.operands)  # pylint: disable=protected-access
@@ -616,11 +536,10 @@ class Operation(Expression, metaclass=_OperationMeta):
 
     def with_renamed_vars(self, renaming) -> 'Operation':
         constraint = self.constraint.with_renamed_vars(renaming) if self.constraint else None
-        return type(self).from_args(*(o.with_renamed_vars(renaming) for o in self.operands), constraint=constraint)
+        return type(self)(*(o.with_renamed_vars(renaming) for o in self.operands), constraint=constraint)
 
-    def copy_to(self, other: 'Operation') -> None:
-        super().copy_to(other)
-        other.operands = self.operands[:]
+    def __copy__(self) -> 'Operation':
+        return type(self)(*self.operands, constraint=self.constraint)
 
 
 class Atom(Expression):  # pylint: disable=abstract-method
@@ -665,10 +584,8 @@ class Symbol(Atom):
     def with_renamed_vars(self, renaming) -> 'Symbol':
         return type(self)(self.name)
 
-    def copy_to(self, other: 'Symbol') -> None:
-        super().copy_to(other)
-        other.head = other
-        other.name = self.name
+    def __copy__(self) -> 'Symbol':
+        return type(self)(self.name)
 
     def __lt__(self, other):
         if not isinstance(other, Expression):
@@ -678,7 +595,7 @@ class Symbol(Atom):
         return True
 
     def __eq__(self, other):
-        if not isinstance(other, self.generic_base_type):
+        if not isinstance(other, type(self)):
             return NotImplemented
         return self.name == other.name and self.constraint == other.constraint
 
@@ -863,8 +780,8 @@ class Variable(Expression):
 
     def __eq__(self, other):
         return (
-            isinstance(other, self.generic_base_type) and self.name == other.name and
-            self.expression == other.expression and self.constraint == other.constraint
+            isinstance(other, type(self)) and self.name == other.name and self.expression == other.expression and
+            self.constraint == other.constraint
         )
 
     def __lt__(self, other):
@@ -874,7 +791,7 @@ class Variable(Expression):
             return False
         if isinstance(other, Variable):
             return self.name < other.name
-        return self.generic_base_type.__name__ < other.generic_base_type.__name__
+        return type(self).__name__ < type(other).__name__
 
     def __getitem__(self, key: Tuple[int, ...]) -> Expression:
         if len(key) == 0:
@@ -886,10 +803,8 @@ class Variable(Expression):
     def __hash__(self):
         return hash((Variable, self.name, self.expression, self.constraint))
 
-    def copy_to(self, other: 'Variable') -> None:
-        super().copy_to(other)
-        other.name = self.name
-        other.expression = self.expression
+    def __copy__(self) -> 'Variable':
+        return type(self)(self.name, self.expression, self.constraint)
 
 
 class Wildcard(Atom):
@@ -1022,11 +937,11 @@ class Wildcard(Atom):
         if not isinstance(other, Expression):
             return NotImplemented
         if not isinstance(other, Wildcard):
-            return self.generic_base_type.__name__ < other.generic_base_type.__name__
+            return type(self).__name__ < type(other).__name__
         return self.min_count < other.min_count or (self.fixed_size and not other.fixed_size)
 
     def __eq__(self, other):
-        if not isinstance(other, self.generic_base_type):
+        if not isinstance(other, type(self)):
             return NotImplemented
         return (
             other.min_count == self.min_count and other.fixed_size == self.fixed_size and
@@ -1036,10 +951,8 @@ class Wildcard(Atom):
     def __hash__(self):
         return hash((Wildcard, self.min_count, self.fixed_size, self.constraint))
 
-    def copy_to(self, other: 'Wildcard') -> None:
-        super().copy_to(other)
-        other.min_count = self.min_count
-        other.fixed_size = self.fixed_size
+    def __copy__(self) -> 'Wildcard':
+        return type(self)(self.min_count, self.fixed_size, self.constraint)
 
 
 class SymbolWildcard(Wildcard):
@@ -1081,7 +994,7 @@ class SymbolWildcard(Wildcard):
 
     def __eq__(self, other):
         return (
-            isinstance(other, self.generic_base_type) and self.symbol_type == other.symbol_type and
+            isinstance(other, type(self)) and self.symbol_type == other.symbol_type and
             other.constraint == self.constraint
         )
 
@@ -1098,94 +1011,5 @@ class SymbolWildcard(Wildcard):
             return '_[{!s}] /; {!s}'.format(self.symbol_type.__name__, self.constraint)
         return '_[{!s}]'.format(self.symbol_type.__name__)
 
-    def copy_to(self, other: 'SymbolWildcard') -> None:
-        super().copy_to(other)
-        other.symbol_type = self.symbol_type
-
-
-_frozen_type_cache = {
-    Expression: FrozenExpression,
-    MutableExpression: FrozenExpression
-}  # type: Dict[Type[Expression], Type[FrozenExpression]]
-_mutable_type_cache = {
-    Expression: MutableExpression,
-    FrozenExpression: MutableExpression
-}  # type: Dict[Type[Expression], Type[MutableExpression]]
-
-
-def _create_mixin_type(cls, mixin, cache, dct={}):
-    if issubclass(cls, (FrozenExpression, MutableExpression)):
-        cls = next(
-            b for b in cls.__mro__
-            if issubclass(b, Expression) and not issubclass(b, (FrozenExpression, MutableExpression))
-        )
-    if cls not in cache:
-        name = cls.__name__
-        bases = [cls]
-        for base in cls.__bases__:
-            if issubclass(base, Expression):
-                bases.append(_create_mixin_type(base, mixin, cache, dct))
-        cache[cls] = type(mixin.prefix + name, tuple(bases), dct)
-    return cache[cls]
-
-
-def unfreeze(expression: Expression) -> MutableExpression:
-    """Return a :term:`mutable` version of the expression.
-
-    The new type for the mutable expression is created dynamically as a subclass of both :class:`MutableExpression`
-    and the type of the original expression. If the expression is already mutable, it is returned unchanged.
-
-    Args:
-        expression: The expression to freeze.
-
-    Returns:
-        The frozen expression.
-    """
-    if isinstance(expression, MutableExpression):
-        return expression
-    if not isinstance(expression, FrozenExpression):
-        raise TypeError("freeze: Expected a FrozenExpression, got {} instead.".format(type(expression).__name__))
-    new_type = _create_mixin_type(type(expression), MutableExpression, _mutable_type_cache, {'__hash__': None})
-    new_expr = Expression.__new__(new_type)
-    expression.copy_to(new_expr)
-
-    if isinstance(expression, Operation):
-        new_expr.operands = [unfreeze(e) for e in expression.operands]
-    elif isinstance(expression, Symbol):
-        new_expr.head = new_expr
-    elif isinstance(expression, Variable):
-        new_expr.expression = unfreeze(expression.expression)
-        new_expr.head = new_expr.expression.head
-
-    return new_expr
-
-
-def freeze(expression: Expression) -> FrozenExpression:
-    """Return a non-:term:`frozen` version of the expression.
-
-    This function reverts :func:`freeze`. A mutable version is created from the expression using its original class
-    without the FrozenExpression mixin. If the given expression is not frozen, it is returned unchanged.
-
-    Args:
-        expression: The expression to unfreeze.
-
-    Returns:
-        The unfrozen expression.
-    """
-    if isinstance(expression, FrozenExpression):
-        return expression
-    if not isinstance(expression, MutableExpression):
-        raise TypeError("freeze: Expected a MutableExpression, got {} instead.".format(type(expression).__name__))
-    new_type = _create_mixin_type(type(expression), FrozenExpression, _frozen_type_cache)
-    new_expr = Expression.__new__(new_type)
-    expression.copy_to(new_expr)
-
-    if isinstance(expression, Operation):
-        new_expr.operands = tuple(freeze(e) for e in expression.operands)
-    elif isinstance(expression, Symbol):
-        new_expr.head = new_expr
-    elif isinstance(expression, Variable):
-        new_expr.expression = freeze(expression.expression)
-        new_expr.head = new_expr.expression.head
-
-    return new_expr
+    def __copy__(self) -> 'SymbolWildcard':
+        return type(self)(self.symbol_type, self.constraint)

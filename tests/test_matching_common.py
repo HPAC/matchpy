@@ -2,7 +2,7 @@
 import pytest
 
 from matchpy.expressions.constraints import CustomConstraint, MultiConstraint
-from matchpy.expressions.expressions import Variable, Wildcard, freeze
+from matchpy.expressions.expressions import Variable, Wildcard
 from matchpy.matching.common import CommutativePatternsParts
 from .common import *
 
@@ -44,7 +44,7 @@ class TestCommutativePatternsParts:
         ]
     )  # yapf: disable
     def test_parts(self, expressions, constant, syntactic, sequence_variables, fixed_variables, rest):
-        parts = CommutativePatternsParts(None, *map(freeze, expressions))
+        parts = CommutativePatternsParts(None, *expressions)
 
         assert constant == sorted(parts.constant)
         assert syntactic == sorted(parts.syntactic)

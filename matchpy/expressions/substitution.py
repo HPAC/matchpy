@@ -4,7 +4,7 @@
 A substitution maps a variable to a replacement value. The variable is represented by its string name.
 The replacement can either be a plain expression, a sequence of expressions, or a `.Multiset` of expressions:
 
->>> subst = Substitution({'x': a, 'y': (a, b), 'z': Multiset([freeze(a), freeze(b)])})
+>>> subst = Substitution({'x': a, 'y': (a, b), 'z': Multiset([a, b])})
 >>> print(subst)
 {x ↦ a, y ↦ (a, b), z ↦ {a, b}}
 
@@ -153,7 +153,7 @@ class Substitution(Dict[str, VariableReplacement]):
                 return False
             return True
         elif isinstance(pattern, expressions.Operation):
-            assert isinstance(subject, pattern.generic_base_type)
+            assert isinstance(subject, type(pattern))
             assert len(subject.operands) == len(pattern.operands)
             op_expression = cast(expressions.Operation, subject)
             for subj, patt in zip(op_expression.operands, pattern.operands):
@@ -203,7 +203,7 @@ class Substitution(Dict[str, VariableReplacement]):
 
             >>> subst = Substitution({'x': a})
             >>> subst.rename({'x': 'y'})
-            {'y': FrozenSymbol('a')}
+            {'y': Symbol('a')}
 
         Args:
             renaming:

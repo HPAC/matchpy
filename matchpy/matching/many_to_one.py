@@ -32,9 +32,7 @@ from graphviz import Digraph
 from multiset import Multiset
 
 from ..expressions.constraints import Constraint, MultiConstraint
-from ..expressions.expressions import (
-    Expression, MutableExpression, Operation, Symbol, SymbolWildcard, Variable, Wildcard, freeze
-)
+from ..expressions.expressions import Expression, Operation, Symbol, SymbolWildcard, Variable, Wildcard
 from ..expressions.substitution import Substitution
 from ..utils import (VariableWithCount, commutative_sequence_variable_partition_iter)
 from .bipartite import BipartiteGraph, enum_maximum_matchings_iter
@@ -103,7 +101,7 @@ class ManyToOneMatcher:
         index = 0
         self.patterns.append(pattern)
         self.pattern_vars.append(renaming)
-        pattern = freeze(pattern.with_renamed_vars(renaming))
+        pattern = pattern.with_renamed_vars(renaming)
         state = self.root
         patterns_stack = [deque([pattern])]
         context_stack = []
@@ -150,7 +148,7 @@ class ManyToOneMatcher:
         Yields:
             For every match, a tuple of the matching pattern and the match substitution.
         """
-        subject = freeze(subject)
+        subject = subject
         context = _MatchContext((subject, ), Substitution(), None)
         for state, substitution in self._match(self.root, context):
             for pattern_index in state.patterns:
@@ -227,7 +225,7 @@ class ManyToOneMatcher:
                 break
         else:
             if commutative:
-                matcher = CommutativeMatcher(type(expression).generic_base_type if expression.associative else None)
+                matcher = CommutativeMatcher(type(expression) if expression.associative else None)
             state = self._create_state(matcher)
             transition = _Transition(label, state, constraint, variable_name)
             transitions.append(transition)
@@ -305,10 +303,7 @@ class ManyToOneMatcher:
     def _get_heads(expression: Expression) -> List[HeadType]:
         heads = [expression.head] if expression else []
         if isinstance(expression, Symbol):
-            heads.extend(
-                base for base in type(expression).__mro__
-                if issubclass(base, Symbol) and not issubclass(base, MutableExpression)
-            )
+            heads.extend(base for base in type(expression).__mro__ if issubclass(base, Symbol))
         heads.append(None)
         return heads
 
@@ -321,7 +316,7 @@ class ManyToOneMatcher:
             if associative and wildcard.fixed_size:
                 assert min_count == 1, "Fixed wildcards with length != 1 are not supported."
                 if i > 1:
-                    matched_subject = associative.from_args(*matched_subject)
+                    matched_subject = associative(*matched_subject)
                 else:
                     matched_subject = matched_subject[0]
             new_substitution = self._check_constraint(transition, substitution, matched_subject)
@@ -552,11 +547,11 @@ class CommutativeMatcher(object):
         wrapped_vars = [name for (name, _, _), wrap in pattern_vars if wrap]
         for variable_substitution in commutative_sequence_variable_partition_iter(subjects, only_counts):
             for var in wrapped_vars:
-                orderands = variable_substitution[var]
-                if len(orderands) > 1:
-                    variable_substitution[var] = self.associative.from_args(*orderands)
+                operands = variable_substitution[var]
+                if len(operands) > 1:
+                    variable_substitution[var] = self.associative(*operands)
                 else:
-                    variable_substitution[var] = next(iter(orderands))
+                    variable_substitution[var] = next(iter(operands))
             try:
                 result_substitution = substitution.union(variable_substitution)
             except ValueError:

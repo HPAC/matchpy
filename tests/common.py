@@ -10,7 +10,7 @@ class SpecialSymbol(Symbol):
 
 f = Operation.new('f', Arity.variadic)
 f2 = Operation.new('f2', Arity.variadic)
-f3 = Operation.new('f3', Arity.variadic)
+f_u = Operation.new('f_u', Arity.unary)
 f_i = Operation.new('f_i', Arity.variadic, one_identity=True)
 f_c = Operation.new('f_c', Arity.variadic, commutative=True)
 f2_c = Operation.new('f2_c', Arity.variadic, commutative=True)

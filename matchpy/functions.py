@@ -15,7 +15,7 @@ from typing import Callable, List, NamedTuple, Sequence, Tuple, Union, Iterable
 
 from multiset import Multiset
 
-from .expressions.expressions import Expression, Operation, Variable, freeze
+from .expressions.expressions import Expression, Operation, Variable
 from .expressions.substitution import Substitution
 from .matching.one_to_one import match
 
@@ -46,7 +46,7 @@ def substitute(expression: Expression, substitution: Substitution) -> Tuple[Repl
 
     If you substitute with a `Multiset` of values, they will be sorted:
 
-    >>> replacement = Multiset(map(freeze, [b, a, b]))
+    >>> replacement = Multiset([b, a, b])
     >>> print(substitute(f(x_, c), {'x': replacement})[0])
     f(a, b, b, c)
 
@@ -78,7 +78,7 @@ def substitute(expression: Expression, substitution: Substitution) -> Tuple[Repl
             else:
                 new_operands.extend(result)
         if any_replaced:
-            return type(expression).from_args(*new_operands), True
+            return type(expression)(*new_operands), True
 
     return expression, False
 
@@ -120,10 +120,10 @@ def replace(expression: Expression, position: Sequence[int], replacement: Replac
     subexpr = replace(expression.operands[pos], position[1:], replacement)
     if isinstance(subexpr, Sequence):
         new_operands = tuple(expression.operands[:pos]) + tuple(subexpr) + tuple(expression.operands[pos + 1:])
-        return op_class.from_args(*new_operands)
+        return op_class(*new_operands)
     operands = list(expression.operands)
     operands[pos] = subexpr
-    return op_class.from_args(*operands)
+    return op_class(*operands)
 
 
 def replace_many(expression: Expression, replacements: Sequence[Tuple[Sequence[int], Replacement]]) -> Replacement:
@@ -197,7 +197,7 @@ def replace_many(expression: Expression, replacements: Sequence[Tuple[Sequence[i
             new_operands.extend(replacement)
         last_index = index + 1
     new_operands.extend(operands[last_index:len(operands)])
-    return op_class.from_args(*new_operands)
+    return op_class(*new_operands)
 
 
 ReplacementRule = NamedTuple('ReplacementRule', [('pattern', Expression), ('replacement', Callable[..., Expression])])
@@ -230,8 +230,8 @@ def replace_all(expression: Expression, rules: Iterable[ReplacementRule], max_co
         The resulting expression after the application of the replacement rules. This can also be a sequence of
         expressions, if the root expression is replaced with a sequence of expressions by a rule.
     """
-    rules = [ReplacementRule(freeze(pattern), replacement) for pattern, replacement in rules]
-    expression = freeze(expression)
+    rules = [ReplacementRule(pattern, replacement) for pattern, replacement in rules]
+    expression = expression
     grouped = dict((h, list(g)) for h, g in itertools.groupby(rules, lambda r: r.pattern.head))
     replaced = True
     replace_count = 0
@@ -242,7 +242,7 @@ def replace_all(expression: Expression, rules: Iterable[ReplacementRule], max_co
                 for pattern, replacement in grouped[subexpr.head]:
                     try:
                         subst = next(match(subexpr, pattern))
-                        result = freeze(replacement(**subst))
+                        result = replacement(**subst)
                         expression = replace(expression, pos, result)
                         replaced = True
                         break
