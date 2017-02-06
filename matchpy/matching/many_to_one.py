@@ -463,8 +463,8 @@ class CommutativeMatcher(object):
                 bipartite_match_iter = self._match_with_bipartite(subject_ids, pattern_set, substitution)
                 for bipartite_substitution, matched_subjects in bipartite_match_iter:
                     if pattern_vars:
-                        remaining_ids = subject_ids - matched_subjects
-                        remaining = Multiset(self.subjects[id] for id in remaining_ids)  # pylint: disable=not-an-iterable
+                        ids = subject_ids - matched_subjects
+                        remaining = Multiset(self.subjects[id] for id in ids)  # pylint: disable=not-an-iterable
                         sequence_var_iter = self._match_sequence_variables(
                             remaining, pattern_vars, bipartite_substitution, constraint
                         )
@@ -634,14 +634,10 @@ class SecondaryAutomaton():  # pragma: no cover
     def as_graph(self):
         graph = Digraph()
         for i in range(len(self.states)):
-            #node_id = '-'.join(map(str, sorted(state)))
-            #label = '\n'.join(bin(l)[2:].zfill(k) for l in sorted(state))
             graph.node(str(i), str(i))
 
         for state, edges in enumerate(self.states):
-            #node_id = '-'.join(map(str, sorted(state)))
             for target, labels in groupby(sorted(edges.items()), key=itemgetter(1)):
-                #target_id = '-'.join(map(str, sorted(target)))
                 label = '\n'.join(bin(l)[2:].zfill(self.k) for l, _ in labels)
                 graph.edge(str(state), str(target), label)
 

@@ -23,7 +23,7 @@ import itertools
 import keyword
 from abc import ABCMeta, abstractmethod
 from enum import Enum, EnumMeta
-from typing import (Callable, Iterator, List, NamedTuple, Optional, # pylint: disable=unused-import
+from typing import (Callable, Iterator, List, NamedTuple, Optional,  # pylint: disable=unused-import
                     Set, Tuple, TupleMeta, Type, Union)
 
 from multiset import Multiset

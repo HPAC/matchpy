@@ -28,7 +28,7 @@ class BipartiteGraph(Generic[TLeft, TRight, TEdgeValue]):
     dictionary. The value can either be `True` or any value that you want to associate with the edge.
     """
 
-    # __slots__ = ('_edges', ) TODO: Uncomment for Python 3.6
+    __slots__ = ('_edges', )
 
     def __init__(self, *args, **kwargs):
         self._edges = dict(*args, **kwargs)
@@ -55,8 +55,7 @@ class BipartiteGraph(Generic[TLeft, TRight, TEdgeValue]):
         return self._edges.keys()
 
     def __copy__(self):
-        cls = self.__class__
-        new_graph = cls.__new__(cls)
+        new_graph = type(self)()
         new_graph._edges = self._edges.copy()
         return new_graph
 

@@ -1,4 +1,16 @@
 # -*- coding: utf-8 -*-
+"""This module contains various many-to-one matchers for syntactic patterns:
+
+- There `DiscriminationNet` class that is a many-to-one matcher for syntactic patterns.
+- The `SequenceMatcher` can be used to match patterns with a common surrounding operation with some fixed
+  syntactic patterns.
+- The `FlatTerm` representation for an expression flattens the expression's tree structure and allows faster preoder
+  traversal.
+
+Furthermore, the module contains some utility functions for working with flatterms.
+"""
+
+import itertools
 from reprlib import recursive_repr
 from typing import (Any, Dict, FrozenSet, Generic, Iterator, List, Optional, Sequence, Set, Tuple, Type, TypeVar, Union)
 
@@ -7,7 +19,7 @@ from graphviz import Digraph
 from ..expressions.expressions import Expression, Operation, Symbol, SymbolWildcard, Variable, Wildcard
 from ..expressions.substitution import Substitution
 from ..expressions.constraints import MultiConstraint
-from ..utils import cached_property
+from ..utils import slot_cached_property
 
 __all__ = ['FlatTerm', 'is_operation', 'is_symbol_wildcard', 'DiscriminationNet', 'SequenceMatcher']
 
@@ -79,7 +91,9 @@ class FlatTerm(Sequence[TermAtom]):
     [f, _, <class '__main__.SpecialSymbol'>, )]
     """
 
-    def __init__(self, expression: Union[Expression, Sequence[TermAtom]]=()) -> None:
+    __slots__ = '_terms', '_is_syntactic'
+
+    def __init__(self, expression: Union[Expression, Sequence[TermAtom]]) -> None:
         if isinstance(expression, Expression):
             expression = self._combined_wildcards_iter(self._flatterm_iter(expression))
         self._terms = tuple(expression)
@@ -108,8 +122,9 @@ class FlatTerm(Sequence[TermAtom]):
             return self._terms == other._terms
         return NotImplemented
 
-    @cached_property
+    @slot_cached_property('_is_syntactic')
     def is_syntactic(self):
+        """True, iff the flatterm is :term:`syntactic`."""
         for term in self._terms:
             if isinstance(term, Wildcard) and not term.fixed_size:
                 return False
@@ -118,8 +133,22 @@ class FlatTerm(Sequence[TermAtom]):
         return True
 
     @classmethod
-    def merged(cls, *flatterms):
-        return FlatTerm(cls._combined_wildcards_iter(sum(flatterms, FlatTerm())))
+    def empty(cls) -> 'FlatTerm':
+        """An empty flatterm."""
+        return cls([])
+
+    @classmethod
+    def merged(cls, *flatterms: 'FlatTerm') -> 'FlatTerm':
+        """Concatenate the given flatterms to a single flatterm.
+
+        Args:
+            *flatterms:
+                The flatterms which are concatenated.
+
+        Returns:
+            The concatenated flatterms.
+        """
+        return cls(cls._combined_wildcards_iter(sum(flatterms, cls.empty())))
 
     @classmethod
     def _flatterm_iter(cls, expression: Expression) -> Iterator[TermAtom]:
@@ -283,12 +312,32 @@ class DiscriminationNet(Generic[T]):
     the wildcards.
     """
 
-    def __init__(self):
+    def __init__(self, *patterns: Expression) -> None:
+        """
+        Args:
+            *patterns:
+                Optional pattern to initially add to the discrimination net.
+        """
         self._root = _State()
         self._patterns = []
+        for pattern in patterns:
+            self.add(pattern)
 
     def add(self, pattern: Union[Expression, FlatTerm], final_label: T=None) -> int:
-        """TODO"""
+        """Add a pattern to the discrimination net.
+
+        Args:
+            pattern:
+                The pattern which is added to the DiscriminationNet. If an expression is given, it will be converted to
+                a `FlatTerm` for internal processing. You can also pass a `FlatTerm` directly.
+            final_label:
+                A label that is returned if the pattern matches when using :meth:`match`. This will default to the
+                pattern itself.
+
+        Returns:
+            The index of the newly added pattern. This is used internally to later to get the pattern and its final
+            label once a match is found.
+        """
         index = len(self._patterns)
         self._patterns.append((pattern, final_label))
         flatterm = FlatTerm(pattern) if not isinstance(pattern, FlatTerm) else pattern
@@ -557,9 +606,9 @@ class DiscriminationNet(Generic[T]):
 
         return root
 
-    def _match(self, expression: Union[Expression, FlatTerm], collect: bool=False,
+    def _match(self, subject: Union[Expression, FlatTerm], collect: bool=False,
                first=False) -> List[Tuple[Expression, T]]:
-        flatterm = FlatTerm(expression) if isinstance(expression, Expression) else expression
+        flatterm = FlatTerm(subject) if isinstance(subject, Expression) else subject
         state = self._root
         depth = 0
         result = state.payload[:]
@@ -585,7 +634,7 @@ class DiscriminationNet(Generic[T]):
                             symbol_wildcard_key = _get_symbol_wildcard_label(state, term)
                             state = state[symbol_wildcard_key or Wildcard]
                         else:
-                            raise TypeError("Expression contains non-terminal atom: {!s}".format(expression))
+                            raise TypeError("Subject {} contains non-terminal atom: {}".format(subject, term))
                 except KeyError:
                     return result if collect else []
 
@@ -593,16 +642,27 @@ class DiscriminationNet(Generic[T]):
 
         return result if collect else state.payload[:]
 
-    def match(self, expression: Union[Expression, FlatTerm]) -> Iterator[Tuple[T, Substitution]]:
-        for index in self._match(expression):
+    def match(self, subject: Union[Expression, FlatTerm]) -> Iterator[Tuple[T, Substitution]]:
+        """Match the given subject against all patterns in the net.
+
+        Args:
+            subject:
+                The subject that is matched. Must be constant.
+
+        Yields:
+            A tuple :code:`(final label, substitution)`, where the first component is the final label associated with
+            the pattern as given when using :meth:`add()` and the second one is the match substitution.
+        """
+        for index in self._match(subject):
             pattern, label = self._patterns[index]
             subst = Substitution()
-            if subst.extract_substitution(expression, pattern):
+            if subst.extract_substitution(subject, pattern):
                 constraint = MultiConstraint.create(*(e.constraint for e, _ in pattern.preorder_iter()))
                 if constraint is None or constraint(subst):
                     yield label, subst
 
     def as_graph(self) -> Digraph:  # pragma: no cover
+        """Renders the discrimination net as graphviz digraph."""
         dot = Digraph()
 
         nodes = set()
@@ -636,33 +696,76 @@ class DiscriminationNet(Generic[T]):
 
 
 class SequenceMatcher:
-    def __init__(self, *patterns):
+    r"""A matcher that matches many :term:`syntactic` patterns in a surrounding sequence.
+
+    It can match patterns that have the form :math:`f(x^*, s_1, \dots, s_n, y^*)` where
+
+    - :math:`f` is a non-commutative operation,
+    - :math:`x^*, y^*` are star sequence wildcards or variables (they can be the same of different), and
+    - all the :math:`s_i` are syntactic patterns.
+
+    After adding these patterns with `add()`, they can be matched simultaneously against a subject with `match()`.
+    Note that all patterns matched by one sequence matcher must have the same outer operation :math:`f`.
+
+    Attributes:
+        operation:
+            The outer operation that all patterns have in common. Is set automatically when adding the first pattern
+            and is check for all following patterns.
+    """
+
+    __slots__ = ('_net', '_patterns', 'operation')
+
+    def __init__(self, *patterns: Expression) -> None:
+        """
+        Args:
+            *patterns:
+                Initial patterns to add to the sequence matcher.
+        """
         self._net = DiscriminationNet()
-        super().__init__()
         self._patterns = []
         self.operation = None
-        for i, pattern in enumerate(patterns):
+        for pattern in patterns:
+            self.add(pattern)
+
+    def add(self, pattern: Expression) -> int:
+        """Add a pattern that will be recognized by the matcher.
+
+        Args:
+            pattern:
+                The pattern to add.
+
+        Returns:
+            An internal index for the pattern.
+
+        Raises:
+            ValueError:
+                If the pattern does not have the correct form.
+            TypeError:
+                If the pattern is not a non-commutative operation.
+        """
+        if self.operation is None:
             if not isinstance(pattern, Operation) or pattern.commutative:
                 raise TypeError("Pattern must be a non-commutative operation.")
+            self.operation = type(pattern)
+        elif not isinstance(pattern, self.operation):
+            raise TypeError(
+                "All patterns must be the same operation, expected {} but got {}".
+                format(self.operation, type(pattern))
+            )
 
-            if self.operation is None:
-                self.operation = type(pattern)
-            elif not isinstance(pattern, self.operation):
-                raise TypeError(
-                    "All patterns must be the same operation, expected {} but got {}".
-                    format(self.operation, type(pattern))
-                )
+        if len(pattern.operands) < 3:
+            raise ValueError("Pattern has not enough operands.")
 
-            if len(pattern.operands) < 3:
-                raise ValueError("Pattern has not enough operands.")
+        first_name = self._check_wildcard_and_get_name(pattern.operands[0])
+        last_name = self._check_wildcard_and_get_name(pattern.operands[-1])
 
-            first_name = self._check_wildcard_and_get_name(pattern.operands[0])
-            last_name = self._check_wildcard_and_get_name(pattern.operands[-1])
+        index = len(self._patterns)
+        self._patterns.append((pattern, first_name, last_name))
 
-            self._patterns.append((pattern, first_name, last_name))
+        flatterm = FlatTerm.merged(*(FlatTerm(o) for o in pattern.operands[1:-1]))
+        self._net.add(flatterm, index)
 
-            flatterm = FlatTerm.merged(*(FlatTerm(o) for o in pattern.operands[1:-1]))
-            self._net.add(flatterm, i)
+        return index
 
     @staticmethod
     def _check_wildcard_and_get_name(operand):
@@ -677,7 +780,16 @@ class SequenceMatcher:
         return name
 
     @classmethod
-    def can_match(cls, pattern):
+    def can_match(cls, pattern: Expression) -> bool:
+        """Check if a pattern can be matched with a sequence matcher.
+
+        Args:
+            pattern:
+                The pattern to check.
+
+        Returns:
+            True, iff the pattern can be matched with a sequence matcher.
+        """
         if not isinstance(pattern, Operation) or pattern.commutative:
             return False
 
@@ -692,11 +804,20 @@ class SequenceMatcher:
 
         return True
 
-    def match(self, expression: Expression) -> Iterator[Substitution]:
-        if not isinstance(expression, self.operation):
+    def match(self, subject: Expression) -> Iterator[Tuple[Expression, Substitution]]:
+        """Match the given subject against all patterns in the sequence matcher.
+
+        Args:
+            subject:
+                The subject that is matched. Must be constant.
+
+        Yields:
+            A tuple :code:`(pattern, substitution)` for every matching pattern.
+        """
+        if not isinstance(subject, self.operation):
             return
 
-        flatterms = [FlatTerm(o) for o in expression.operands]
+        flatterms = [FlatTerm(o) for o in subject.operands]
 
         for i in range(len(flatterms)):
             flatterm = FlatTerm.merged(*flatterms[i:])
@@ -705,25 +826,23 @@ class SequenceMatcher:
                 match_index = self._net._patterns[index][1]
                 pattern, first_name, last_name = self._patterns[match_index]
                 operand_count = len(pattern.operands) - 2
-                expr_operands = expression.operands[i:i + operand_count]
+                expr_operands = subject.operands[i:i + operand_count]
                 patt_operands = pattern.operands[1:-1]
 
-                subst = Substitution()
-                for o, p in zip(expr_operands, patt_operands):
-                    if not subst.extract_substitution(o, p):
-                        subst = None
-                        break
+                substitution = Substitution()
+                if not all(itertools.starmap(substitution.extract_substitution, zip(expr_operands, patt_operands))):
+                    continue
 
-                if subst is not None:
-                    try:
-                        if first_name is not None:
-                            subst.try_add_variable(first_name, tuple(expression.operands[:i]))
-                        if last_name is not None:
-                            subst.try_add_variable(last_name, tuple(expression.operands[i + operand_count:]))
-                    except ValueError:
-                        continue
+                try:
+                    if first_name is not None:
+                        substitution.try_add_variable(first_name, tuple(subject.operands[:i]))
+                    if last_name is not None:
+                        substitution.try_add_variable(last_name, tuple(subject.operands[i + operand_count:]))
+                except ValueError:
+                    continue
 
-                    yield pattern, subst
+                yield pattern, substitution
 
     def as_graph(self) -> Digraph:  # pragma: no cover
+        """Renders the underlying discrimination net as graphviz digraph."""
         return self._net.as_graph()
