@@ -21,7 +21,6 @@ f(a)
 """
 import itertools
 import keyword
-from abc import ABCMeta, abstractmethod
 from enum import Enum, EnumMeta
 from typing import (Callable, Iterator, List, NamedTuple, Optional,  # pylint: disable=unused-import
                     Set, Tuple, TupleMeta, Type, Union)
@@ -37,7 +36,7 @@ ExprPredicate = Optional[Callable[['Expression'], bool]]
 ExpressionsWithPos = Iterator[Tuple['Expression', Tuple[int, ...]]]
 
 
-class Expression(metaclass=ABCMeta):
+class Expression:
     """Base class for all expressions.
 
     Do not subclass this class directly but rather :class:`Symbol` or :class:`Operation`.
@@ -113,11 +112,9 @@ class Expression(metaclass=ABCMeta):
         """A copy of the expression without constraints."""
         return self._without_constraints()
 
-    @abstractmethod
     def _without_constraints(self) -> 'Expression':
         raise NotImplementedError()
 
-    @abstractmethod
     def with_renamed_vars(self, renaming) -> 'Expression':
         """Return a copy of the expression with renamed variables."""
         raise NotImplementedError()
@@ -164,7 +161,6 @@ class Expression(metaclass=ABCMeta):
             return self
         raise IndexError("Invalid position")
 
-    @abstractmethod
     def __hash__(self):
         raise NotImplementedError()
 
@@ -202,7 +198,7 @@ class Arity(_ArityBase, Enum, metaclass=_ArityMeta):
         return "{!s}.{!s}".format(type(self).__name__, self._name_)
 
 
-class _OperationMeta(ABCMeta):
+class _OperationMeta(type):
     """Metaclass for `Operation`
 
     This metaclass is mainly used to override :meth:`__call__` to provide simplification when creating a

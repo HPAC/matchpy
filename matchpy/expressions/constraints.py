@@ -36,7 +36,6 @@ False
 You can also create a subclass of the :class:`Constraint` class to create your own custom constraint type.
 """
 import inspect
-from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
 from typing import Callable, Dict, Optional
 
@@ -46,7 +45,7 @@ from ..utils import get_short_lambda_source
 __all__ = ['Constraint', 'MultiConstraint', 'EqualVariablesConstraint', 'CustomConstraint']
 
 
-class Constraint(object, metaclass=ABCMeta):  # pylint: disable=too-few-public-methods
+class Constraint(object):  # pylint: disable=too-few-public-methods
     """Base for pattern constraints.
 
     A constraint is essentially a callback, that receives the match :class:`Substitution` and returns a :class:`bool`
@@ -55,7 +54,6 @@ class Constraint(object, metaclass=ABCMeta):  # pylint: disable=too-few-public-m
     You have to override all the abstract methods if you wish to create your own subclass.
     """
 
-    @abstractmethod
     def __call__(self, match: substitution.Substitution) -> bool:  # pylint: disable=missing-raises-doc
         """Return True, iff the constraint is fulfilled by the substitution.
 
@@ -71,17 +69,14 @@ class Constraint(object, metaclass=ABCMeta):  # pylint: disable=too-few-public-m
         """
         raise NotImplementedError
 
-    @abstractmethod
     def __eq__(self, other):
         """Constraints need to be equatable."""
         raise NotImplementedError
 
-    @abstractmethod
     def __hash__(self):
         """Constraints need to be hashable."""
         raise NotImplementedError
 
-    @abstractmethod
     def with_renamed_vars(self, renaming: Dict[str, str]) -> 'Constraint':  # pylint: disable=missing-raises-doc
         """Return a *copy* of the constraint with renamed variables.
 
