@@ -40,7 +40,7 @@ setup(
     install_requires=[
         'graphviz>=0.5,<0.6',
         'hopcroftkarp>=1.2,<2.0',
-        'multiset>=1.0,<2.0'
+        'multiset>=2.0,<3.0'
     ]
 )
 

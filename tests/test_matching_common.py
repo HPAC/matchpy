@@ -96,7 +96,7 @@ class TestCommutativePatternsParts:
     def test_fixed_var_constraints(self, constraints, result_constraint):
         parts = CommutativePatternsParts(None, *(Variable('x', Wildcard.dot(), c) for c in constraints))
 
-        assert 1 == len(parts.fixed_variables.keys())
+        assert 1 == len(parts.fixed_variables.distinct_elements())
         assert len(constraints) == len(parts.fixed_variables)
         assert 'x' in parts.fixed_variables
         assert 'x' in parts.fixed_variable_infos
@@ -125,7 +125,7 @@ class TestCommutativePatternsParts:
     def test_sequence_var_constraints(self, constraints, result_constraint):
         parts = CommutativePatternsParts(None, *(Variable('x', Wildcard.plus(), c) for c in constraints))
 
-        assert 1 == len(parts.sequence_variables.keys())
+        assert 1 == len(parts.sequence_variables.distinct_elements())
         assert len(constraints) == len(parts.sequence_variables)
         assert 'x' in parts.sequence_variables
         assert 'x' in parts.sequence_variable_infos

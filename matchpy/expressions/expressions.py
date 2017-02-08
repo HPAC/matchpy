@@ -35,6 +35,8 @@ __all__ = ['Expression', 'Arity', 'Atom', 'Symbol', 'Variable', 'Wildcard', 'Ope
 ExprPredicate = Optional[Callable[['Expression'], bool]]
 ExpressionsWithPos = Iterator[Tuple['Expression', Tuple[int, ...]]]
 
+MultisetOfStr = Multiset
+
 
 class Expression:
     """Base class for all expressions.
@@ -63,21 +65,21 @@ class Expression:
         self.constraint = constraint
 
     @cached_property
-    def variables(self) -> Multiset[str]:
+    def variables(self) -> MultisetOfStr:
         """A multiset of the variable names occurring in the expression."""
         return self._variables()
 
     @staticmethod
-    def _variables() -> Multiset[str]:
+    def _variables() -> MultisetOfStr:
         return Multiset()
 
     @cached_property
-    def symbols(self) -> Multiset[str]:
+    def symbols(self) -> MultisetOfStr:
         """A multiset of the symbol names occurring in the expression."""
         return self._symbols()
 
     @staticmethod
-    def _symbols() -> Multiset[str]:
+    def _symbols() -> MultisetOfStr:
         return Multiset()
 
     @cached_property
@@ -509,10 +511,10 @@ class Operation(Expression, metaclass=_OperationMeta):
             return False
         return all(o.is_syntactic for o in self.operands)
 
-    def _variables(self) -> Multiset[str]:
+    def _variables(self) -> MultisetOfStr:
         return sum((x.variables for x in self.operands), Multiset())
 
-    def _symbols(self) -> Multiset[str]:
+    def _symbols(self) -> MultisetOfStr:
         return sum((x.symbols for x in self.operands), Multiset([self.name]))
 
     def _without_constraints(self):
@@ -652,10 +654,10 @@ class Variable(Expression):
     def _is_syntactic(self) -> bool:
         return self.expression.is_syntactic
 
-    def _variables(self) -> Multiset[str]:
+    def _variables(self) -> MultisetOfStr:
         return Multiset([self.name])
 
-    def _symbols(self) -> Multiset[str]:
+    def _symbols(self) -> MultisetOfStr:
         return self.expression.symbols
 
     def _without_constraints(self):

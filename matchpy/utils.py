@@ -19,7 +19,7 @@ __all__ = [
 ]
 
 T = TypeVar('T')
-
+MultisetOfT = Multiset
 VariableWithCount = NamedTuple('VariableWithCount', [('name', str), ('count', int), ('minimum', int)])
 
 
@@ -117,8 +117,8 @@ def _make_variable_generator_factory(value, total, variables: List[VariableWithC
     return _factory
 
 
-def _commutative_single_variable_partiton_iter(values: Multiset[T],
-                                               variable: VariableWithCount) -> Iterator[Dict[str, Multiset[T]]]:
+def _commutative_single_variable_partiton_iter(values: MultisetOfT,
+                                               variable: VariableWithCount) -> Iterator[Dict[str, MultisetOfT]]:
     name, count, minimum = variable
     if count == 1:
         if len(values) >= minimum:
@@ -133,8 +133,8 @@ def _commutative_single_variable_partiton_iter(values: Multiset[T],
             yield {name: new_values} if name is not None else {}
 
 
-def commutative_sequence_variable_partition_iter(values: Multiset[T], variables: List[VariableWithCount]
-                                                ) -> Iterator[Dict[str, Multiset[T]]]:
+def commutative_sequence_variable_partition_iter(values: MultisetOfT, variables: List[VariableWithCount]
+                                                ) -> Iterator[Dict[str, MultisetOfT]]:
     """Yield all possible variable substitutions for given values and variables.
 
     .. note::
@@ -180,7 +180,7 @@ def commutative_sequence_variable_partition_iter(values: Multiset[T], variables:
     for value, count in values.items():
         generators.append(_make_variable_generator_factory(value, count, variables))
 
-    initial = dict((var.name, Multiset()) for var in variables)  # type: Dict[str, Multiset[T]]
+    initial = dict((var.name, Multiset()) for var in variables)  # type: Dict[str, MultisetOfT]
     for subst in generator_chain(initial, *generators):
         valid = True
         for var in variables:

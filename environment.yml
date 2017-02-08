@@ -15,4 +15,4 @@ dependencies:
   - graphviz
   - git+https://github.com/wheerd/sphinx-autodoc-typehints.git@napoleon-master#egg=sphinx-autodoc-napoleon-typehints
   - hopcroftkarp
-  - multiset
+  - multiset>=2.0,<3.0

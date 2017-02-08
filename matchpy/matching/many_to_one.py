@@ -42,6 +42,8 @@ __all__ = ['ManyToOneMatcher']
 
 LabelType = Union[Expression, Type[Operation]]
 HeadType = Optional[Union[Expression, Type[Operation], Type[Symbol]]]
+MultisetOfInt = Multiset
+MultisetOfExpression = Multiset
 
 _State = NamedTuple('_State', [
     ('transitions', Dict[LabelType, '_Transition']),
@@ -482,7 +484,7 @@ class CommutativeMatcher(object):
                 yield pattern_index, substitution
 
     def _extract_sequence_wildcards(self, operands: Iterable[Expression]
-                                   ) -> Tuple[Multiset[int], Dict[str, Tuple[VariableWithCount, bool]], Constraint]:
+                                   ) -> Tuple[MultisetOfInt, Dict[str, Tuple[VariableWithCount, bool]], Constraint]:
         pattern_set = Multiset()
         pattern_vars = dict()
         constraint = None
@@ -519,10 +521,10 @@ class CommutativeMatcher(object):
 
     def _match_with_bipartite(
             self,
-            subject_ids: Multiset[int],
-            pattern_set: Multiset[int],
+            subject_ids: MultisetOfInt,
+            pattern_set: MultisetOfInt,
             substitution: Substitution,
-    ) -> Iterator[Tuple[Substitution, Multiset[int]]]:
+    ) -> Iterator[Tuple[Substitution, MultisetOfInt]]:
         bipartite = self._build_bipartite(subject_ids, pattern_set)
         for matching in enum_maximum_matchings_iter(bipartite):
             if len(matching) < len(pattern_set):
@@ -538,7 +540,7 @@ class CommutativeMatcher(object):
 
     def _match_sequence_variables(
             self,
-            subjects: Multiset[Expression],
+            subjects: MultisetOfExpression,
             pattern_vars: Sequence[VariableWithCount],
             substitution: Substitution,
             constraint: Constraint,
@@ -559,16 +561,16 @@ class CommutativeMatcher(object):
             if constraint is None or constraint(result_substitution):
                 yield result_substitution
 
-    def _build_bipartite(self, subjects: Multiset[int], patterns: Multiset[int]) -> Subgraph:
+    def _build_bipartite(self, subjects: MultisetOfInt, patterns: MultisetOfInt) -> Subgraph:
         bipartite = BipartiteGraph()
-        for (expression, pattern), substitution in self.bipartite.edges_with_value():
+        for (expression, pattern), substitution in self.bipartite.edges_with_labels():
             for i in range(subjects[expression]):
                 for j in range(patterns[pattern]):
                     bipartite[(expression, i), (pattern, j)] = substitution
         return bipartite
 
     @staticmethod
-    def _is_canonical_matching(matching: Matching, subject_ids: Multiset[int], pattern_set: Multiset[int]) -> bool:
+    def _is_canonical_matching(matching: Matching, subject_ids: MultisetOfInt, pattern_set: MultisetOfInt) -> bool:
         inverted_matching = {p: s for s, p in matching.items()}
         for (pattern_index, count) in sorted(pattern_set.items()):
             _, previous_label = inverted_matching[pattern_index, 0]

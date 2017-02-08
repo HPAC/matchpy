@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
+"""Contains various patter matching algorithms in the submodules."""
+
 # pylint: disable=wildcard-import
+from . import many_to_one
+from . import bipartite
+from . import one_to_one
+from . import syntactic
+
 from .many_to_one import *
 from .bipartite import *
 from .one_to_one import *
 from .syntactic import *
 
-import importlib
-
-__all__ = []
-
-for subpackage in ['many_to_one', 'bipartite', 'one_to_one', 'syntactic']:
-    package = importlib.import_module('.{}'.format(subpackage), __name__)
-    __all__.extend(package.__all__)
+__all__ = (many_to_one.__all__ + bipartite.__all__ + one_to_one.__all__ + syntactic.__all__)

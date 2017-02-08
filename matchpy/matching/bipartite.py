@@ -1,4 +1,11 @@
 # -*- coding: utf-8 -*-
+"""Contains classes and functions related to bipartite graphs.
+
+The `BipartiteGraph` class is used to represent a bipartite graph as a dictionary. In particular,
+`BipartiteGraph.find_matching()` can be used to find a maximum matching in such a graph.
+
+The function `enum_maximum_matchings_iter` can be used to enumerate all maximum matchings of a `BipartiteGraph`.
+"""
 
 from typing import (Dict, Generic, Hashable, Iterator, List, Set, Tuple, TypeVar, Union, cast)
 
@@ -26,6 +33,11 @@ class BipartiteGraph(Generic[TLeft, TRight, TEdgeValue]):
 
     This class is a specialized dictionary, where each edge is represented by a 2-tuple that is used as a key in the
     dictionary. The value can either be `True` or any value that you want to associate with the edge.
+
+    For example, the edge from 1 to 2 with a label 42 would be set like this:
+
+    >>> graph = BipartiteGraph()
+    >>> graph[1, 2] = 42
     """
 
     __slots__ = ('_edges', )
@@ -35,20 +47,21 @@ class BipartiteGraph(Generic[TLeft, TRight, TEdgeValue]):
 
     def __setitem__(self, key: Edge, value: TEdgeValue) -> None:
         if not isinstance(key, tuple) or len(key) != 2:
-            raise TypeError("Key must a 2-tuple")
+            raise TypeError("The edge must be a 2-tuple")
         self._edges.__setitem__(key, value)
 
     def __getitem__(self, key: Edge) -> TEdgeValue:
         if not isinstance(key, tuple) or len(key) != 2:
-            raise TypeError("Key must a 2-tuple")
+            raise TypeError("The edge must be a 2-tuple")
         return self._edges.__getitem__(key)
 
     def __delitem__(self, key: Edge) -> None:
         if not isinstance(key, tuple) or len(key) != 2:
-            raise TypeError("Key must a 2-tuple")
+            raise TypeError("The edge must be a 2-tuple")
         return self._edges.__delitem__(key)
 
-    def edges_with_value(self):
+    def edges_with_labels(self):
+        """Returns a view on the edges with labels."""
         return self._edges.items()
 
     def edges(self):
@@ -76,7 +89,6 @@ class BipartiteGraph(Generic[TLeft, TRight, TEdgeValue]):
     def as_graph(self) -> Graph:  # pragma: no cover
         """Returns a :class:`graphviz.Graph` representation of this bipartite graph."""
         graph = Graph()
-
         nodes_left = {}  # type: Dict[TLeft, str]
         nodes_right = {}  # type: Dict[TRight, str]
         node_id = 0
@@ -93,7 +105,6 @@ class BipartiteGraph(Generic[TLeft, TRight, TEdgeValue]):
                 node_id += 1
             edge_label = value is not True and str(value) or ''
             graph.edge(nodes_left[left], nodes_right[right], edge_label)
-
         return graph
 
     def find_matching(self) -> Dict[TLeft, TRight]:
@@ -335,8 +346,3 @@ def _enum_maximum_matchings_iter(graph: BipartiteGraph[TLeft, TRight, TEdgeValue
 
         # Step 10
         yield from _enum_maximum_matchings_iter(graph_minus, matching, dgm_minus)
-
-
-if __name__ == '__main__':
-    import doctest
-    doctest.testmod(exclude_empty=True)

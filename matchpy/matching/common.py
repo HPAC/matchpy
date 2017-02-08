@@ -15,6 +15,7 @@ __all__ = ['CommutativePatternsParts', 'Matcher']
 
 Matcher = Callable[[Sequence[Expression], Expression, Substitution], Iterator[Substitution]]
 VarInfo = NamedTuple('VarInfo', [('min_count', int), ('constraint', Constraint), ('type', Optional[type])])
+MultisetOfExpression = Multiset
 
 
 class CommutativePatternsParts(object):
@@ -36,7 +37,7 @@ class CommutativePatternsParts(object):
             The type of of the original pattern expression. Must be a subclass of
             :class:`.Operation`.
 
-        constant (Multiset[Expression]):
+        constant (MultisetOfExpression):
             A :class:`~.Multiset` representing the constant operands of the pattern.
             An expression is constant, if it does not contain variables or wildcards.
         syntactic (Multiset[Operation]):
@@ -58,7 +59,7 @@ class CommutativePatternsParts(object):
         fixed_variable_infos (Dict[str, VarInfo]):
             A dictionary mapping fixed variable names to more information about the variable, i.e. its
             ``min_count`` and ``constraint``.
-        rest (Multiset[Expression]):
+        rest (MultisetOfExpression):
             A :class:`.Multiset` representing the operands of the pattern that do not fall
             into one of the previous categories. That means it contains operation expressions, which
             are not syntactic.
@@ -95,13 +96,13 @@ class CommutativePatternsParts(object):
         self.operation = operation
         self.length = len(expressions)
 
-        self.constant = Multiset()  # type: Multiset[Expression]
-        self.syntactic = Multiset()  # type: Multiset[Expression]
+        self.constant = Multiset()  # type: MultisetOfExpression
+        self.syntactic = Multiset()  # type: MultisetOfExpression
         self.sequence_variables = Multiset()  # type: Multiset[str]
         self.sequence_variable_infos = dict()
         self.fixed_variables = Multiset()  # type: Multiset[str]
         self.fixed_variable_infos = dict()
-        self.rest = Multiset()  # type: Multiset[Expression]
+        self.rest = Multiset()  # type: MultisetOfExpression
 
         self.sequence_variable_min_length = 0
         self.fixed_variable_length = 0
@@ -305,7 +306,7 @@ def _match_operation(expressions, operation, subst, matcher):
 def _match_commutative_operation(
         subject_operands: Iterable[Expression], pattern: CommutativePatternsParts, substitution: Substitution, matcher
 ) -> Iterator[Substitution]:
-    subjects = Multiset(subject_operands)  # type: Multiset[Expression]
+    subjects = Multiset(subject_operands)  # type: MultisetOfExpression
     if not pattern.constant <= subjects:
         return
     subjects -= pattern.constant
@@ -323,7 +324,7 @@ def _match_commutative_operation(
         if name in substitution:
             replacement = substitution[name]
             if pattern.operation.associative and isinstance(replacement, pattern.operation):
-                needed_count = Multiset(cast(Operation, substitution[name]).operands)  # type: Multiset[Expression]
+                needed_count = Multiset(cast(Operation, substitution[name]).operands)  # type: MultisetOfExpression
             else:
                 assert isinstance(replacement, Expression), "Mixed variables with the same name are not supported."
                 needed_count = Multiset({replacement: 1})
@@ -355,7 +356,7 @@ def _match_commutative_operation(
                 factory = _fixed_var_iter_factory(name, count, min_count, constraint, symbol_type)
                 factories.append(factory)
 
-    expr_counter = Multiset(subjects)  # type: Multiset[Expression]
+    expr_counter = Multiset(subjects)  # type: MultisetOfExpression
 
     for rem_expr, substitution in generator_chain((expr_counter, substitution), *factories):
         sequence_vars = _variables_with_counts(pattern.sequence_variables, pattern.sequence_variable_infos)
@@ -371,11 +372,11 @@ def _match_commutative_operation(
 
         for sequence_subst in commutative_sequence_variable_partition_iter(Multiset(rem_expr), sequence_vars):
             if pattern.operation.associative:
-                for v in fixed_vars.keys():
+                for v in fixed_vars.distinct_elements():
                     if v not in sequence_subst:
                         continue
                     l = pattern.fixed_variable_infos[v].min_count
-                    value = cast(Multiset[Expression], sequence_subst[v])
+                    value = cast(MultisetOfExpression, sequence_subst[v])
                     if len(value) > l:
                         normal = Multiset(list(value)[:l - 1])
                         wrapped = pattern.operation(*(value - normal))
@@ -402,7 +403,7 @@ def _variables_with_counts(variables, infos):
 def _fixed_expr_factory(expression, matcher):
     def factory(data):
         expressions, substitution = data
-        for expr in expressions.keys():
+        for expr in expressions.distinct_elements():
             if expr.head == expression.head:
                 for subst in matcher([expr], expression, substitution):
                     yield expressions - Multiset({expr: 1}), subst
