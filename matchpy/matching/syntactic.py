@@ -606,8 +606,7 @@ class DiscriminationNet(Generic[T]):
 
         return root
 
-    def _match(self, subject: Union[Expression, FlatTerm], collect: bool=False,
-               first=False) -> List[Tuple[Expression, T]]:
+    def _match(self, subject: Union[Expression, FlatTerm], collect: bool=False) -> List[Tuple[Expression, T]]:
         flatterm = FlatTerm(subject) if isinstance(subject, Expression) else subject
         state = self._root
         depth = 0
@@ -619,8 +618,6 @@ class DiscriminationNet(Generic[T]):
                 elif term == OPERATION_END:
                     depth -= 1
             else:
-                if first and state.payload:
-                    return state.payload[:]
                 try:
                     try:
                         state = state[term]
@@ -749,8 +746,7 @@ class SequenceMatcher:
             self.operation = type(pattern)
         elif not isinstance(pattern, self.operation):
             raise TypeError(
-                "All patterns must be the same operation, expected {} but got {}".
-                format(self.operation, type(pattern))
+                "All patterns must be the same operation, expected {} but got {}".format(self.operation, type(pattern))
             )
 
         if len(pattern.operands) < 3:

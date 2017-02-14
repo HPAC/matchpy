@@ -5,10 +5,9 @@ import math
 import ast
 import os
 from types import LambdaType
-from typing import (
-    Callable, Dict, Iterator, List, NamedTuple, Optional,  # pylint: disable=unused-import
-    Sequence, Tuple, TypeVar, cast, Union, Any
-)
+# pylint: disable=unused-import
+from typing import (Callable, Dict, Iterator, List, NamedTuple, Optional, Sequence, Tuple, TypeVar, cast, Union, Any)
+# pylint: enable=unused-import
 
 from multiset import Multiset
 

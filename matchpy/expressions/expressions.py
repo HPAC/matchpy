@@ -22,8 +22,9 @@ f(a)
 import itertools
 import keyword
 from enum import Enum, EnumMeta
-from typing import (Callable, Iterator, List, NamedTuple, Optional,  # pylint: disable=unused-import
-                    Set, Tuple, TupleMeta, Type, Union)
+# pylint: disable=unused-import
+from typing import (Callable, Iterator, List, NamedTuple, Optional, Set, Tuple, TupleMeta, Type, Union)
+# pylint: enable=unused-import
 
 from multiset import Multiset
 
@@ -54,7 +55,7 @@ class Expression:
             it is the variable's inner :attr:`~Variable.expression`.
     """
 
-    def __init__(self, constraint: 'constraints.Constraint' =None) -> None:
+    def __init__(self, constraint: 'constraints.Constraint'=None) -> None:
         """Create a new expression.
 
         Args:
@@ -235,7 +236,7 @@ class _OperationMeta(type):
     def __str__(cls):
         return cls.name
 
-    def __call__(cls, *operands: Expression, constraint: 'constraints.Constraint' =None):
+    def __call__(cls, *operands: Expression, constraint: 'constraints.Constraint'=None):
         # __call__ is overridden, so that for one_identity operations with a single argument
         # that argument can be returned instead
         operands = list(operands)
@@ -327,7 +328,7 @@ class Operation(Expression, metaclass=_OperationMeta):
     infix = False
     """bool: True if the name of the operation should be used as an infix operator by str()."""
 
-    def __init__(self, *operands: Expression, constraint: 'constraints.Constraint' =None) -> None:
+    def __init__(self, *operands: Expression, constraint: 'constraints.Constraint'=None) -> None:
         """Create an operation expression.
 
         Args:
@@ -620,7 +621,7 @@ class Variable(Expression):
 
     """
 
-    def __init__(self, name: str, expression: Expression, constraint: 'constraints.Constraint' =None) -> None:
+    def __init__(self, name: str, expression: Expression, constraint: 'constraints.Constraint'=None) -> None:
         """
         Args:
             name:
@@ -669,7 +670,7 @@ class Variable(Expression):
         return type(self)(name, self.expression.with_renamed_vars(renaming), constraint)
 
     @staticmethod
-    def dot(name: str, constraint: 'constraints.Constraint' =None) -> 'Variable':
+    def dot(name: str, constraint: 'constraints.Constraint'=None) -> 'Variable':
         """Create a `Variable` with a `Wildcard` that matches exactly one argument.
 
         Args:
@@ -684,7 +685,7 @@ class Variable(Expression):
         return Variable(name, Wildcard.dot(), constraint)
 
     @staticmethod
-    def symbol(name: str, symbol_type: Type[Symbol]=Symbol, constraint: 'constraints.Constraint' =None) -> 'Variable':
+    def symbol(name: str, symbol_type: Type[Symbol]=Symbol, constraint: 'constraints.Constraint'=None) -> 'Variable':
         """Create a `Variable` with a `SymbolWildcard`.
 
         Args:
@@ -702,7 +703,7 @@ class Variable(Expression):
         return Variable(name, Wildcard.symbol(symbol_type), constraint)
 
     @staticmethod
-    def star(name: str, constraint: 'constraints.Constraint' =None) -> 'Variable':
+    def star(name: str, constraint: 'constraints.Constraint'=None) -> 'Variable':
         """Creates a `Variable` with `Wildcard` that matches any number of arguments.
 
         Args:
@@ -717,7 +718,7 @@ class Variable(Expression):
         return Variable(name, Wildcard.star(), constraint)
 
     @staticmethod
-    def plus(name: str, constraint: 'constraints.Constraint' =None) -> 'Variable':
+    def plus(name: str, constraint: 'constraints.Constraint'=None) -> 'Variable':
         """Creates a `Variable` with `Wildcard` that matches at least one and up to any number of arguments.
 
         Args:
@@ -732,7 +733,7 @@ class Variable(Expression):
         return Variable(name, Wildcard.plus(), constraint)
 
     @staticmethod
-    def fixed(name: str, length: int, constraint: 'constraints.Constraint' =None) -> 'Variable':
+    def fixed(name: str, length: int, constraint: 'constraints.Constraint'=None) -> 'Variable':
         """Creates a `Variable` with `Wildcard` that matches exactly *length* expressions.
 
         Args:
@@ -825,7 +826,7 @@ class Wildcard(Atom):
 
     head = None
 
-    def __init__(self, min_count: int, fixed_size: bool, constraint: 'constraints.Constraint' =None) -> None:
+    def __init__(self, min_count: int, fixed_size: bool, constraint: 'constraints.Constraint'=None) -> None:
         """
         Args:
             min_count:
@@ -962,7 +963,7 @@ class SymbolWildcard(Wildcard):
             If not specified, the wildcard will match any `Symbol`.
     """
 
-    def __init__(self, symbol_type: Type[Symbol]=Symbol, constraint: 'constraints.Constraint' =None) -> None:
+    def __init__(self, symbol_type: Type[Symbol]=Symbol, constraint: 'constraints.Constraint'=None) -> None:
         """
         Args:
             symbol_type:

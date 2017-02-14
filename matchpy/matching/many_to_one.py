@@ -352,7 +352,7 @@ class ManyToOneMatcher:
                     new_context = _MatchContext(rest, eventual_substitution, associative)
                     yield from self._match(transition.target, new_context)
 
-    def _create_state(self, matcher: 'CommutativeMatcher' =None) -> _State:
+    def _create_state(self, matcher: 'CommutativeMatcher'=None) -> _State:
         state = _State(dict(), set(), matcher)
         self.states.append(state)
         return state
@@ -624,8 +624,7 @@ class SecondaryAutomaton():  # pragma: no cover
         for state in keys:
             new_states.append(states[state])
 
-        for i in range(len(new_states)):
-            state = new_states[i]
+        for i, state in enumerate(new_states):
             new_state = dict()
             for key, value in state.items():
                 new_state[key] = keys.index(value)
