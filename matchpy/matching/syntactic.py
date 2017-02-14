@@ -822,7 +822,7 @@ class SequenceMatcher:
         for i in range(len(flatterms)):
             flatterm = FlatTerm.merged(*flatterms[i:])
 
-            for index in self._net._match(flatterm, first=True):
+            for index in self._net._match(flatterm, collect=True):
                 match_index = self._net._patterns[index][1]
                 pattern, first_name, last_name = self._patterns[match_index]
                 operand_count = len(pattern.operands) - 2
@@ -841,7 +841,9 @@ class SequenceMatcher:
                 except ValueError:
                     continue
 
-                yield pattern, substitution
+                constraint = MultiConstraint.create(*(e.constraint for e, _ in pattern.preorder_iter()))
+                if constraint is None or constraint(substitution):
+                    yield pattern, substitution
 
     def as_graph(self) -> Digraph:  # pragma: no cover
         """Renders the underlying discrimination net as graphviz digraph."""
