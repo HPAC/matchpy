@@ -50,7 +50,13 @@ def fixed_integer_vector_iter(max_vector: Tuple[int, ...], vector_sum: int) -> I
 
     Yields:
         All non-negative vectors that have the given sum and are not larger than the given maximum.
+
+    Raises:
+        ValueError:
+            If *vector_sum* is negative.
     """
+    if vector_sum < 0:
+        raise ValueError("Vector sum must not be negative")
     if len(max_vector) == 0:
         if vector_sum == 0:
             yield tuple()
@@ -86,6 +92,10 @@ def integer_partition_vector_iter(total: int, parts: int) -> Iterator[Tuple[int]
 
     Yields:
         All non-negative vectors that have the given sum and have the given dimension.
+
+    Raises:
+        ValueError:
+            If *total* or *parts* are negative.
 
     """
     if total < 0:

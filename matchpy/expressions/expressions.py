@@ -37,6 +37,7 @@ ExprPredicate = Optional[Callable[['Expression'], bool]]
 ExpressionsWithPos = Iterator[Tuple['Expression', Tuple[int, ...]]]
 
 MultisetOfStr = Multiset
+MultisetOfVariables = Multiset
 
 
 class Expression:
@@ -66,12 +67,12 @@ class Expression:
         self.constraint = constraint
 
     @cached_property
-    def variables(self) -> MultisetOfStr:
-        """A multiset of the variable names occurring in the expression."""
+    def variables(self) -> MultisetOfVariables:
+        """A multiset of the variables occurring in the expression."""
         return self._variables()
 
     @staticmethod
-    def _variables() -> MultisetOfStr:
+    def _variables() -> MultisetOfVariables:
         return Multiset()
 
     @cached_property
@@ -245,7 +246,7 @@ class _OperationMeta(type):
             return operands[0]
 
         operation = Expression.__new__(cls)
-        operation.__init__(*operands, constraint=new_constraint)
+        operation.__init__(operands, constraint=new_constraint)
 
         return operation
 
@@ -328,7 +329,7 @@ class Operation(Expression, metaclass=_OperationMeta):
     infix = False
     """bool: True if the name of the operation should be used as an infix operator by str()."""
 
-    def __init__(self, *operands: Expression, constraint: 'constraints.Constraint'=None) -> None:
+    def __init__(self, operands: List[Expression], constraint: 'constraints.Constraint'=None) -> None:
         """Create an operation expression.
 
         Args:
@@ -365,18 +366,18 @@ class Operation(Expression, metaclass=_OperationMeta):
             raise ValueError(msg)
 
         variables = dict()
-        var_iters = [o.preorder_iter(lambda e: isinstance(e, Variable)) for o in operands]
-        for var, _ in itertools.chain.from_iterable(var_iters):
-            if var.name in variables:
-                if variables[var.name] != var.without_constraints:
-                    raise ValueError(
-                        "Conflicting versions of variable {!s}: {!r} vs {!r}".
-                        format(var.name, var, variables[var.name])
-                    )
-            else:
-                variables[var.name] = var.without_constraints
+        for operand in operands:
+            for variable in operand.variables.distinct_elements():
+                if variable.name in variables:
+                    if variables[variable.name] != variable.without_constraints:
+                        raise ValueError(
+                            "Conflicting versions of variable {!s}: {!r} vs {!r}".
+                            format(variable.name, variable, variables[variable.name])
+                        )
+                else:
+                    variables[variable.name] = variable.without_constraints
 
-        self.operands = list(operands)
+        self.operands = operands
 
     @staticmethod
     def _count_operands(operands):
@@ -512,7 +513,7 @@ class Operation(Expression, metaclass=_OperationMeta):
             return False
         return all(o.is_syntactic for o in self.operands)
 
-    def _variables(self) -> MultisetOfStr:
+    def _variables(self) -> MultisetOfVariables:
         return sum((x.variables for x in self.operands), Multiset())
 
     def _symbols(self) -> MultisetOfStr:
@@ -655,8 +656,8 @@ class Variable(Expression):
     def _is_syntactic(self) -> bool:
         return self.expression.is_syntactic
 
-    def _variables(self) -> MultisetOfStr:
-        return Multiset([self.name])
+    def _variables(self) -> MultisetOfVariables:
+        return Multiset([self])
 
     def _symbols(self) -> MultisetOfStr:
         return self.expression.symbols

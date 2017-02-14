@@ -22,7 +22,7 @@ goto :eof
 goto :eof
 
 :check
-	pylint matchpy
+	pylint --reports=no matchpy
 goto :eof
 
 :coverage

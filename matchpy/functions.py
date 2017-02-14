@@ -8,9 +8,9 @@
 - With `replace_all()` you can apply a set of replacement rules repeatedly to an expression.
 - With `is_match()` you can check whether a pattern matches a subject expression.
 """
+
 import itertools
 import math
-import operator
 from typing import Callable, List, NamedTuple, Sequence, Tuple, Union, Iterable
 
 from multiset import Multiset
@@ -257,13 +257,13 @@ def replace_all(expression: Expression, rules: Iterable[ReplacementRule], max_co
 
 def is_match(subject: Expression, pattern: Expression) -> bool:
     """
-    Check whether the given subject expression matches given pattern.
+    Check whether the given *subject* matches given *pattern*.
 
     Args:
         subject:
-            The subject for matching.
+            The subject.
         pattern:
-            The pattern for matching.
+            The pattern.
 
     Returns:
         True iff the subject matches the pattern.

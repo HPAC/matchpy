@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+"""Contains all the necessary classes and functions for pattern matching."""
+
 # pylint: disable=wildcard-import
 from . import expressions
 from . import functions

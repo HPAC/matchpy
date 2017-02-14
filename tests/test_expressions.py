@@ -158,14 +158,14 @@ class TestExpression:
         '   expression,             variables',
         [
             (a,                     []),
-            (x_,                    ['x']),
+            (x_,                    [x_]),
             (_,                     []),
             (f(a),                  []),
-            (f(x_),                 ['x']),
-            (f(x_, x_),             ['x', 'x']),
-            (f(x_, a),              ['x']),
-            (f(x_, a, y_),          ['x', 'y']),
-            (f(f(x_), f(b, x_)),    ['x', 'x']),
+            (f(x_),                 [x_]),
+            (f(x_, x_),             [x_, x_]),
+            (f(x_, a),              [x_]),
+            (f(x_, a, y_),          [x_, y_]),
+            (f(f(x_), f(b, x_)),    [x_, x_]),
         ]
     )  # yapf: disable
     def test_variables(self, expression, variables):
