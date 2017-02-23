@@ -32,7 +32,7 @@ from graphviz import Digraph
 from multiset import Multiset
 
 from ..expressions.constraints import Constraint
-from ..expressions.expressions import Expression, Operation, Symbol, SymbolWildcard, Variable, Wildcard
+from ..expressions.expressions import Expression, Operation, Symbol, SymbolWildcard, Variable, Wildcard, Pattern
 from ..expressions.substitution import Substitution
 from ..utils import (VariableWithCount, commutative_sequence_variable_partition_iter)
 from .bipartite import BipartiteGraph, enum_maximum_matchings_iter
@@ -54,14 +54,15 @@ _State = NamedTuple('_State', [
 _Transition = NamedTuple('_Transition', [
     ('label', LabelType),
     ('target', _State),
-    ('constraint', Optional[Constraint]),
-    ('variable_name', Optional[str])
+    ('variable_name', Optional[str]),
+    ('patterns', Set[int]),
 ])  # yapf: disable
 
 _MatchContext = NamedTuple('_MatchContext', [
     ('subjects', Tuple[Expression]),
     ('substitution', Substitution),
-    ('associative', Optional[type])
+    ('associative', Optional[type]),
+    ('patterns', Set[int])
 ])  # yapf: disable
 
 
@@ -81,7 +82,7 @@ class ManyToOneMatcher:
         for pattern in patterns:
             self.add(pattern)
 
-    def add(self, pattern: Expression) -> int:
+    def add(self, pattern: Pattern) -> int:
         """Add a new pattern to the matcher.
 
         Equivalent patterns are not added again. However, patterns that are structurally equivalent,
@@ -99,43 +100,34 @@ class ManyToOneMatcher:
             pass
 
         pattern_index = len(self.patterns)
-        renaming = self._collect_variable_renaming(pattern)
+        renaming = self._collect_variable_renaming(pattern.expression)
         index = 0
         self.patterns.append(pattern)
         self.pattern_vars.append(renaming)
-        pattern = pattern.with_renamed_vars(renaming)
+        pattern = pattern.expression.with_renamed_vars(renaming)
         state = self.root
         patterns_stack = [deque([pattern])]
-        context_stack = []
 
         while patterns_stack:
             if patterns_stack[-1]:
                 subpattern = patterns_stack[-1].popleft()
                 variable_name = None
-                constraint = None
-                has_pre_constraint = True
                 if isinstance(subpattern, Variable):
-                    constraint = subpattern.constraint
                     variable_name = subpattern.name
                     subpattern = subpattern.expression
-                constraint = MultiConstraint.create(constraint, subpattern.constraint)
                 if isinstance(subpattern, Operation):
                     if not subpattern.commutative:
-                        context_stack.append(constraint)
                         patterns_stack.append(deque(subpattern.operands))
                     has_pre_constraint = False
-                state = self._create_expression_transition(
-                    state, subpattern, constraint if has_pre_constraint else None, variable_name
-                )
+                state = self._create_expression_transition(state, subpattern, variable_name, pattern_index)
                 if getattr(subpattern, 'commutative', False):
                     subpattern_id = state.matcher.add_pattern(subpattern.operands)
-                    state = self._create_simple_transition(state, subpattern_id, constraint)
+                    state = self._create_simple_transition(state, subpattern_id, pattern_index)
                 index += 1
             else:
                 patterns_stack.pop()
-                if context_stack:
-                    constraint = context_stack.pop()
-                    state = self._create_simple_transition(state, OPERATION_END, constraint)
+                if len(patterns_stack) > 1:
+                    state = self._create_simple_transition(state, OPERATION_END, pattern_index)
 
         state.patterns.add(pattern_index)
 
@@ -151,7 +143,7 @@ class ManyToOneMatcher:
             For every match, a tuple of the matching pattern and the match substitution.
         """
         subject = subject
-        context = _MatchContext((subject, ), Substitution(), None)
+        context = _MatchContext((subject, ), Substitution(), None, set(range(len(self.patterns))))
         for state, substitution in self._match(self.root, context):
             for pattern_index in state.patterns:
                 renaming = self.pattern_vars[pattern_index]
@@ -177,11 +169,11 @@ class ManyToOneMatcher:
                 subfinals = []
                 graph.subgraph(state.matcher.automaton._as_graph(subfinals))
                 submatch_label = 'Sub Matcher End'
-                for pattern_index, subpatterns, variables, constraint in state.matcher.patterns.values():
+                for pattern_index, subpatterns, variables in state.matcher.patterns.values():
                     var_formatted = ', '.join(
                         '{}[{}]x{}{}'.format(n, m, c, 'W' if w else '') for (n, c, m), w in variables
                     )
-                    submatch_label += '\n{}: {} {} if {}'.format(pattern_index, subpatterns, var_formatted, constraint)
+                    submatch_label += '\n{}: {} {}'.format(pattern_index, subpatterns, var_formatted)
                 graph.node(name + '-end', submatch_label, {'shape': 'box'})
                 for f in subfinals:
                     graph.edge(f, name + '-end')
@@ -200,8 +192,6 @@ class ManyToOneMatcher:
                     t_label = str(transition.label)
                     if is_operation(transition.label):
                         t_label += '('
-                    if transition.constraint is not None:
-                        t_label += ' ;/ ' + str(transition.constraint)
                     if transition.variable_name:
                         t_label += '\n \\=> {}'.format(transition.variable_name)
 
@@ -211,39 +201,34 @@ class ManyToOneMatcher:
                     end = 'n{!s}'.format(id(transition.target))
                     graph.edge(start, end, t_label)
 
-    def _create_expression_transition(
-            self, state: _State, expression: Expression, constraint: Optional[Constraint], variable_name: Optional[str]
-    ) -> _State:
+    def _create_expression_transition( self, state: _State, expression: Expression, variable_name: Optional[str], index: int) -> _State:
         label, head = self._get_label_and_head(expression)
         transitions = state.transitions.setdefault(head, [])
         commutative = getattr(expression, 'commutative', False)
-        pre_constraint = constraint if not commutative else None
         matcher = None
         for transition in transitions:
-            if (transition.constraint == pre_constraint and
-                    transition.variable_name == variable_name and
+            if (transition.variable_name == variable_name and
                     transition.label == label):
+                transition.patterns.add(index)
                 state = transition.target
                 break
         else:
             if commutative:
                 matcher = CommutativeMatcher(type(expression) if expression.associative else None)
             state = self._create_state(matcher)
-            transition = _Transition(label, state, constraint, variable_name)
+            transition = _Transition(label, state, variable_name, {index})
             transitions.append(transition)
         return state
 
-    def _create_simple_transition(self, state: _State, label: LabelType, constraint: Optional[Constraint]) -> _State:
-        transitions = state.transitions.setdefault(label, [])
-        for transition in transitions:
-            if transition.constraint == constraint:
-                state = transition.target
-                break
-        else:
-            state = self._create_state()
-            transition = _Transition(label, state, constraint, None)
-            transitions.append(transition)
-        return state
+    def _create_simple_transition(self, state: _State, label: LabelType, index: int) -> _State:
+        if label in state.transitions:
+            transition = state.transitions[label][0]
+            transition.patterns.add(index)
+            return transition.target
+        new_state = self._create_state()
+        transition = _Transition(label, new_state, None, {index})
+        state.transitions[label] = [transition]
+        return new_state
 
     @staticmethod
     def _get_label_and_head(expression: Expression) -> Tuple[LabelType, HeadType]:
