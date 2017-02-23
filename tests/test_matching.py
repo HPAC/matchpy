@@ -5,7 +5,7 @@ import pytest
 from multiset import Multiset
 
 from matchpy.expressions.constraints import CustomConstraint
-from matchpy.expressions.expressions import Symbol, Variable, Wildcard
+from matchpy.expressions.expressions import Symbol, Variable, Wildcard, Pattern
 from matchpy.matching.many_to_one import ManyToOneMatcher
 from matchpy.functions import substitute
 from .utils import MockConstraint
@@ -47,7 +47,7 @@ class TestMatch:
     )  # yapf: disable
     def test_constant_match(self, match_syntactic, expression, pattern, is_match):
         expression = expression
-        pattern = pattern
+        pattern = Pattern(pattern)
         result = list(match_syntactic(expression, pattern))
         if is_match:
             assert result == [dict()], "Expression {!s} and {!s} did not match but were supposed to".format(
@@ -85,7 +85,7 @@ class TestMatch:
     )  # yapf: disable
     def test_commutative_match(self, match, expression, pattern, is_match):
         expression = expression
-        pattern = pattern
+        pattern = Pattern(pattern)
         result = list(match(expression, pattern))
         if is_match:
             assert result == [dict()], "Expression {!s} and {!s} did not match but were supposed to".format(
@@ -116,23 +116,23 @@ class TestMatch:
     )  # yapf: disable
     def test_commutative_syntactic_match(self, match, expression, pattern, match_count):
         expression = expression
-        pattern = pattern
+        pattern = Pattern(pattern)
         result = list(match(expression, pattern))
         assert len(result) == match_count, 'Wrong number of matches'
 
         for subst in result:
-            assert substitute(pattern, subst)[0] == expression, 'Invalid match'
+            assert substitute(pattern.expression, subst)[0] == expression, 'Invalid match'
 
     @pytest.mark.parametrize(
-        '   expression,         pattern,                                    expected_matches',
+        '   expression,         pattern,    constraint,              expected_matches',
         [
-            (f_c(a),             f_c(x_, constraint=mock_constraint_false),   []),
-            (f_c(a),             f_c(x_, constraint=mock_constraint_true),    [{'x': a}]),
+            (f_c(a),             f_c(x_),   mock_constraint_false,   []),
+            (f_c(a),             f_c(x_),   mock_constraint_true,    [{'x': a}]),
         ]
     )  # yapf: disable
-    def test_commutative_constraint_match(self, match, expression, pattern, expected_matches):
+    def test_commutative_constraint_match(self, match, expression, pattern, constraint, expected_matches):
         expression = expression
-        pattern = pattern
+        pattern = Pattern(pattern, constraint)
         result = list(match(expression, pattern))
         for expected_match in expected_matches:
             assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(
@@ -180,7 +180,7 @@ class TestMatch:
     )  # yapf: disable
     def test_wildcard_dot_match(self, match_syntactic, expression, pattern, expected_match):
         expression = expression
-        pattern = pattern
+        pattern = Pattern(pattern)
         result = list(match_syntactic(expression, pattern))
         if expected_match is not None:
             assert result == [expected_match
@@ -215,7 +215,7 @@ class TestMatch:
     )  # yapf: disable
     def test_associative_wildcard_dot_match(self, match, expression, pattern, expected_matches):
         expression = expression
-        pattern = pattern
+        pattern = Pattern(pattern)
         result = list(match(expression, pattern))
         for expected_match in expected_matches:
             assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(
@@ -237,7 +237,7 @@ class TestMatch:
     )  # yapf: disable
     def test_associative_commutative_wildcard_dot_match(self, match, expression, pattern, expected_matches):
         expression = expression
-        pattern = pattern
+        pattern = Pattern(pattern)
         result = list(match(expression, pattern))
         for expected_match in expected_matches:
             assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(
@@ -308,7 +308,7 @@ class TestMatch:
     )  # yapf: disable
     def test_wildcard_star_match(self, match, expression, pattern, expected_matches):
         expression = expression
-        pattern = pattern
+        pattern = Pattern(pattern)
         result = list(match(expression, pattern))
         for expected_match in expected_matches:
             _convert_match_list_to_tuple(expected_match)
@@ -365,7 +365,7 @@ class TestMatch:
     )  # yapf: disable
     def test_wildcard_plus_match(self, match, expression, pattern, expected_matches):
         expression = expression
-        pattern = pattern
+        pattern = Pattern(pattern)
         result = list(match(expression, pattern))
         for expected_match in expected_matches:
             _convert_match_list_to_tuple(expected_match)
@@ -399,7 +399,7 @@ class TestMatch:
     )  # yapf: disable
     def test_wildcard_mixed_match(self, match, expression, pattern, expected_matches):
         expression = expression
-        pattern = pattern
+        pattern = Pattern(pattern)
         result = list(match(expression, pattern))
         for expected_match in expected_matches:
             _convert_match_list_to_tuple(expected_match)
@@ -435,7 +435,7 @@ class TestMatch:
     )  # yapf: disable
     def test_wildcard_symbol_match(self, match, expression, pattern, expected_matches):
         expression = expression
-        pattern = pattern
+        pattern = Pattern(pattern)
         result = list(match(expression, pattern))
         for expected_match in expected_matches:
             assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(
@@ -475,7 +475,7 @@ class TestMatch:
     )  # yapf: disable
     def test_commutative_multiple_fixed_vars(self, match, expression, pattern, expected_matches):
         expression = expression
-        pattern = pattern
+        pattern = Pattern(pattern)
         result = list(match(expression, pattern))
         assert len(result) == len(expected_matches), 'Unexpected number of matches'
         for expected_match in expected_matches:
@@ -509,7 +509,7 @@ class TestMatch:
     )  # yapf: disable
     def test_commutative_multiple_sequence_vars(self, match, expression, pattern, expected_matches):
         expression = expression
-        pattern = pattern
+        pattern = Pattern(pattern)
         result = list(match(expression, pattern))
         assert len(result) == len(expected_matches), 'Unexpected number of matches'
         for expected_match in expected_matches:
@@ -538,7 +538,7 @@ class TestMatch:
     )  # yapf: disable
     def test_mixed_commutative_vars(self, match, expression, pattern, is_match):
         expression = expression
-        pattern = pattern
+        pattern = Pattern(pattern)
         result = list(match(expression, pattern))
         if is_match:
             assert len(result) > 0
@@ -571,7 +571,7 @@ class TestMatch:
     )  # yapf: disable
     def test_mixed_associative_commutative_vars(self, match, expression, pattern, is_match):
         expression = expression
-        pattern = pattern
+        pattern = Pattern(pattern)
         result = list(match(expression, pattern))
         if is_match:
             assert len(result) > 0
@@ -579,103 +579,82 @@ class TestMatch:
             assert len(result) == 0
 
     @pytest.mark.parametrize(
-        'expression,    pattern_factory,                                                    constraint_values,  match_count',
+        'expression,    pattern,        constraint_values,  match_count',
         [
-            (a,         lambda c: Wildcard(1, True, c),                                     [False],            0),
-            (a,         lambda c: Wildcard(1, True, c),                                     [True],             1),
-            (f(a, b),   lambda c1, c2: f(Wildcard(1, True, c1), Wildcard(1, True, c2)),     [False, True],      0),
-            (f(a, b),   lambda c1, c2: f(Wildcard(1, True, c1), Wildcard(1, True, c2)),     [False, False],     0),
-            (f(a, b),   lambda c1, c2: f(Wildcard(1, True, c1), Wildcard(1, True, c2)),     [True,  False],     0),
-            (f(a, b),   lambda c1, c2: f(Wildcard(1, True, c1), Wildcard(1, True, c2)),     [True,  True],      1),
-            (a,         lambda c: Variable('x', _, c),                                      [True],             1),
-            (a,         lambda c: Variable('x', _, c),                                      [False],            0),
-            (f(a, a),   lambda c1, c2: f(Variable('x', _, c1), Variable('x', _, c2)),       [False, False],     0),
-            (f(a, a),   lambda c1, c2: f(Variable('x', _, c1), Variable('x', _, c2)),       [True,  False],     0),
-            (f(a, a),   lambda c1, c2: f(Variable('x', _, c1), Variable('x', _, c2)),       [False, True],      0),
-            (f(a, a),   lambda c1, c2: f(Variable('x', _, c1), Variable('x', _, c2)),       [True,  True],      1),
-            (f(a),      lambda c: f(a, constraint=c),                                       [False],            0),
-            (f(a),      lambda c: f(a, constraint=c),                                       [True],             1),
+            (a,         _,              [False],            0),
+            (a,         _,              [True],             1),
+            (f(a, b),   f(_, _),        [False, True],      0),
+            (f(a, b),   f(_, _),        [False, False],     0),
+            (f(a, b),   f(_, _),        [True,  False],     0),
+            (f(a, b),   f(_, _),        [True,  True],      1),
+            (a,         x_,             [True],             1),
+            (a,         x_,             [False],            0),
+            (f(a, a),   f(x_, x_),      [False, False],     0),
+            (f(a, a),   f(x_, x_),      [True,  False],     0),
+            (f(a, a),   f(x_, x_),      [False, True],      0),
+            (f(a, a),   f(x_, x_),      [True,  True],      1),
+            (f(a),      f(a),           [False],            0),
+            (f(a),      f(a),           [True],             1),
         ]
     )  # yapf: disable
     def test_constraint_syntactic_match(
-            self, match_syntactic, expression, pattern_factory, constraint_values, match_count
+            self, match_syntactic, expression, pattern, constraint_values, match_count
     ):
         constraints = [MockConstraint(v) for v in constraint_values]
-        pattern = pattern_factory(*constraints)
+        pattern = Pattern(pattern, *constraints)
         expression = expression
-        pattern = pattern
         result = list(match_syntactic(expression, pattern))
         assert len(result) == match_count, "Wrong number of matched for {!r} and {!r}".format(expression, pattern)
 
     @pytest.mark.parametrize(
-        'expression,        pattern_factory,                                                    constraint_values,  match_count',
+        'expression,        pattern,            constraint_values,  match_count',
         [
-            (f(a, b),       lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)),   [False, False],     0),
-            (f(a, b),       lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)),   [False, True],      0),
-            (f(a, b),       lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)),   [True,  False],     0),
-            (f(a, b),       lambda c1, c2: f(Wildcard(0, False, c1), Wildcard(0, False, c2)),   [True,  True],      3),
-            (f_c(a, a),     lambda c1, c2: f_c(Variable('x', _, c1), Variable('x', _, c2)),     [False, False],     0),
-            (f_c(a, a),     lambda c1, c2: f_c(Variable('x', _, c1), Variable('x', _, c2)),     [True,  False],     0),
-            (f_c(a, a),     lambda c1, c2: f_c(Variable('x', _, c1), Variable('x', _, c2)),     [False, True],      0),
-            (f_c(a, a),     lambda c1, c2: f_c(Variable('x', _, c1), Variable('x', _, c2)),     [True,  True],      1),
-            (f(a, f_c(a)),  lambda c1, c2: f(Variable('x', _, c1), f_c(Variable('x', _, c2))),  [False, False],     0),
-            (f(a, f_c(a)),  lambda c1, c2: f(Variable('x', _, c1), f_c(Variable('x', _, c2))),  [True, False],      0),
-            (f(a, f_c(a)),  lambda c1, c2: f(Variable('x', _, c1), f_c(Variable('x', _, c2))),  [False, True],      0),
-            (f(a, f_c(a)),  lambda c1, c2: f(Variable('x', _, c1), f_c(Variable('x', _, c2))),  [True, True],       1),
-            (f_c(a, a),     lambda c1, c2: f_c(Variable('x', _, c1), Variable('x', _, c2)),     [True,  True],      1),
-            (f_c(a, f(a)),  lambda c1, c2: f_c(Variable('x', _, c1), f(Variable('x', _, c2))),  [False, False],     0),
-            (f_c(a, f(a)),  lambda c1, c2: f_c(Variable('x', _, c1), f(Variable('x', _, c2))),  [True, False],      0),
-            (f_c(a, f(a)),  lambda c1, c2: f_c(Variable('x', _, c1), f(Variable('x', _, c2))),  [False, True],      0),
-            (f_c(a, f(a)),  lambda c1, c2: f_c(Variable('x', _, c1), f(Variable('x', _, c2))),  [True, True],       1),
-            (f_c(a, f(a)),  lambda c1, c2: f_c(Variable('x', _, c1), f(x_, constraint=c2)),     [False, False],     0),
-            (f_c(a, f(a)),  lambda c1, c2: f_c(Variable('x', _, c1), f(x_, constraint=c2)),     [True, False],      0),
-            (f_c(a, f(a)),  lambda c1, c2: f_c(Variable('x', _, c1), f(x_, constraint=c2)),     [False, True],      0),
-            (f_c(a, f(a)),  lambda c1, c2: f_c(Variable('x', _, c1), f(x_, constraint=c2)),     [True, True],       1),
-            (f_c(a, a),     lambda c: f_c(Variable('x', ___, c)),                               [False],            0),
-            (f_c(a, a),     lambda c: f_c(Variable('x', ___, c)),                               [True],             1),
+            (f(a, b),       f(___, ___),        [False, False],     0),
+            (f(a, b),       f(___, ___),        [False, True],      0),
+            (f(a, b),       f(___, ___),        [True,  False],     0),
+            (f(a, b),       f(___, ___),        [True,  True],      3),
+            (f_c(a, a),     f_c(x_, x_),        [False, False],     0),
+            (f_c(a, a),     f_c(x_, x_),        [True,  False],     0),
+            (f_c(a, a),     f_c(x_, x_),        [False, True],      0),
+            (f_c(a, a),     f_c(x_, x_),        [True,  True],      1),
+            (f(a, f_c(a)),  f(x_, f_c(x_)),     [False, False],     0),
+            (f(a, f_c(a)),  f(x_, f_c(x_)),     [True, False],      0),
+            (f(a, f_c(a)),  f(x_, f_c(x_)),     [False, True],      0),
+            (f(a, f_c(a)),  f(x_, f_c(x_)),     [True, True],       1),
+            (f_c(a, a),     f_c(x_, x_),        [True,  True],      1),
+            (f_c(a, f(a)),  f_c(x_, f(x_)),     [False, False],     0),
+            (f_c(a, f(a)),  f_c(x_, f(x_)),     [True, False],      0),
+            (f_c(a, f(a)),  f_c(x_, f(x_)),     [False, True],      0),
+            (f_c(a, f(a)),  f_c(x_, f(x_)),     [True, True],       1),
+            (f_c(a, f(a)),  f_c(x_, f(x_)),     [False, False],     0),
+            (f_c(a, f(a)),  f_c(x_, f(x_)),     [True, False],      0),
+            (f_c(a, f(a)),  f_c(x_, f(x_)),     [False, True],      0),
+            (f_c(a, f(a)),  f_c(x_, f(x_)),     [True, True],       1),
+            (f_c(a, a),     f_c(x___),          [False],            0),
+            (f_c(a, a),     f_c(x___),          [True],             1),
         ]
     )  # yapf: disable
-    def test_constraint_non_syntactic_match(self, match, expression, pattern_factory, constraint_values, match_count):
+    def test_constraint_non_syntactic_match(self, match, expression, pattern, constraint_values, match_count):
         constraints = [MockConstraint(v) for v in constraint_values]
-        pattern = pattern_factory(*constraints)
+        pattern = Pattern(pattern, *constraints)
         expression = expression
-        pattern = pattern
         result = list(match(expression, pattern))
         assert len(result) == match_count, "Wrong number of matched for {!r} and {!r}".format(expression, pattern)
 
     def test_constraint_call_values(self, match):
-        constraint1 = MockConstraint(True)
-        constraint2 = MockConstraint(True)
-        constraint3 = MockConstraint(True)
+        constraint1 = MockConstraint(True, 'x')
+        constraint2 = MockConstraint(True, 'y')
+        constraint3 = MockConstraint(True, 'x', 'y')
         constraint4 = MockConstraint(True)
         expression = f(a, b)
-        pattern = f(
-            Wildcard(0, False, constraint1),
-            Variable('x', _, constraint2),
-            Variable('y', _, constraint3),
-            constraint=constraint4
-        )
-
-        pattern = pattern
+        pattern = Pattern(f(___, x_, y_), constraint1, constraint2, constraint3, constraint4)
         result = list(match(expression, pattern))
 
         assert result == [{'x': a, 'y': b}]
-        constraint1.assert_called_with({})
-        constraint2.assert_called_with({'x': a})
+        constraint1.assert_called_with({'x': a})
+        constraint2.assert_called_with({'x': a, 'y': b})
         constraint3.assert_called_with({'x': a, 'y': b})
         constraint4.assert_called_with({'x': a, 'y': b})
-
-    def test_wildcard_internal_match(self):
-        from matchpy.matching.common import _match
-
-        matches = list(_match([a, b], x_, {}))
-        assert matches == []
-
-        matches = list(_match([], x_, {}))
-        assert matches == []
-
-        matches = list(_match([], x__, {}))
-        assert matches == []
 
 
 def func_wrap_strategy(args, func):
@@ -713,20 +692,20 @@ def test_randomized_match(match, expression, pattern):
     # Exclude non-matching pairs
     assume(len(results) > 0)
     for result in results:
-        reverse, _ = substitute(pattern, result)
+        reverse, _ = substitute(pattern.expression, result)
         if isinstance(reverse, list) and len(reverse) == 1:
             reverse = reverse[0]
         assert expression == reverse
 
-
+@pytest.mark.skip()
 class TestManyToOneMatcher:
     def test_different_constraints(self):
         c1 = CustomConstraint(lambda x: len(str(x)) > 1)
         c2 = CustomConstraint(lambda x: len(str(x)) == 1)
-        pattern1 = f(Variable.dot('x', c1))
-        pattern2 = f(Variable.dot('x', c2))
-        pattern3 = f(Variable.dot('x', c1), b)
-        pattern4 = f(Variable.dot('x', c2), b)
+        pattern1 = Pattern(f(x_), c1)
+        pattern2 = Pattern(f(x_), c2)
+        pattern3 = Pattern(f(x_, b), c1)
+        pattern4 = Pattern(f(x_, b), c2)
         matcher = ManyToOneMatcher(pattern1, pattern2, pattern3, pattern4)
 
         subject = f(a)
@@ -744,10 +723,10 @@ class TestManyToOneMatcher:
     def test_different_constraints_on_operation(self):
         c1 = CustomConstraint(lambda x: len(str(x)) > 1)
         c2 = CustomConstraint(lambda x: len(str(x)) == 1)
-        pattern1 = f(x_, constraint=c1)
-        pattern2 = f(x_, constraint=c2)
-        pattern3 = f(x_, b, constraint=c1)
-        pattern4 = f(x_, b, constraint=c2)
+        pattern1 = Pattern(f(x_), c1)
+        pattern2 = Pattern(f(x_), c2)
+        pattern3 = Pattern(f(x_, b), c1)
+        pattern4 = Pattern(f(x_, b), c2)
         matcher = ManyToOneMatcher(pattern1, pattern2, pattern3, pattern4)
 
         subject = f(a)
@@ -765,10 +744,10 @@ class TestManyToOneMatcher:
     def test_different_constraints_on_commutative_operation(self):
         c1 = CustomConstraint(lambda x: len(str(x)) > 1)
         c2 = CustomConstraint(lambda x: len(str(x)) == 1)
-        pattern1 = f_c(x_, constraint=c1)
-        pattern2 = f_c(x_, constraint=c2)
-        pattern3 = f_c(x_, b, constraint=c1)
-        pattern4 = f_c(x_, b, constraint=c2)
+        pattern1 = Pattern(f_c(x_), c1)
+        pattern2 = Pattern(f_c(x_), c2)
+        pattern3 = Pattern(f_c(x_, b), c1)
+        pattern4 = Pattern(f_c(x_, b), c2)
         matcher = ManyToOneMatcher(pattern1, pattern2, pattern3, pattern4)
 
         subject = f_c(a)

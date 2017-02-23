@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import pytest
 
-from matchpy.expressions.constraints import CustomConstraint, MultiConstraint
+from matchpy.expressions.constraints import CustomConstraint
 from matchpy.expressions.expressions import Variable, Wildcard
 from matchpy.matching.common import CommutativePatternsParts
 from .common import *
@@ -74,62 +74,3 @@ class TestCommutativePatternsParts:
             assert parts.wildcard_min_length == length
         else:
             assert parts.wildcard_fixed is None
-
-
-    @pytest.mark.parametrize(
-        '   constraints,                        result_constraint',
-        [
-            ([None],                            None),
-            ([constr1],                         constr1),
-            ([constr1,  constr1],               constr1),
-            ([None,     constr1],               constr1),
-            ([constr1,  None],                  constr1),
-            ([None,     None,       constr1],   constr1),
-            ([None,     constr1,    None],      constr1),
-            ([constr1,  None,       None],      constr1),
-            ([constr1,  constr2],               MultiConstraint(constr1, constr2)),
-            ([None,     constr1,    constr2],   MultiConstraint(constr1, constr2)),
-            ([constr1,  None,       constr2],   MultiConstraint(constr1, constr2)),
-            ([constr1,  constr2,    None],      MultiConstraint(constr1, constr2))
-        ]
-    )  # yapf: disable
-    def test_fixed_var_constraints(self, constraints, result_constraint):
-        parts = CommutativePatternsParts(None, *(Variable('x', Wildcard.dot(), c) for c in constraints))
-
-        assert 1 == len(parts.fixed_variables.distinct_elements())
-        assert len(constraints) == len(parts.fixed_variables)
-        assert 'x' in parts.fixed_variables
-        assert 'x' in parts.fixed_variable_infos
-
-        info = parts.fixed_variable_infos['x']
-        assert 1 == info.min_count
-        assert result_constraint == info.constraint
-
-    @pytest.mark.parametrize(
-        '   constraints,                        result_constraint',
-        [
-            ([None],                            None),
-            ([constr1],                         constr1),
-            ([constr1,  constr1],               constr1),
-            ([None,     constr1],               constr1),
-            ([constr1,  None],                  constr1),
-            ([None,     None,       constr1],   constr1),
-            ([None,     constr1,    None],      constr1),
-            ([constr1,  None,       None],      constr1),
-            ([constr1,  constr2],               MultiConstraint(constr1, constr2)),
-            ([None,     constr1,    constr2],   MultiConstraint(constr1, constr2)),
-            ([constr1,  None,       constr2],   MultiConstraint(constr1, constr2)),
-            ([constr1,  constr2,    None],      MultiConstraint(constr1, constr2))
-        ]
-    )  # yapf: disable
-    def test_sequence_var_constraints(self, constraints, result_constraint):
-        parts = CommutativePatternsParts(None, *(Variable('x', Wildcard.plus(), c) for c in constraints))
-
-        assert 1 == len(parts.sequence_variables.distinct_elements())
-        assert len(constraints) == len(parts.sequence_variables)
-        assert 'x' in parts.sequence_variables
-        assert 'x' in parts.sequence_variable_infos
-
-        info = parts.sequence_variable_infos['x']
-        assert 1 == info.min_count
-        assert result_constraint == info.constraint

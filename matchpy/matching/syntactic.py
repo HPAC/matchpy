@@ -16,9 +16,8 @@ from typing import (Any, Dict, FrozenSet, Generic, Iterator, List, Optional, Seq
 
 from graphviz import Digraph
 
-from ..expressions.expressions import Expression, Operation, Symbol, SymbolWildcard, Variable, Wildcard
+from ..expressions.expressions import Expression, Operation, Symbol, SymbolWildcard, Variable, Wildcard, Pattern
 from ..expressions.substitution import Substitution
-from ..expressions.constraints import MultiConstraint
 from ..utils import slot_cached_property
 
 __all__ = ['FlatTerm', 'is_operation', 'is_symbol_wildcard', 'DiscriminationNet', 'SequenceMatcher']
@@ -312,7 +311,7 @@ class DiscriminationNet(Generic[T]):
     the wildcards.
     """
 
-    def __init__(self, *patterns: Expression) -> None:
+    def __init__(self, *patterns: Pattern) -> None:
         """
         Args:
             *patterns:
@@ -323,7 +322,7 @@ class DiscriminationNet(Generic[T]):
         for pattern in patterns:
             self.add(pattern)
 
-    def add(self, pattern: Union[Expression, FlatTerm], final_label: T=None) -> int:
+    def add(self, pattern: Union[Pattern, FlatTerm], final_label: T=None) -> int:
         """Add a pattern to the discrimination net.
 
         Args:
@@ -340,7 +339,7 @@ class DiscriminationNet(Generic[T]):
         """
         index = len(self._patterns)
         self._patterns.append((pattern, final_label))
-        flatterm = FlatTerm(pattern) if not isinstance(pattern, FlatTerm) else pattern
+        flatterm = FlatTerm(pattern.expression) if not isinstance(pattern, FlatTerm) else pattern
         if pattern.is_syntactic or len(flatterm) == 1:
             net = self._generate_syntactic_net(flatterm, index)
         else:
@@ -653,9 +652,11 @@ class DiscriminationNet(Generic[T]):
         for index in self._match(subject):
             pattern, label = self._patterns[index]
             subst = Substitution()
-            if subst.extract_substitution(subject, pattern):
-                constraint = MultiConstraint.create(*(e.constraint for e, _ in pattern.preorder_iter()))
-                if constraint is None or constraint(subst):
+            if subst.extract_substitution(subject, pattern.expression):
+                for constraint in pattern.constraints:
+                    if not constraint(subst):
+                        break
+                else:
                     yield label, subst
 
     def as_graph(self) -> Digraph:  # pragma: no cover
@@ -712,7 +713,7 @@ class SequenceMatcher:
 
     __slots__ = ('_net', '_patterns', 'operation')
 
-    def __init__(self, *patterns: Expression) -> None:
+    def __init__(self, *patterns: Pattern) -> None:
         """
         Args:
             *patterns:
@@ -724,7 +725,7 @@ class SequenceMatcher:
         for pattern in patterns:
             self.add(pattern)
 
-    def add(self, pattern: Expression) -> int:
+    def add(self, pattern: Pattern) -> int:
         """Add a pattern that will be recognized by the matcher.
 
         Args:
@@ -740,25 +741,26 @@ class SequenceMatcher:
             TypeError:
                 If the pattern is not a non-commutative operation.
         """
+        inner = pattern.expression
         if self.operation is None:
-            if not isinstance(pattern, Operation) or pattern.commutative:
+            if not isinstance(inner, Operation) or inner.commutative:
                 raise TypeError("Pattern must be a non-commutative operation.")
-            self.operation = type(pattern)
-        elif not isinstance(pattern, self.operation):
+            self.operation = type(inner)
+        elif not isinstance(inner, self.operation):
             raise TypeError(
-                "All patterns must be the same operation, expected {} but got {}".format(self.operation, type(pattern))
+                "All patterns must be the same operation, expected {} but got {}".format(self.operation, type(inner))
             )
 
-        if len(pattern.operands) < 3:
+        if len(inner.operands) < 3:
             raise ValueError("Pattern has not enough operands.")
 
-        first_name = self._check_wildcard_and_get_name(pattern.operands[0])
-        last_name = self._check_wildcard_and_get_name(pattern.operands[-1])
+        first_name = self._check_wildcard_and_get_name(inner.operands[0])
+        last_name = self._check_wildcard_and_get_name(inner.operands[-1])
 
         index = len(self._patterns)
         self._patterns.append((pattern, first_name, last_name))
 
-        flatterm = FlatTerm.merged(*(FlatTerm(o) for o in pattern.operands[1:-1]))
+        flatterm = FlatTerm.merged(*(FlatTerm(o) for o in inner.operands[1:-1]))
         self._net.add(flatterm, index)
 
         return index
@@ -776,7 +778,7 @@ class SequenceMatcher:
         return name
 
     @classmethod
-    def can_match(cls, pattern: Expression) -> bool:
+    def can_match(cls, pattern: Pattern) -> bool:
         """Check if a pattern can be matched with a sequence matcher.
 
         Args:
@@ -786,21 +788,21 @@ class SequenceMatcher:
         Returns:
             True, iff the pattern can be matched with a sequence matcher.
         """
-        if not isinstance(pattern, Operation) or pattern.commutative:
+        if not isinstance(pattern.expression, Operation) or pattern.expression.commutative:
             return False
 
-        if len(pattern.operands) < 3:
+        if len(pattern.expression.operands) < 3:
             return False
 
         try:
-            cls._check_wildcard_and_get_name(pattern.operands[0])
-            cls._check_wildcard_and_get_name(pattern.operands[-1])
+            cls._check_wildcard_and_get_name(pattern.expression.operands[0])
+            cls._check_wildcard_and_get_name(pattern.expression.operands[-1])
         except ValueError:
             return False
 
         return True
 
-    def match(self, subject: Expression) -> Iterator[Tuple[Expression, Substitution]]:
+    def match(self, subject: Expression) -> Iterator[Tuple[Pattern, Substitution]]:
         """Match the given subject against all patterns in the sequence matcher.
 
         Args:
@@ -821,9 +823,9 @@ class SequenceMatcher:
             for index in self._net._match(flatterm, collect=True):
                 match_index = self._net._patterns[index][1]
                 pattern, first_name, last_name = self._patterns[match_index]
-                operand_count = len(pattern.operands) - 2
+                operand_count = len(pattern.expression.operands) - 2
                 expr_operands = subject.operands[i:i + operand_count]
-                patt_operands = pattern.operands[1:-1]
+                patt_operands = pattern.expression.operands[1:-1]
 
                 substitution = Substitution()
                 if not all(itertools.starmap(substitution.extract_substitution, zip(expr_operands, patt_operands))):
@@ -837,8 +839,10 @@ class SequenceMatcher:
                 except ValueError:
                     continue
 
-                constraint = MultiConstraint.create(*(e.constraint for e, _ in pattern.preorder_iter()))
-                if constraint is None or constraint(substitution):
+                for constraint in pattern.constraints:
+                    if not constraint(substitution):
+                        break
+                else:
                     yield pattern, substitution
 
     def as_graph(self) -> Digraph:  # pragma: no cover

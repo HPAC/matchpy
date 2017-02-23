@@ -5,7 +5,7 @@ from hypothesis import assume, example, given
 import hypothesis.strategies as st
 import pytest
 
-from matchpy.expressions.expressions import Atom, Operation, Symbol, Variable, Wildcard
+from matchpy.expressions.expressions import Atom, Operation, Symbol, Variable, Wildcard, Pattern
 from matchpy.matching.one_to_one import match
 from matchpy.matching.syntactic import OPERATION_END as OP_END
 from matchpy.matching.syntactic import DiscriminationNet, FlatTerm, SequenceMatcher, is_operation, is_symbol_wildcard
@@ -230,7 +230,7 @@ expression_strategy = st.recursive(expression_base_strategy, expression_recurse_
 )  # yapf: disable
 def test_generate_net_and_match(pattern, expr, is_match):
     net = DiscriminationNet()
-    index = net.add(pattern)
+    index = net.add(Pattern(pattern))
     result = net._match(expr)
 
     if is_match:
@@ -241,7 +241,7 @@ def test_generate_net_and_match(pattern, expr, is_match):
 
 def test_variable_expression_match_error():
     net = DiscriminationNet()
-    pattern = f(x_)
+    pattern = Pattern(f(x_))
     net.add(pattern)
 
     with pytest.raises(TypeError):
@@ -253,14 +253,14 @@ def test_variable_expression_match_error():
 def test_randomized_product_net(patterns):
     assume(all(not isinstance(p, Atom) for p in patterns))
 
-    patterns = list(patterns)
+    patterns = [Pattern(p) for p in patterns]
     net = DiscriminationNet()
     exprs = []
     for pattern in patterns:
         net.add(pattern)
 
         flatterm = []
-        for term in FlatTerm(pattern):
+        for term in FlatTerm(pattern.expression):
             if isinstance(term, Wildcard):
                 args = [random.choice(CONSTANT_EXPRESSIONS) for _ in range(term.min_count)]
                 flatterm.extend(args)
@@ -279,13 +279,13 @@ def test_randomized_product_net(patterns):
 
 
 PRODUCT_NET_PATTERNS = [
-    f(a, _, _),
-    f(_, a, _),
-    f(_, _, a),
-    f(__),
-    f(f2(_, ___)),
-    f(___, f2(_)),
-    _,
+    Pattern(f(a, _, _)),
+    Pattern(f(_, a, _)),
+    Pattern(f(_, _, a)),
+    Pattern(f(__)),
+    Pattern(f(f2(_, ___))),
+    Pattern(f(___, f2(_))),
+    Pattern(_),
 ]
 
 PRODUCT_NET_EXPRESSIONS = [
@@ -324,10 +324,10 @@ def test_product_net(i):
 
 def test_sequence_matcher_match():
     PATTERNS = [
-        f(___, x_, x_, ___),
-        f(z___, a, b, ___),
-        f(___, a, c, z___),
-        f(z___, a, c, z___),
+        Pattern(f(___, x_, x_, ___)),
+        Pattern(f(z___, a, b, ___)),
+        Pattern(f(___, a, c, z___)),
+        Pattern(f(z___, a, c, z___)),
     ]
 
     matcher = SequenceMatcher(*PATTERNS)
@@ -364,7 +364,7 @@ def test_sequence_matcher_match():
 )  # yapf: disable
 def test_sequence_matcher_errors(patterns, expected_error):
     with pytest.raises(expected_error):
-        SequenceMatcher(*patterns)
+        SequenceMatcher(*map(Pattern, patterns))
 
 
 @pytest.mark.parametrize(
@@ -388,4 +388,4 @@ def test_sequence_matcher_errors(patterns, expected_error):
     ]
 )  # yapf: disable
 def test_sequence_matcher_can_match(pattern, can_match):
-    assert SequenceMatcher.can_match(pattern) == can_match
+    assert SequenceMatcher.can_match(Pattern(pattern)) == can_match

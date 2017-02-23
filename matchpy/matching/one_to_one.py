@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 from typing import Iterator, Tuple
 
-from ..expressions.expressions import Expression
+from ..expressions.expressions import Expression, Pattern
 from ..expressions.substitution import Substitution
 from .common import _match
 
 __all__ = ['match', 'match_anywhere']
 
 
-def match(subject: Expression, pattern: Expression) -> Iterator[Substitution]:
+def match(subject: Expression, pattern: Pattern) -> Iterator[Substitution]:
     r"""Tries to match the given *pattern* to the given *subject*.
 
     Yields each match in form of a substitution.
@@ -28,7 +28,14 @@ def match(subject: Expression, pattern: Expression) -> Iterator[Substitution]:
     """
     if not subject.is_constant:
         raise ValueError("The subject for matching must be constant.")
-    return _match([subject], pattern, Substitution())
+    global_constraints = [c for c in pattern.constraints if not c.variables]
+    local_constraints = set(c for c in pattern.constraints if c.variables)
+    for subst in _match([subject], pattern.expression, Substitution(), local_constraints):
+        for constraint in global_constraints:
+            if not constraint(subst):
+                break
+        else:
+            yield subst
 
 
 def match_anywhere(subject: Expression, pattern: Expression) -> Iterator[Tuple[Substitution, Tuple[int, ...]]]:
@@ -54,10 +61,11 @@ def match_anywhere(subject: Expression, pattern: Expression) -> Iterator[Tuple[S
     """
     if not subject.is_constant:
         raise ValueError("The subject for matching must be constant.")
-    if pattern.head is None:
+    head = pattern.expression.head
+    if head is None:
         child_iterator = subject.preorder_iter()
     else:
-        child_iterator = subject.preorder_iter(lambda child: child.head == pattern.head)
+        child_iterator = subject.preorder_iter(lambda child: child.head == head)
     for child, pos in child_iterator:
-        for subst in _match([child], pattern, Substitution()):
+        for subst in match(child, pattern):
             yield subst, pos

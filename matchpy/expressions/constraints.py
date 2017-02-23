@@ -22,27 +22,16 @@ True
 >>> is_match(f(a, b), pattern)
 False
 
-Then there is the :class:`MultiConstraint`, that allows to combine multiple constraints:
-
->>> multi_constraint = MultiConstraint(equal_constraint, a_symbol_constraint)
->>> pattern = f(x_, y_, constraint=multi_constraint)
->>> is_match(f(a, a), pattern)
-True
->>> is_match(f(a, Symbol('a2')), pattern)
-False
->>> is_match(f(b, b), pattern)
-False
-
 You can also create a subclass of the :class:`Constraint` class to create your own custom constraint type.
 """
 import inspect
 from collections import OrderedDict
-from typing import Callable, Dict, Optional
+from typing import Callable, Optional, FrozenSet
 
 from . import substitution
-from ..utils import get_short_lambda_source
+from ..utils import get_short_lambda_source, cached_property
 
-__all__ = ['Constraint', 'MultiConstraint', 'EqualVariablesConstraint', 'CustomConstraint']
+__all__ = ['Constraint', 'EqualVariablesConstraint', 'CustomConstraint']
 
 
 class Constraint(object):  # pylint: disable=too-few-public-methods
@@ -62,7 +51,8 @@ class Constraint(object):  # pylint: disable=too-few-public-methods
         Args:
             match:
                 The (current) match substitution. Note that the matching is done from left to right, so not all
-                variables may have a value yet.
+                variables may have a value yet. You need to override `variables` so that the constraint gets
+                called once all the variables it depends on have a value assigned to them.
 
         Returns:
             True, iff the constraint is fulfilled by the substitution.
@@ -77,101 +67,15 @@ class Constraint(object):  # pylint: disable=too-few-public-methods
         """Constraints need to be hashable."""
         raise NotImplementedError
 
-    def with_renamed_vars(self, renaming: Dict[str, str]) -> 'Constraint':  # pylint: disable=missing-raises-doc
-        """Return a *copy* of the constraint with renamed variables.
+    @property
+    def variables(self) -> FrozenSet[str]:
+        """The names of the variables the constraint depends upon.
 
-        This is called when the variables in the expression are renamed and hence the ones in the constraint have to be
-        renamed as well. A later invocation of :meth:`__call__` will have the new variable names.
-
-        You will have to implement this if your constraint needs to use the variables of the match substitution.
-        Note that this can be called multiple times and you might have to account for that.
-        Also, this should not modify the original constraint but rather return a copy.
-
-        Args:
-            renaming:
-                A dictionary mapping old names to new names.
-
-        Returns:
-            A copy of the constraint with renamed variables.
+        Used by matchers to decide when a constraint can be evaluated (which is when all
+        the dependency variables have been assigned a value). If the set is empty, the constraint will
+        only be evaluated once the whole match is complete.
         """
-        raise NotImplementedError
-
-
-class MultiConstraint(Constraint):
-    """A constraint that combines multiple constraints into one.
-
-    Use :meth:`create` instead of the constructor, because it will flatten the
-    constraints and filter out ``None`` constraints.
-    """
-
-    def __init__(self, *constraints: Constraint) -> None:
-        """
-        Use :meth:`create` to construct a :class:`MultiConstraint` instead.
-
-        Args:
-            *constraints: The set of constraints.
-        """
-        self.constraints = frozenset(constraints)
-
-    @classmethod
-    def create(cls, *constraints: Optional[Constraint]) -> Optional[Constraint]:
-        """Create a combine constraint from the given constraints.
-
-        Nested MultiConstraints will be flattened:
-
-        >>> constraint1 = CustomConstraint(lambda y: y < 1)
-        >>> constraint2 = CustomConstraint(lambda x: x > 5)
-        >>> constraint3 = CustomConstraint(lambda x, y: x != y)
-        >>> MultiConstraint.create(MultiConstraint(constraint1, constraint2), constraint3)
-        MultiConstraint(CustomConstraint(x != y) and CustomConstraint(x > 5) and CustomConstraint(y < 1))
-
-        Also, ``None`` constraints are filtered out:
-
-        >>> MultiConstraint.create(constraint1, None)
-        CustomConstraint(y < 1)
-        >>> MultiConstraint.create(None, None) is None
-        True
-
-        Args:
-            *constraints:
-                The set of constraints to combine. Constraints are filtered out if they are ``None``.
-
-        Returns:
-            The combined constraints. If it is a single constraint, it is returned, otherwise a :class:`MultiConstraint`
-            combining the constraints is returned. If all constraints are ``None`` or none are given, then ``None`` is
-            returned.
-        """
-        flat_constraints = set()
-        for constraint in constraints:
-            if isinstance(constraint, MultiConstraint):
-                flat_constraints.update(constraint.constraints)
-            elif constraint is not None:
-                flat_constraints.add(constraint)
-
-        if len(flat_constraints) == 1:
-            return flat_constraints.pop()
-        elif len(flat_constraints) == 0:
-            return None
-
-        return cls(*flat_constraints)
-
-    def with_renamed_vars(self, renaming):
-        return MultiConstraint(*(c.with_renamed_vars(renaming) for c in self.constraints))
-
-    def __call__(self, match: substitution.Substitution) -> bool:
-        return all(c(match) for c in self.constraints)
-
-    def __str__(self):
-        return '({!s})'.format(' and '.join(sorted(map(str, self.constraints))))
-
-    def __repr__(self):
-        return 'MultiConstraint({!s})'.format(' and '.join(sorted(map(repr, self.constraints))))
-
-    def __eq__(self, other):
-        return isinstance(other, MultiConstraint) and self.constraints == other.constraints
-
-    def __hash__(self):
-        return hash(self.constraints)
+        return frozenset()
 
 
 class EqualVariablesConstraint(Constraint):  # pylint: disable=too-few-public-methods
@@ -185,14 +89,15 @@ class EqualVariablesConstraint(Constraint):  # pylint: disable=too-few-public-me
         Args:
             *variables: The names of the variables to check for equality.
         """
-        self.variables = frozenset(variables)
+        self._variables = frozenset(variables)
 
-    def with_renamed_vars(self, renaming):
-        return EqualVariablesConstraint(*(renaming.get(v, v) for v in self.variables))
+    @property
+    def variables(self):
+        return self._variables
 
     def __call__(self, match: substitution.Substitution) -> bool:
         subst = substitution.Substitution()
-        for name in self.variables:
+        for name in self._variables:
             try:
                 subst.try_add_variable('_', match[name])
             except ValueError:
@@ -200,16 +105,16 @@ class EqualVariablesConstraint(Constraint):  # pylint: disable=too-few-public-me
         return True
 
     def __str__(self):
-        return '({!s})'.format(' == '.join(sorted(self.variables)))
+        return '({!s})'.format(' == '.join(sorted(self._variables)))
 
     def __repr__(self):
-        return 'EqualVariablesConstraint({!s})'.format(' == '.join(sorted(self.variables)))
+        return 'EqualVariablesConstraint({!s})'.format(' == '.join(sorted(self._variables)))
 
     def __eq__(self, other):
-        return isinstance(other, EqualVariablesConstraint) and self.variables == other.variables
+        return isinstance(other, EqualVariablesConstraint) and self._variables == other._variables
 
     def __hash__(self):
-        return hash(self.variables)
+        return hash(self._variables)
 
 
 class CustomConstraint(Constraint):  # pylint: disable=too-few-public-methods
@@ -245,11 +150,11 @@ class CustomConstraint(Constraint):  # pylint: disable=too-few-public-methods
         self.constraint = constraint
         signature = inspect.signature(constraint)
 
-        self.variables = OrderedDict()
+        self._variables = OrderedDict()
 
         for param in signature.parameters.values():
             if param.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD or param.kind == inspect.Parameter.KEYWORD_ONLY:
-                self.variables[param.name] = param.name
+                self._variables[param.name] = param.name
             elif param.kind == inspect.Parameter.VAR_KEYWORD:
                 raise ValueError("Constraint cannot have variable keyword arguments ({})".format(param.name))
             else:
@@ -257,14 +162,13 @@ class CustomConstraint(Constraint):  # pylint: disable=too-few-public-methods
                     "Constraint cannot have positional-only or variable positional arguments ({})".format(param.name)
                 )
 
-    def with_renamed_vars(self, renaming):
-        cc = CustomConstraint(self.constraint)
-        for param_name, old_name in list(cc.variables.items()):
-            cc.variables[param_name] = renaming.get(old_name, old_name)
-        return cc
+
+    @property
+    def variables(self):
+        return frozenset(self._variables.keys())
 
     def __call__(self, match: substitution.Substitution) -> bool:
-        args = dict((name, match[var_name]) for name, var_name in self.variables.items())
+        args = dict((name, match[var_name]) for name, var_name in self._variables.items())
 
         return self.constraint(**args)
 
@@ -277,7 +181,7 @@ class CustomConstraint(Constraint):  # pylint: disable=too-few-public-methods
     def __eq__(self, other):
         return (
             isinstance(other, CustomConstraint) and self.constraint == other.constraint and
-            self.variables == other.variables
+            self._variables == other._variables
         )
 
     def __hash__(self):

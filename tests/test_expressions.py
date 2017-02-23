@@ -6,14 +6,7 @@ import pytest
 from multiset import Multiset
 
 from matchpy.expressions.expressions import (Arity, Operation, Symbol, SymbolWildcard, Variable, Wildcard, Expression)
-from matchpy.expressions.constraints import MultiConstraint
-from .utils import MockConstraint
 from .common import *
-
-constraint1 = MockConstraint(True)
-constraint2 = MockConstraint(True)
-
-both_constraints = MultiConstraint.create(constraint1, constraint2)
 
 SIMPLE_EXPRESSIONS = [
     a,
@@ -46,8 +39,6 @@ class TestExpression:
             (f_a(f(a)),                                                         f_a(f(a))),
             (f_c(a, b),                                                         f_c(a, b)),
             (f_c(b, a),                                                         f_c(a, b)),
-            (f_a(a, f_a(b, constraint=constraint1)),                            f_a(a, b, constraint=constraint1)),
-            (f_a(a, f_a(b, constraint=constraint1), constraint=constraint2),    f_a(a, b, constraint=both_constraints)),
         ]
     )  # yapf: disable
     def test_operation_simplify(self, expression, simplified):
@@ -117,26 +108,6 @@ class TestExpression:
     )  # yapf: disable
     def test_is_syntactic(self, expression, is_syntactic):
         assert expression.is_syntactic == is_syntactic
-
-    @pytest.mark.parametrize(
-        '   expression,         is_linear',
-        [
-            (a,                 True),
-            (x_,                True),
-            (_,                 True),
-            (f(a),              True),
-            (f(a, b),           True),
-            (f(x_),             True),
-            (f(x_, x_),         False),
-            (f(x_, y_),         True),
-            (f(x_, _),          True),
-            (f(_, _),           True),
-            (f(x_, f(x_)),      False),
-            (f(x_, a, f(x_)),   False),
-        ]
-    )  # yapf: disable
-    def test_is_linear(self, expression, is_linear):
-        assert expression.is_linear == is_linear
 
     @pytest.mark.parametrize(
         '   expression,         symbols',
@@ -216,34 +187,27 @@ class TestExpression:
             assert result == expected_result
 
     @pytest.mark.parametrize(
-        '   expression1,    expression2,    first_is_bigger_than_second',
+        '   expression1,    expression2',
         [
-            (a,             b,              True),
-            (a,             a,              False),
-            (a,             x_,             True),
-            (x_,            y_,             True),
-            (x_,            x_,             False),
-            (x__,           x_,             False),
-            (x_,            x__,            False),
-            (f(a),          f(b),           True),
-            (f(a),          f(a),           False),
-            (f(b),          f(a, a),        True),
-            (f(a),          f(a, a),        True),
-            (f(a, a),       f(a, b),        True),
-            (f(a, a),       f(a, a),        False),
-            (a,             f(a),           True),
-            (x_,            f(a),           True),
-            (_,             f(a),           True),
-            (x_,            _,              True),
-            (a,             _,              True),
+            (a,             b),
+            (a,             x_),
+            (x_,            y_),
+            (x_,            x__),
+            (f(a),          f(b)),
+            (f(a),          f(a, a)),
+            (f(b),          f(a, a)),
+            (f(a, a),       f(a, b)),
+            (f(a, a),       f(a, a, a)),
+            (a,             f(a)),
+            (x_,            f(a)),
+            (_,             f(a)),
+            (x_,            _),
+            (a,             _),
         ]
     )  # yapf: disable
-    def test_lt(self, expression1, expression2, first_is_bigger_than_second):
-        if first_is_bigger_than_second:
-            assert expression1 < expression2, "{!s} < {!s} did not hold".format(expression1, expression2)
-            assert not (expression2 < expression1), "{!s} < {!s} but should not be".format(expression2, expression1)
-        else:
-            assert not (expression1 < expression2), "{!s} < {!s} but should not be".format(expression1, expression2)
+    def test_lt(self, expression1, expression2):
+        assert expression1 < expression2, "{!s} < {!s} did not hold".format(expression1, expression2)
+        assert not (expression2 < expression1), "Inconsistent order: Both {0} < {1} and {1} < {0}".format(expression2, expression1)
 
     @pytest.mark.parametrize('expression', [a, f(a), x_, _])
     def test_lt_error(self, expression):
@@ -276,35 +240,16 @@ class TestExpression:
             _ = SymbolWildcard(object)
 
     @pytest.mark.parametrize(
-        '   expression,                                                     expected_result',
-        [
-            (a,                                                             a),
-            (x_,                                                            x_),
-            (Variable.dot('x', constraint1),                                x_),
-            (Variable.dot('x', constraint1),                                x_),
-            (SymbolWildcard(constraint=constraint1),                        SymbolWildcard()),
-            (f(a, constraint=constraint1),                                  f(a)),
-            (f(Variable.dot('x', constraint1)),                             f(x_)),
-            (f(Variable.dot('x', constraint1), constraint=constraint2),     f(x_)),
-        ]
-    )  # yapf: disable
-    def test_without_constraints(self, expression, expected_result):
-        new_expr = expression.without_constraints
-        assert new_expr == expected_result
-
-    @pytest.mark.parametrize(
         '   expression,                         renaming,       expected_result',
         [
             (a,                                 {},             a),
             (a,                                 {'x': 'y'},     a),
             (x_,                                {},             x_),
             (x_,                                {'x': 'y'},     y_),
-            (Variable.dot('x', constraint1),    {'x': 'y'},     Variable.dot('y', constraint1)),
             (SymbolWildcard(),                  {},             SymbolWildcard()),
             (SymbolWildcard(),                  {'x': 'y'},     SymbolWildcard()),
             (f(x_),                             {},             f(x_)),
             (f(x_),                             {'x': 'y'},     f(y_)),
-            (f(x_, constraint=constraint1),     {'x': 'y'},     f(y_, constraint=constraint1)),
         ]
     )  # yapf: disable
     def test_with_renamed_vars(self, expression, renaming, expected_result):

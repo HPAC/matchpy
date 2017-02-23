@@ -3,7 +3,7 @@ from hypothesis import assume, given
 import hypothesis.strategies as st
 import pytest
 
-from matchpy.expressions.expressions import Arity, Operation, Symbol, Variable, Wildcard
+from matchpy.expressions.expressions import Arity, Operation, Symbol, Variable, Wildcard, Pattern
 from matchpy.functions import ReplacementRule, replace, replace_all, substitute, replace_many, is_match
 from matchpy.matching.one_to_one import match_anywhere
 from matchpy.matching.one_to_one import match as match_one_to_one
@@ -19,7 +19,7 @@ from .common import *
     ]
 )  # yapf: disable
 def test_is_match(expr, pattern, do_match):
-    assert is_match(expr, pattern) == do_match
+    assert is_match(expr, Pattern(pattern)) == do_match
 
 
 class TestSubstitute:
@@ -160,7 +160,7 @@ class TestReplaceManyTest:
 )  # yapf: disable
 def test_match_anywhere(expression, pattern, expected_results):
     expression = expression
-    pattern = pattern
+    pattern = Pattern(pattern)
     results = list(match_anywhere(expression, pattern))
 
     assert len(results) == len(expected_results), "Invalid number of results"
@@ -176,7 +176,7 @@ def test_match_anywhere_error():
 
 def test_match_error():
     with pytest.raises(ValueError):
-        match_one_to_one(f(x_), f(x_))
+        next(match_one_to_one(f(x_), f(x_)))
 
 
 def test_logic_simplify():
@@ -276,52 +276,52 @@ def test_logic_simplify():
     rules = [
         # xor(x,⊥) → x
         ReplacementRule(
-            LXor(x__, LBot),
+            Pattern(LXor(x__, LBot)),
             lambda x: LXor(*x)
         ),
         # xor(x, x) → ⊥
         ReplacementRule(
-            LXor(x_, x_, ___),
+            Pattern(LXor(x_, x_, ___)),
             lambda x: LBot
         ),
         # and(x,⊤) → x
         ReplacementRule(
-            LAnd(x__, LTop),
+            Pattern(LAnd(x__, LTop)),
             lambda x: LAnd(*x)
         ),
         # and(x,⊥) → ⊥
         ReplacementRule(
-            LAnd(___, LBot),
+            Pattern(LAnd(___, LBot)),
             lambda: LBot
         ),
         # and(x, x) → x
         ReplacementRule(
-            LAnd(x_, x_, y___),
+            Pattern(LAnd(x_, x_, y___)),
             lambda x, y: LAnd(x, *y)
         ),
         # and(x, xor(y, z)) → xor(and(x, y), and(x, z))
         ReplacementRule(
-            LAnd(x_, LXor(y_, z_)),
+            Pattern(LAnd(x_, LXor(y_, z_))),
             lambda x, y, z: LXor(LAnd(x, y), LAnd(x, z))
         ),
         # implies(x, y) → not(xor(x, and(x, y)))
         ReplacementRule(
-            LImplies(x_, y_),
+            Pattern(LImplies(x_, y_)),
             lambda x, y: LNot(LXor(x, LAnd(x, y)))
         ),
         # not(x) → xor(x,⊤)
         ReplacementRule(
-            LNot(x_),
+            Pattern(LNot(x_)),
             lambda x: LXor(x, LTop)
         ),
         # or(x, y) → xor(and(x, y), xor(x, y))
         ReplacementRule(
-            LOr(x_, y_),
+            Pattern(LOr(x_, y_)),
             lambda x, y: LXor(LAnd(x, y), LXor(x, y))
         ),
         # iff(x, y) → not(xor(x, y))
         ReplacementRule(
-            Iff(x_, y_),
+            Pattern(Iff(x_, y_)),
             lambda x, y: LNot(LXor(x, y))
         ),
     ]  # yapf: disable

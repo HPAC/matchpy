@@ -5,9 +5,9 @@ from . import constraints
 
 from .expressions import Expression, Arity, Atom, Symbol, Variable, Wildcard, Operation, SymbolWildcard
 from .substitution import Substitution
-from .constraints import Constraint, CustomConstraint, MultiConstraint, EqualVariablesConstraint
+from .constraints import Constraint, CustomConstraint, EqualVariablesConstraint
 
 __all__ = [
-    'Arity', 'Atom', 'Constraint', 'CustomConstraint', 'EqualVariablesConstraint', 'Expression', 'MultiConstraint',
+    'Arity', 'Atom', 'Constraint', 'CustomConstraint', 'EqualVariablesConstraint', 'Expression',
     'Operation', 'Substitution', 'Symbol', 'SymbolWildcard', 'Variable', 'Wildcard'
 ]

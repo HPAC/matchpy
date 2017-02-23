@@ -15,7 +15,7 @@ from typing import Callable, List, NamedTuple, Sequence, Tuple, Union, Iterable
 
 from multiset import Multiset
 
-from .expressions.expressions import Expression, Operation, Variable
+from .expressions.expressions import Expression, Operation, Variable, Pattern
 from .expressions.substitution import Substitution
 from .matching.one_to_one import match
 
@@ -200,7 +200,7 @@ def replace_many(expression: Expression, replacements: Sequence[Tuple[Sequence[i
     return op_class(*new_operands)
 
 
-ReplacementRule = NamedTuple('ReplacementRule', [('pattern', Expression), ('replacement', Callable[..., Expression])])
+ReplacementRule = NamedTuple('ReplacementRule', [('pattern', Pattern), ('replacement', Callable[..., Expression])])
 
 
 def replace_all(expression: Expression, rules: Iterable[ReplacementRule], max_count: int=math.inf) \
@@ -232,7 +232,7 @@ def replace_all(expression: Expression, rules: Iterable[ReplacementRule], max_co
     """
     rules = [ReplacementRule(pattern, replacement) for pattern, replacement in rules]
     expression = expression
-    grouped = dict((h, list(g)) for h, g in itertools.groupby(rules, lambda r: r.pattern.head))
+    grouped = dict((h, list(g)) for h, g in itertools.groupby(rules, lambda r: r.pattern.expression.head))
     replaced = True
     replace_count = 0
     while replaced and replace_count < max_count:

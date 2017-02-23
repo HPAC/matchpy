@@ -31,7 +31,7 @@ from typing import Container, Dict, Iterable, Iterator, List, NamedTuple, Option
 from graphviz import Digraph
 from multiset import Multiset
 
-from ..expressions.constraints import Constraint, MultiConstraint
+from ..expressions.constraints import Constraint
 from ..expressions.expressions import Expression, Operation, Symbol, SymbolWildcard, Variable, Wildcard
 from ..expressions.substitution import Substitution
 from ..utils import (VariableWithCount, commutative_sequence_variable_partition_iter)
@@ -251,7 +251,7 @@ class ManyToOneMatcher:
         if isinstance(expression, Operation):
             label = type(expression)
         else:
-            label = expression.without_constraints
+            label = expression
             if isinstance(label, SymbolWildcard):
                 head = label.symbol_type
         return label, head
