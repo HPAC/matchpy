@@ -917,3 +917,11 @@ class Pattern:
     @property
     def is_syntactic(self):
         return self.expression.is_syntactic
+
+    @property
+    def local_constraints(self):
+        return [c for c in self.constraints if c.variables]
+
+    @property
+    def global_constraints(self):
+        return [c for c in self.constraints if not c.variables]

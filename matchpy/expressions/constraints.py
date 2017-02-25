@@ -26,7 +26,7 @@ You can also create a subclass of the :class:`Constraint` class to create your o
 """
 import inspect
 from collections import OrderedDict
-from typing import Callable, Optional, FrozenSet
+from typing import Callable, Optional, FrozenSet, Dict
 
 from . import substitution
 from ..utils import get_short_lambda_source, cached_property
@@ -77,6 +77,21 @@ class Constraint(object):  # pylint: disable=too-few-public-methods
         """
         return frozenset()
 
+    def with_renamed_vars(self, renaming: Dict[str, str]) -> 'Constraint':  # pylint: disable=missing-raises-doc
+        """Return a *copy* of the constraint with renamed variables.
+        This is called when the variables in the expression are renamed and hence the ones in the constraint have to be
+        renamed as well. A later invocation of :meth:`__call__` will have the new variable names.
+        You will have to implement this if your constraint needs to use the variables of the match substitution.
+        Note that this can be called multiple times and you might have to account for that.
+        Also, this should not modify the original constraint but rather return a copy.
+        Args:
+            renaming:
+                A dictionary mapping old names to new names.
+        Returns:
+            A copy of the constraint with renamed variables.
+        """
+        raise NotImplementedError
+
 
 class EqualVariablesConstraint(Constraint):  # pylint: disable=too-few-public-methods
     """A constraint that ensure multiple variables are equal.
@@ -115,6 +130,9 @@ class EqualVariablesConstraint(Constraint):  # pylint: disable=too-few-public-me
 
     def __hash__(self):
         return hash(self._variables)
+
+    def with_renamed_vars(self, renaming):
+        return EqualVariablesConstraint(*(renaming.get(v, v) for v in self.variables))
 
 
 class CustomConstraint(Constraint):  # pylint: disable=too-few-public-methods
@@ -186,3 +204,9 @@ class CustomConstraint(Constraint):  # pylint: disable=too-few-public-methods
 
     def __hash__(self):
         return hash(self.constraint)
+
+    def with_renamed_vars(self, renaming):
+        cc = CustomConstraint(self.constraint)
+        for param_name, old_name in list(cc.variables.items()):
+            cc.variables[param_name] = renaming.get(old_name, old_name)
+        return cc

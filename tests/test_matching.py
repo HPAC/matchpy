@@ -121,7 +121,7 @@ class TestMatch:
         assert len(result) == match_count, 'Wrong number of matches'
 
         for subst in result:
-            assert substitute(pattern.expression, subst)[0] == expression, 'Invalid match'
+            assert substitute(pattern.expression, subst)[0] == expression, 'Invalid match: {}'.format(subst)
 
     @pytest.mark.parametrize(
         '   expression,         pattern,    constraint,              expected_matches',
