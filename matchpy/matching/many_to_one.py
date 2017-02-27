@@ -3,24 +3,26 @@
 
 You can initialize the matcher with a list of the patterns that you wish to match:
 
->>> pattern1 = f(a, x_)
->>> pattern2 = f(y_, b)
+>>> pattern1 = Pattern(f(a, x_))
+>>> pattern2 = Pattern(f(y_, b))
 >>> matcher = ManyToOneMatcher(pattern1, pattern2)
 
 You can also add patterns later:
 
->>> pattern3 = f(a, b)
+>>> pattern3 = Pattern(f(a, b))
 >>> _ = matcher.add(pattern3)
 
 Then you can match a subject against all the patterns at once:
 
 >>> subject = f(a, b)
->>> for matched_pattern, substitution in sorted(matcher.match(subject)):
+>>> matches = matcher.match(subject)
+>>> for matched_pattern, substitution in sorted(map(lambda m: (str(m[0]), str(m[1])), matches)):
 ...     print('{} matched with {}'.format(matched_pattern, substitution))
 f(a, b) matched with {}
 f(a, x_) matched with {x ↦ b}
 f(y_, b) matched with {y ↦ a}
 """
+
 
 import math
 from collections import deque
@@ -48,7 +50,6 @@ MultisetOfExpression = Multiset
 _State = NamedTuple('_State', [
     ('number', int),
     ('transitions', Dict[LabelType, '_Transition']),
-    ('patterns', Set[int]),
     ('matcher', Optional['CommutativeMatcher'])
 ])  # yapf: disable
 
@@ -59,25 +60,19 @@ _Transition = NamedTuple('_Transition', [
     ('patterns', Set[int]),
 ])  # yapf: disable
 
-_MatchContext = NamedTuple('_MatchContext', [
-    ('subjects', Tuple[Expression]),
-    ('substitution', Substitution),
-    ('associative', Optional[type]),
-    ('patterns', Set[int])
-])  # yapf: disable
-
 
 class _MatchIter:
-    def __init__(self, matcher, subject):
+    def __init__(self, matcher, subject, intial_associative=None):
         self.matcher = matcher
         self.subjects = deque([subject])
         self.patterns = set(range(len(matcher.patterns)))
         self.substitution = Substitution()
         self.constraints = set(range(len(matcher.constraints)))
+        self.associative = [intial_associative]
 
     def __iter__(self):
-        for state in self._match(self.matcher.root, False):
-            for pattern_index in state.patterns:
+        for state in self._match(self.matcher.root):
+            for pattern_index in self.patterns:
                 renaming = self.matcher.pattern_vars[pattern_index]
                 new_substitution = self.substitution.rename({renamed: original for original, renamed in renaming.items()})
                 pattern, _ = self.matcher.patterns[pattern_index]
@@ -89,7 +84,7 @@ class _MatchIter:
                 if valid:
                     yield pattern, new_substitution
 
-    def _match(self, state: _State, associative: bool) -> Iterator[_State]:
+    def _match(self, state: _State) -> Iterator[_State]:
         if len(self.subjects) == 0:
             if id(state) in self.matcher.finals or OPERATION_END in state.transitions:
                 yield state
@@ -100,30 +95,38 @@ class _MatchIter:
 
         for head in heads:
             for transition in state.transitions.get(head, []):
-                yield from self._match_transition(transition, associative)
+                yield from self._match_transition(transition)
 
-    def _match_transition(self, transition: _Transition, associative: bool) -> Iterator[_State]:
+    def _match_transition(self, transition: _Transition) -> Iterator[_State]:
         label = transition.label
-        if is_operation(label):
-            if transition.target.matcher:
-                yield from self._match_commutative_operation(transition.target, associative)
-            else:
-                yield from self._match_regular_operation(transition, associative)
+        if self.patterns.isdisjoint(transition.patterns):
             return
-        if isinstance(label, Wildcard) and not isinstance(label, SymbolWildcard):
-            min_count = label.min_count
-            if label.fixed_size and not associative:
-                assert min_count == 1, "Fixed wildcards with length != 1 are not supported."
-                if not self.subjects:
-                    return
-            else:
-                yield from self._match_sequence_variable(label, transition, associative)
+        restore_patterns = self.patterns - transition.patterns
+        self.patterns = self.patterns & transition.patterns
+        try:
+            if is_operation(label):
+                if transition.target.matcher:
+                    yield from self._match_commutative_operation(transition.target)
+                else:
+                    yield from self._match_regular_operation(transition)
                 return
+            if isinstance(label, Wildcard) and not isinstance(label, SymbolWildcard):
+                min_count = label.min_count
+                if label.fixed_size and not self.associative[-1]:
+                    assert min_count == 1, "Fixed wildcards with length != 1 are not supported."
+                    if not self.subjects:
+                        return
+                else:
+                    yield from self._match_sequence_variable(label, transition)
+                    return
 
-        subject = self.subjects.popleft() if self.subjects else None
-        yield from self._check_transition(transition, subject, associative)
+            subject = self.subjects.popleft() if self.subjects else None
+            yield from self._check_transition(transition, subject)
+        finally:
+            self.patterns.update(restore_patterns)
 
-    def _check_transition(self, transition, subject, associative, restore_subject=True):
+
+    def _check_transition(self, transition, subject, restore_subject=True):
         restore_constraints = []
         old_value = None
         try:
@@ -136,7 +139,7 @@ class _MatchIter:
                 if not self._check_constraints(transition.variable_name, restore_constraints):
                     return
 
-            yield from self._match(transition.target, associative)
+            yield from self._match(transition.target)
 
         finally:
             if restore_subject:
@@ -177,7 +180,7 @@ class _MatchIter:
                     yield base
         yield None
 
-    def _match_sequence_variable(self, wildcard: Wildcard, transition: _Transition, associative) -> Iterator[_State]:
+    def _match_sequence_variable(self, wildcard: Wildcard, transition: _Transition) -> Iterator[_State]:
         min_count = wildcard.min_count
         if len(self.subjects) < min_count:
             return
@@ -185,21 +188,21 @@ class _MatchIter:
         for _ in range(min_count):
             matched_subject.append(self.subjects.popleft())
         while True:
-            if associative and wildcard.fixed_size:
+            if self.associative[-1] and wildcard.fixed_size:
                 assert min_count == 1, "Fixed wildcards with length != 1 are not supported."
                 if len(matched_subject) > 1:
-                    wrapped = associative(*matched_subject)
+                    wrapped = self.associative[-1](*matched_subject)
                 else:
                     wrapped = matched_subject[0]
             else:
                 wrapped = tuple(matched_subject)
-            yield from self._check_transition(transition, wrapped, associative, False)
+            yield from self._check_transition(transition, wrapped, False)
             if not self.subjects:
                 break
             matched_subject.append(self.subjects.popleft())
         self.subjects.extendleft(reversed(matched_subject))
 
-    def _match_commutative_operation(self, state: _State, associative) -> Iterator[_State]:
+    def _match_commutative_operation(self, state: _State) -> Iterator[_State]:
         subject = self.subjects.popleft()
         matcher = state.matcher
         substitution = self.substitution
@@ -220,22 +223,26 @@ class _MatchIter:
             self.substitution = new_substitution
             transition_set = state.transitions[matched_pattern]
             for next_transition in transition_set:
-                yield from self._check_transition(next_transition, subject, associative, False)
+                yield from self._check_transition(next_transition, subject, False)
         self.substitution = substitution
         self.subjects.append(subject)
 
-    def _match_regular_operation(self, transition: _Transition, associative) -> Iterator[_State]:
+    def _match_regular_operation(self, transition: _Transition) -> Iterator[_State]:
         subject = self.subjects.popleft()
         after_subjects = self.subjects
         operand_subjects = self.subjects = deque(subject.operands)
         new_associative = transition.label if transition.label.associative else None
-        for new_state in self._check_transition(transition, None, new_associative):
+        self.associative.append(new_associative)
+        for new_state in self._check_transition(transition, None):
             self.subjects = after_subjects
+            self.associative.pop()
             for end_transition in new_state.transitions[OPERATION_END]:
-                yield from self._check_transition(end_transition, subject, associative, False)
+                yield from self._check_transition(end_transition, subject, False)
             self.subjects = operand_subjects
+            self.associative.append(new_associative)
         self.subjects = after_subjects
         self.subjects.appendleft(subject)
+        self.associative.pop()
 
 
 
@@ -318,7 +325,6 @@ class ManyToOneMatcher:
                 if len(patterns_stack) > 0:
                     state = self._create_simple_transition(state, OPERATION_END, pattern_index)
 
-        state.patterns.add(pattern_index)
         self.finals.add(id(state))
 
         return pattern_index
@@ -376,12 +382,8 @@ class ManyToOneMatcher:
                 for f in subfinals:
                     graph.edge(f, name + '-end')
                 graph.edge(name, 'n{}'.format(id(state.matcher.automaton.root)))
-            elif not state.patterns:
-                graph.node(name, str(state.number), {'shape': ('circle' if state.transitions else 'doublecircle')})
             else:
-                variables = ['{}: {}'.format(p, repr(self.pattern_vars[p])) for p in state.patterns]
-                label = '\n'.join(variables)
-                graph.node(name, label, {'shape': 'box'})
+                graph.node(name, str(state.number), {'shape': ('doublecircle' if state in self.finals else 'circle')})
 
     def _make_graph_edges(self, graph: Digraph) -> None:  # pragma: no cover
         for state in self.states:
@@ -440,7 +442,7 @@ class ManyToOneMatcher:
         return label, head
 
     def _create_state(self, matcher: 'CommutativeMatcher'=None) -> _State:
-        state = _State(len(self.states), dict(), set(), matcher)
+        state = _State(len(self.states), dict(), matcher)
         self.states.append(state)
         return state
 
@@ -515,9 +517,9 @@ class CommutativeMatcher(object):
         if subject not in self.subjects:
             subject_id, pattern_set = self.subjects[subject] = (len(self.subjects), set())
             self.subjects[subject_id] = subject
-            match_iter = self.automaton.match(subject)
-            for state in match_iter._match(self.automaton.root, self.associative):
-                for pattern_index in state.patterns:
+            match_iter = _MatchIter(self.automaton, subject, self.associative)
+            for state in match_iter._match(self.automaton.root):
+                for pattern_index in match_iter.patterns:
                     variables = self.automaton.pattern_vars[pattern_index]
                     substitution = Substitution(match_iter.substitution)
                     self.bipartite[subject_id, pattern_index] = substitution

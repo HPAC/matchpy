@@ -63,7 +63,7 @@ Matches are given in the form of substitutions, which are a mapping from variabl
     >>> y = Variable.dot('y')
     >>> b = Symbol('b')
     >>> expression = f(a, b)
-    >>> pattern = f(x, y)
+    >>> pattern = Pattern(f(x, y))
     >>> substitution = next(match(expression, pattern))
     >>> substitution
     {'x': Symbol('a'), 'y': Symbol('b')}

@@ -392,8 +392,7 @@ def _match_commutative_operation(
             except ValueError:
                 pass
             else:
-                if check_constraints(result, constraints):
-                    yield result
+                yield from check_constraints(result, constraints)
 
 
 def _variables_with_counts(variables, infos):
@@ -431,7 +430,7 @@ def _fixed_var_iter_factory(variable, count, length, symbol_type, constraints):
                         if variable is not None:
                             new_substitution = Substitution(substitution)
                             new_substitution[variable] = expr
-                            if check_constraints(new_substitution, constraints):
+                            for new_substitution in check_constraints(new_substitution, constraints):
                                 yield expressions - Multiset({expr: count}), new_substitution
                         else:
                             yield expressions - Multiset({expr: count}), substitution

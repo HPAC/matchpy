@@ -24,7 +24,7 @@ __all__ = ['substitute', 'replace', 'replace_all', 'replace_many', 'is_match']
 Replacement = Union[Expression, List[Expression]]
 
 
-def substitute(expression: Expression, substitution: Substitution) -> Tuple[Replacement, bool]:
+def substitute(expression: Union[Expression, Pattern], substitution: Substitution) -> Tuple[Replacement, bool]:
     """Replaces variables in the given `expression` by the given `substitution`.
 
     >>> print(substitute(f(x_), {'x': a})[0])
@@ -61,6 +61,8 @@ def substitute(expression: Expression, substitution: Substitution) -> Tuple[Repl
     Returns:
         The expression resulting from applying the substitution.
     """
+    if isinstance(expression, Pattern):
+        expression = expression.expression
     if isinstance(expression, Variable):
         if expression.name in substitution:
             return substitution[expression.name], True
