@@ -145,9 +145,9 @@ class Substitution(Dict[str, VariableReplacement]):
         Returns:
             ``True`` iff the substitution could be extracted successfully.
         """
-        if isinstance(pattern, expressions.Variable):
+        if pattern.variable:
             try:
-                self.try_add_variable(pattern.name, subject)
+                self.try_add_variable(pattern.variable, subject)
             except ValueError:
                 return False
             return True

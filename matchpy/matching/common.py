@@ -3,7 +3,7 @@ from typing import (Callable, Dict, Iterable, Iterator, List, NamedTuple, Option
 
 from multiset import Multiset
 
-from ..expressions.expressions import Expression, Operation, Symbol, SymbolWildcard, Variable, Wildcard
+from ..expressions.expressions import Expression, Operation, Symbol, SymbolWildcard, Wildcard
 from ..expressions.constraints import Constraint
 from ..expressions.substitution import Substitution
 from ..utils import (
@@ -75,8 +75,7 @@ class CommutativePatternsParts(object):
             operation pattern. This is the sum of the `min_count` attributes of the
             variables.
         wildcard_fixed (Optional[bool]):
-            Iff none of the operands is an unnamed wildcards (i.e. a :class:`.Wildcard` not wrapped in as
-            :class:`.Variable`), it is ``None``. Iff there are any unnamed sequence wildcards, it is
+            Iff none of the operands is an unnamed wildcards, it is ``None``. Iff there are any unnamed sequence wildcards, it is
             ``True``. Otherwise, it is ``False``.
         wildcard_min_length (int):
             If :attr:`wildcard_fixed` is not ``None``, this is the total combined minimum length of all unnamed
@@ -115,9 +114,8 @@ class CommutativePatternsParts(object):
                 self.constant[expression] += 1
             elif expression.head is None:
                 wc = cast(Wildcard, expression)
-                if isinstance(wc, Variable):
-                    name = wc.name
-                    wc = cast(Wildcard, wc.expression)
+                if wc.variable:
+                    name = wc.variable
                     if wc.fixed_size:
                         self.fixed_variables[name] += 1
                         symbol_type = getattr(wc, 'symbol_type', None)
@@ -163,15 +161,16 @@ class CommutativePatternsParts(object):
 
 
 def _match(subjects: List[Expression], pattern: Expression, subst: Substitution, constraints: Set[Constraint]) -> Iterator[Substitution]:
-    if isinstance(pattern, Variable):
-        yield from _match_variable(subjects, pattern, subst, constraints, _match)
-
-    elif isinstance(pattern, Wildcard):
-        yield from _match_wildcard(subjects, pattern, subst)
+    match_iter = None
+    expr = subjects[0] if subjects else None
+    if isinstance(pattern, Wildcard):
+        match_iter = _match_wildcard(subjects, pattern, subst)
+        if not pattern.fixed_size:
+            expr = tuple(subjects)
 
     elif isinstance(pattern, Symbol):
         if len(subjects) == 1 and isinstance(subjects[0], type(pattern)) and subjects[0].name == pattern.name:
-            yield subst
+            match_iter = iter([subst])
 
     elif isinstance(pattern, Operation):
         if len(subjects) != 1 or not isinstance(subjects[0], pattern.__class__):
@@ -179,11 +178,22 @@ def _match(subjects: List[Expression], pattern: Expression, subst: Substitution,
         op_expr = cast(Operation, subjects[0])
         if not op_expr.symbols >= pattern.symbols:
             return
-        for result in _match_operation(op_expr.operands, pattern, subst, _match, constraints):
-            yield result
+        match_iter = _match_operation(op_expr.operands, pattern, subst, _match, constraints)
 
     else:
         assert False, "Unexpected pattern of type {!r}".format(type(pattern))
+
+    if pattern.variable:
+        for new_subst in match_iter:
+            try:
+                new_subst = new_subst.union_with_variable(pattern.variable, expr)
+            except ValueError:
+                pass
+            else:
+                yield from check_constraints(new_subst, constraints)
+    elif match_iter:
+        yield from match_iter
+
 
 def check_constraints(substitution, constraints):
     restore_constraints = set()
@@ -200,22 +210,6 @@ def check_constraints(substitution, constraints):
         yield substitution
         for constraint in restore_constraints:
             constraints.add(constraint)
-
-
-def _match_variable(subjects: List[Expression], variable: Variable, subst: Substitution, constraints: Set[Constraint],
-                    matcher: Matcher) -> Iterator[Substitution]:
-    inner = variable.expression
-    if len(subjects) == 1 and (not isinstance(inner, Wildcard) or inner.fixed_size):
-        expr = next(iter(subjects))  # type: Union[Expression, List[Expression]]
-    else:
-        expr = tuple(subjects)
-    for new_subst in matcher(subjects, inner, subst, constraints):
-        try:
-            new_subst = new_subst.union_with_variable(variable.name, expr)
-        except ValueError:
-            pass
-        else:
-            yield from check_constraints(new_subst, constraints)
 
 
 def _match_wildcard(subjects: List[Expression], wildcard: Wildcard, subst: Substitution) -> Iterator[Substitution]:
@@ -239,8 +233,6 @@ def _count_seq_vars(expressions, operation):
     remaining = len(expressions)
     sequence_var_count = 0
     for operand in operation.operands:
-        if isinstance(operand, Variable):
-            operand = operand.expression
         if isinstance(operand, Wildcard):
             if not operand.fixed_size or operation.associative:
                 sequence_var_count += 1
@@ -264,13 +256,12 @@ def _build_full_partition(sequence_var_partition: Sequence[int], subjects: Seque
     result = []
     for operand in operation.operands:
         wrap_associative = False
-        inner = operand.expression if isinstance(operand, Variable) else operand
-        if isinstance(inner, Wildcard):
-            count = inner.min_count
-            if not inner.fixed_size or operation.associative:
+        if isinstance(operand, Wildcard):
+            count = operand.min_count
+            if not operand.fixed_size or operation.associative:
                 count += sequence_var_partition[var_index]
                 var_index += 1
-                wrap_associative = inner.fixed_size and inner.min_count
+                wrap_associative = operand.fixed_size and operand.min_count
         else:
             count = 1
 
@@ -334,7 +325,8 @@ def _match_commutative_operation(
             if pattern.operation.associative and isinstance(replacement, pattern.operation):
                 needed_count = Multiset(cast(Operation, substitution[name]).operands)  # type: MultisetOfExpression
             else:
-                assert isinstance(replacement, Expression), "Mixed variables with the same name are not supported."
+                if not isinstance(replacement, Expression):
+                    return
                 needed_count = Multiset({replacement: 1})
             if count > 1:
                 needed_count *= count

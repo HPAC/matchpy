@@ -5,7 +5,7 @@ import pytest
 from multiset import Multiset
 
 from matchpy.expressions.constraints import CustomConstraint
-from matchpy.expressions.expressions import Symbol, Variable, Wildcard, Pattern
+from matchpy.expressions.expressions import Symbol, Wildcard, Pattern
 from matchpy.matching.many_to_one import ManyToOneMatcher
 from matchpy.functions import substitute
 from .utils import MockConstraint

@@ -16,7 +16,7 @@ from typing import (Any, Dict, FrozenSet, Generic, Iterator, List, Optional, Seq
 
 from graphviz import Digraph
 
-from ..expressions.expressions import Expression, Operation, Symbol, SymbolWildcard, Variable, Wildcard, Pattern
+from ..expressions.expressions import Expression, Operation, Symbol, SymbolWildcard, Wildcard, Pattern
 from ..expressions.substitution import Substitution
 from ..utils import slot_cached_property
 
@@ -152,9 +152,7 @@ class FlatTerm(Sequence[TermAtom]):
     @classmethod
     def _flatterm_iter(cls, expression: Expression) -> Iterator[TermAtom]:
         """Generator that yields the atoms of the expressions in prefix notation with operation end markers."""
-        if isinstance(expression, Variable):
-            yield from cls._flatterm_iter(expression.expression)
-        elif isinstance(expression, Operation):
+        if isinstance(expression, Operation):
             yield type(expression)
             for operand in expression.operands:
                 yield from cls._flatterm_iter(operand)
@@ -177,7 +175,7 @@ class FlatTerm(Sequence[TermAtom]):
                     new_fixed_size = last_wildcard.fixed_size and term.fixed_size
                     last_wildcard = Wildcard(new_min_count, new_fixed_size)
                 else:
-                    last_wildcard = term
+                    last_wildcard = Wildcard(term.min_count, term.fixed_size)
             else:
                 if last_wildcard is not None:
                     yield last_wildcard
@@ -767,15 +765,10 @@ class SequenceMatcher:
 
     @staticmethod
     def _check_wildcard_and_get_name(operand):
-        name = None
-        if isinstance(operand, Variable):
-            name = operand.name
-            operand = operand.expression
-
         if not isinstance(operand, Wildcard) or operand.fixed_size or operand.min_count > 0:
             raise ValueError('Expected a star wildcard, got {!s}.'.format(operand))
 
-        return name
+        return operand.variable
 
     @classmethod
     def can_match(cls, pattern: Pattern) -> bool:

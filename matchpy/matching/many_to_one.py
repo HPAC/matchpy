@@ -34,7 +34,7 @@ from graphviz import Digraph
 from multiset import Multiset
 
 from ..expressions.constraints import Constraint
-from ..expressions.expressions import Expression, Operation, Symbol, SymbolWildcard, Variable, Wildcard, Pattern
+from ..expressions.expressions import Expression, Operation, Symbol, SymbolWildcard, Wildcard, Pattern
 from ..expressions.substitution import Substitution
 from ..utils import (VariableWithCount, commutative_sequence_variable_partition_iter)
 from .bipartite import BipartiteGraph, enum_maximum_matchings_iter
@@ -307,15 +307,11 @@ class ManyToOneMatcher:
         while patterns_stack:
             if patterns_stack[-1]:
                 subpattern = patterns_stack[-1].popleft()
-                variable_name = None
-                if isinstance(subpattern, Variable):
-                    variable_name = subpattern.name
-                    subpattern = subpattern.expression
                 if isinstance(subpattern, Operation):
                     if not subpattern.commutative:
                         patterns_stack.append(deque(subpattern.operands))
                     has_pre_constraint = False
-                state = self._create_expression_transition(state, subpattern, variable_name, pattern_index)
+                state = self._create_expression_transition(state, subpattern, subpattern.variable, pattern_index)
                 if getattr(subpattern, 'commutative', False):
                     subpattern_id = state.matcher.add_pattern(subpattern.operands)
                     state = self._create_simple_transition(state, subpattern_id, pattern_index)
@@ -383,7 +379,8 @@ class ManyToOneMatcher:
                     graph.edge(f, name + '-end')
                 graph.edge(name, 'n{}'.format(id(state.matcher.automaton.root)))
             else:
-                graph.node(name, str(state.number), {'shape': ('doublecircle' if state in self.finals else 'circle')})
+                attrs = {'shape': ('doublecircle' if id(state) in self.finals else 'circle')}
+                graph.node(name, str(state.number), attrs)
 
     def _make_graph_edges(self, graph: Digraph) -> None:  # pragma: no cover
         for state in self.states:
@@ -394,6 +391,7 @@ class ManyToOneMatcher:
                         t_label += '('
                     if transition.variable_name:
                         t_label += '\n \\=> {}'.format(transition.variable_name)
+                    t_label += '\n' + str(transition.patterns)
 
                     start = 'n{!s}'.format(id(state))
                     if state.matcher:
@@ -439,6 +437,9 @@ class ManyToOneMatcher:
             label = expression
             if isinstance(label, SymbolWildcard):
                 head = label.symbol_type
+                label = SymbolWildcard(symbol_type=label.symbol_type)
+            elif isinstance(label, Wildcard):
+                label = Wildcard(label.min_count, label.fixed_size)
         return label, head
 
     def _create_state(self, matcher: 'CommutativeMatcher'=None) -> _State:
@@ -459,10 +460,9 @@ class ManyToOneMatcher:
             position = [0]
         if variables is None:
             variables = {}
-        if isinstance(expression, Variable):
-            if expression.name not in variables:
-                variables[expression.name] = cls._get_name_for_position(position, variables.values())
-            expression = expression.expression
+        if expression.variable:
+            if expression.variable not in variables:
+                variables[expression.variable] = cls._get_name_for_position(position, variables.values())
         position[-1] += 1
         if isinstance(expression, Operation):
             if expression.commutative:
@@ -539,8 +539,10 @@ class CommutativeMatcher(object):
             if pattern_set:
                 if not pattern_set <= pattern_ids:
                     continue
+                # print(subject_ids, pattern_set, substitution)
                 bipartite_match_iter = self._match_with_bipartite(subject_ids, pattern_set, substitution)
                 for bipartite_substitution, matched_subjects in bipartite_match_iter:
+                    # print(bipartite_substitution)
                     if pattern_vars:
                         ids = subject_ids - matched_subjects
                         remaining = Multiset(self.subjects[id] for id in ids)  # pylint: disable=not-an-iterable
@@ -564,9 +566,10 @@ class CommutativeMatcher(object):
                                    ) -> Tuple[MultisetOfInt, Dict[str, Tuple[VariableWithCount, bool]]]:
         pattern_set = Multiset()
         pattern_vars = dict()
-        constraint = None
         for operand in operands:
             if not self._is_sequence_wildcard(operand):
+                #if isinstance(operand, Wildcard):
+
                 index = None
                 for i, (p, _) in enumerate(self.automaton.patterns):
                     if operand == p.expression:
@@ -576,26 +579,23 @@ class CommutativeMatcher(object):
                     index = self.automaton._internal_add(Pattern(operand), {})
                 pattern_set.add(index)
             else:
-                varname = getattr(operand, 'name', None)
-                wildcard = operand.expression if isinstance(operand, Variable) else operand
+                varname = operand.variable
                 if varname is None:
                     if varname in pattern_vars:
                         (_, _, min_count), _ = pattern_vars[varname]
                     else:
                         min_count = 0
-                    pattern_vars[varname] = (VariableWithCount(varname, 1, wildcard.min_count + min_count), False)
+                    pattern_vars[varname] = (VariableWithCount(varname, 1, operand.min_count + min_count), False)
                 else:
                     if varname in pattern_vars:
                         (_, count, _), wrap = pattern_vars[varname]
                     else:
                         count = 0
-                        wrap = wildcard.fixed_size and self.associative
-                    pattern_vars[varname] = (VariableWithCount(varname, count + 1, wildcard.min_count), wrap)
+                        wrap = operand.fixed_size and self.associative
+                    pattern_vars[varname] = (VariableWithCount(varname, count + 1, operand.min_count), wrap)
         return pattern_set, pattern_vars
 
     def _is_sequence_wildcard(self, expression: Expression) -> bool:
-        if isinstance(expression, Variable):
-            expression = expression.expression
         if isinstance(expression, SymbolWildcard):
             return False
         if isinstance(expression, Wildcard):
@@ -609,11 +609,14 @@ class CommutativeMatcher(object):
             substitution: Substitution,
     ) -> Iterator[Tuple[Substitution, MultisetOfInt]]:
         bipartite = self._build_bipartite(subject_ids, pattern_set)
+        bipartite.as_graph().render('tmp/bip2')
+        anonymous = set(i for i, (p, _) in enumerate(self.automaton.patterns) if not p.expression.variables)
         for matching in enum_maximum_matchings_iter(bipartite):
             if len(matching) < len(pattern_set):
                 break
-            if not self._is_canonical_matching(matching, subject_ids, pattern_set):
+            if not self._is_canonical_matching(matching, anonymous):
                 continue
+            # print(matching)
             try:
                 bipartite_substitution = substitution.union(*(bipartite[edge] for edge in matching.items()))
             except ValueError:
@@ -645,30 +648,41 @@ class CommutativeMatcher(object):
 
     def _build_bipartite(self, subjects: MultisetOfInt, patterns: MultisetOfInt) -> Subgraph:
         bipartite = BipartiteGraph()
-        for (expression, pattern), substitution in self.bipartite.edges_with_labels():
-            for i in range(subjects[expression]):
-                for j in range(patterns[pattern]):
-                    bipartite[(expression, i), (pattern, j)] = substitution
+        n = 0
+        m = 0
+        s_states = {}
+        p_states = {}
+        for (subject, pattern), substitution in self.bipartite.edges_with_labels():
+            if subject not in s_states:
+                states = []
+                for _ in range(subjects[subject]):
+                    states.append((subject, n))
+                    n += 1
+                s_states[subject] = states
+            if pattern not in p_states:
+                states = []
+                for _ in range(patterns[pattern]):
+                    states.append((pattern, m))
+                    m += 1
+                p_states[pattern] = states
+
+            for s_state in s_states[subject]:
+                for p_state in p_states[pattern]:
+                    bipartite[s_state, p_state] = substitution
+
         return bipartite
 
     @staticmethod
-    def _is_canonical_matching(matching: Matching, subject_ids: MultisetOfInt, pattern_set: MultisetOfInt) -> bool:
-        inverted_matching = {p: s for s, p in matching.items()}
-        for (pattern_index, count) in sorted(pattern_set.items()):
-            _, previous_label = inverted_matching[pattern_index, 0]
-            for i in range(1, count):
-                _, label = inverted_matching[pattern_index, i]
-                if label < previous_label:
+    def _is_canonical_matching(matching: Matching, anonymous_patterns: MultisetOfInt) -> bool:
+        for (s1, n1), (p1, m1) in matching.items():
+            for (s2, n2), (p2, m2) in matching.items():
+                if p1 in anonymous_patterns and p2 in anonymous_patterns:
+                    if n1 < n2 and m1 > m2:
+                        return False
+                elif s1 == s2 and n1 < n2 and m1 > m2:
                     return False
-                previous_label = label
-        for subject_id, count in subject_ids.items():
-            patterns = iter(matching.get((subject_id, i), (math.inf, math.inf)) for i in range(count))
-            last_pattern = next(patterns)
-            for next_pattern in patterns:
-                if next_pattern < last_pattern:
-                    return False
-                last_pattern = next_pattern
         return True
+
 
 
 class SecondaryAutomaton():  # pragma: no cover

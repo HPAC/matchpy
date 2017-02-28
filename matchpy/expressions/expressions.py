@@ -30,7 +30,7 @@ from multiset import Multiset
 
 from ..utils import cached_property
 
-__all__ = ['Expression', 'Arity', 'Atom', 'Symbol', 'Variable', 'Wildcard', 'Operation', 'SymbolWildcard', 'Pattern']
+__all__ = ['Expression', 'Arity', 'Atom', 'Symbol', 'Wildcard', 'Operation', 'SymbolWildcard', 'Pattern']
 
 ExprPredicate = Optional[Callable[['Expression'], bool]]
 ExpressionsWithPos = Iterator[Tuple['Expression', Tuple[int, ...]]]
@@ -48,20 +48,22 @@ class Expression:
     Attributes:
         head (Optional[Union[type, Atom]]):
             The head of the expression. For an operation, it is the type of the operation (i.e. a subclass of
-            :class:`Operation`). For wildcards, it is ``None``. For symbols, it is the symbol itself. For a variable,
-            it is the variable's inner :attr:`~Variable.expression`.
+            :class:`Operation`). For wildcards, it is ``None``. For symbols, it is the symbol itself.
     """
 
+    def __init__(self, variable):
+        self.variable = variable
 
     @cached_property
-    def variables(self) -> None:
+    def variables(self) -> MultisetOfVariables:
         """A multiset of the variables occurring in the expression."""
         variables = Multiset()
         self.collect_variables(variables)
         return variables
 
     def collect_variables(self, variables: MultisetOfVariables) -> None:
-        pass
+        if self.variable is not None:
+            variables.add(self.variable)
 
     @cached_property
     def symbols(self) -> MultisetOfStr:
@@ -209,7 +211,7 @@ class _OperationMeta(type):
     def __str__(cls):
         return cls.name
 
-    def __call__(cls, *operands: Expression):
+    def __call__(cls, *operands: Expression, variable=None):
         # __call__ is overridden, so that for one_identity operations with a single argument
         # that argument can be returned instead
         operands = list(operands)
@@ -218,7 +220,7 @@ class _OperationMeta(type):
             return operands[0]
 
         operation = Expression.__new__(cls)
-        operation.__init__(operands)
+        operation.__init__(operands, variable=variable)
 
         return operation
 
@@ -242,8 +244,6 @@ class _OperationMeta(type):
 
         if cls.one_identity and len(operands) == 1:
             expr = operands[0]
-            if isinstance(expr, Variable):
-                expr = expr.expression
             if not isinstance(expr, Wildcard) or (expr.min_count == 1 and expr.fixed_size):
                 return True
 
@@ -298,7 +298,7 @@ class Operation(Expression, metaclass=_OperationMeta):
     infix = False
     """bool: True if the name of the operation should be used as an infix operator by str()."""
 
-    def __init__(self, operands: List[Expression]) -> None:
+    def __init__(self, operands: List[Expression], variable=None) -> None:
         """Create an operation expression.
 
         Args:
@@ -313,14 +313,14 @@ class Operation(Expression, metaclass=_OperationMeta):
                 different things. A common example would be mixing sequence and fixed variables with the same name in
                 one expression.
         """
-        super().__init__()
+        super().__init__(variable)
 
         operand_count, variable_count = self._count_operands(operands)
 
         if not variable_count and operand_count < self.arity.min_count:
             raise ValueError(
                 "Operation {!s} got arity {!s}, but got {:d} operands.".
-                format(type(self).__name__, self.arity, len(operands))
+                format(type(self).__name__, self.arity, operand_count)
             )
 
         if self.arity.fixed_size and operand_count > self.arity.min_count:
@@ -331,34 +331,20 @@ class Operation(Expression, metaclass=_OperationMeta):
                 msg += " Associative operations should have a variadic/polyadic arity."
             raise ValueError(msg)
 
-        variables = dict()
-        for operand in operands:
-            for variable in operand.variables.distinct_elements():
-                if variable.name in variables:
-                    if variables[variable.name] != variable:
-                        raise ValueError(
-                            "Conflicting versions of variable {!s}: {!r} vs {!r}".
-                            format(variable.name, variable, variables[variable.name])
-                        )
-                else:
-                    variables[variable.name] = variable
-
         self.operands = operands
 
     @staticmethod
     def _count_operands(operands):
         operand_count = 0
+        variable = False
         for operand in operands:
-            if isinstance(operand, Variable):
-                operand = operand.expression
             if isinstance(operand, Wildcard):
-                if operand.fixed_size:
-                    operand_count += operand.min_count
-                else:
-                    return 0, True
+                operand_count += operand.min_count
+                if not operand.fixed_size:
+                    variable = True
             else:
                 operand_count += 1
-        return operand_count, False
+        return operand_count, variable
 
     def __str__(self):
         if self.infix:
@@ -366,10 +352,14 @@ class Operation(Expression, metaclass=_OperationMeta):
             value = '({!s})'.format(separator.join(str(o) for o in self.operands))
         else:
             value = '{!s}({!s})'.format(self.name, ', '.join(str(o) for o in self.operands))
+        if self.variable:
+            value = '{}: {}'.format(self.variable, value)
         return value
 
     def __repr__(self):
         operand_str = ', '.join(map(repr, self.operands))
+        if self.variable:
+            return '{!s}({!s}, variable={})'.format(type(self).__name__, operand_str, self.variable)
         return '{!s}({!s})'.format(type(self).__name__, operand_str)
 
     @staticmethod
@@ -445,14 +435,15 @@ class Operation(Expression, metaclass=_OperationMeta):
                 return True
             elif right < left:
                 return False
-        return False
+        return (self.variable or '') < (other.variable or '')
 
     def __eq__(self, other):
         if not isinstance(other, type(self)):
             return NotImplemented
         return (
             len(self.operands) == len(other.operands) and
-            all(x == y for x, y in zip(self.operands, other.operands))
+            all(x == y for x, y in zip(self.operands, other.operands)) and
+            self.variable == other.variable
         )
 
     def __getitem__(self, key: Tuple[int, ...]) -> Expression:
@@ -472,6 +463,8 @@ class Operation(Expression, metaclass=_OperationMeta):
         return all(o.is_syntactic for o in self.operands)
 
     def collect_variables(self, variables) -> None:
+        if self.variable:
+            variables.add(self.variable)
         for operand in self.operands:
             operand.collect_variables(variables)
 
@@ -490,10 +483,10 @@ class Operation(Expression, metaclass=_OperationMeta):
         return hash((self.name, ) + tuple(self.operands))
 
     def with_renamed_vars(self, renaming) -> 'Operation':
-        return type(self)(*(o.with_renamed_vars(renaming) for o in self.operands))
+        return type(self)(*(o.with_renamed_vars(renaming) for o in self.operands), variable=renaming.get(self.variable, self.variable))
 
     def __copy__(self) -> 'Operation':
-        return type(self)(*self.operands)
+        return type(self)(*self.operands, variable=self.variable)
 
 
 class Atom(Expression):  # pylint: disable=abstract-method
@@ -511,216 +504,51 @@ class Symbol(Atom):
             The symbol's name.
     """
 
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, variable=None) -> None:
         """
         Args:
             name:
                 The name of the symbol that uniquely identifies it.
         """
-        super().__init__()
+        super().__init__(variable)
         self.name = name
         self.head = self
 
     def __str__(self):
+        if self.variable:
+            return '{}: {}'.format(self.name, self.variable)
         return self.name
 
     def __repr__(self):
+        if self.variable:
+            return '{!s}({!r}, variable={})'.format(type(self).__name__, self.name, self.variable)
         return '{!s}({!r})'.format(type(self).__name__, self.name)
 
     def collect_symbols(self, symbols):
         symbols.add(self.name)
 
     def with_renamed_vars(self, renaming) -> 'Symbol':
-        return type(self)(self.name)
+        return type(self)(self.name, variable=renaming.get(self.variable, self.variable))
 
     def __copy__(self) -> 'Symbol':
-        return type(self)(self.name)
+        return type(self)(self.name, variable=self.variable)
 
     def __lt__(self, other):
         if not isinstance(other, Expression):
             return NotImplemented
         if isinstance(other, Symbol):
+            if self.name == other.name:
+                return (self.variable or '') < (other.variable or '')
             return self.name < other.name
         return type(self).__name__ < type(other).__name__
 
     def __eq__(self, other):
         if not isinstance(other, type(self)):
             return NotImplemented
-        return self.name == other.name
+        return self.name == other.name and self.variable == other.variable
 
     def __hash__(self):
-        return hash((Symbol, self.name))
-
-
-class Variable(Expression):
-    """A variable that is captured during a match.
-
-    Wraps another pattern expression that is used to match. On match, the matched
-    value is captured for the variable.
-
-    Attributes:
-        name (str):
-            The name of the variable that is used to capture its value in the match.
-            Can be used to access its value in constraints or for replacement.
-        expression (Expression):
-            The expression that is used for matching. On match, its value will be
-            assigned to the variable. Usually, a `Wildcard` is used to match
-            any expression.
-
-    """
-
-    def __init__(self, name: str, expression: Expression) -> None:
-        """
-        Args:
-            name:
-                The name of the variable that is used to capture its value in the match.
-                Can be used to access its value in constraints or for replacement.
-            expression:
-                The expression that is used for matching. On match, its value will be
-                assigned to the variable. Usually, a `Wildcard` is used to match
-                any expression.
-
-        Raises:
-            ValueError: if the expression contains a variable. Nested variables are not supported.
-        """
-        super().__init__()
-
-        if expression.variables:
-            raise ValueError("Cannot have nested variables in expression.")
-
-        if expression.is_constant:
-            raise ValueError("Cannot have constant expression for a variable.")
-
-        self.name = name
-        self.expression = expression
-        self.head = expression.head
-
-    def _is_constant(self) -> bool:
-        return self.expression.is_constant
-
-    def _is_syntactic(self) -> bool:
-        return self.expression.is_syntactic
-
-    def collect_variables(self, variables) -> None:
-        variables.add(self)
-        self.expression.collect_symbols(variables)
-
-    def collect_symbols(self, symbols) -> None:
-        self.expression.collect_symbols(symbols)
-
-    def with_renamed_vars(self, renaming) -> 'Variable':
-        name = renaming.get(self.name, self.name)
-        return type(self)(name, self.expression.with_renamed_vars(renaming))
-
-    @staticmethod
-    def dot(name: str) -> 'Variable':
-        """Create a `Variable` with a `Wildcard` that matches exactly one argument.
-
-        Args:
-            name:
-                The name of the variable.
-
-        Returns:
-            A `Variable` with a `Wildcard` that matches exactly one argument.
-        """
-        return Variable(name, Wildcard.dot())
-
-    @staticmethod
-    def symbol(name: str, symbol_type: Type[Symbol]=Symbol) -> 'Variable':
-        """Create a `Variable` with a `SymbolWildcard`.
-
-        Args:
-            name:
-                The name of the variable.
-            symbol_type:
-                An optional subclass of `Symbol` to further limit which kind of symbols are
-                matched by the wildcard.
-
-        Returns:
-            A `Variable` that matches a `Symbol` with type *symbol_type*
-        """
-        return Variable(name, Wildcard.symbol(symbol_type))
-
-    @staticmethod
-    def star(name: str) -> 'Variable':
-        """Creates a `Variable` with `Wildcard` that matches any number of arguments.
-
-        Args:
-            name:
-                The name of the variable.
-
-        Returns:
-            A `Variable` with a `Wildcard` that matches any number of arguments.
-        """
-        return Variable(name, Wildcard.star())
-
-    @staticmethod
-    def plus(name: str) -> 'Variable':
-        """Creates a `Variable` with `Wildcard` that matches at least one and up to any number of arguments.
-
-        Args:
-            name:
-                The name of the variable.
-
-        Returns:
-            A `Variable` with a `Wildcard` that matches at least one and up to any number of arguments.
-        """
-        return Variable(name, Wildcard.plus())
-
-    @staticmethod
-    def fixed(name: str, length: int) -> 'Variable':
-        """Creates a `Variable` with `Wildcard` that matches exactly *length* expressions.
-
-        Args:
-            name:
-                The name of the variable.
-            length:
-                The length of the variable.
-
-        Returns:
-            A `Variable` with `Wildcard` that matches exactly *length* expressions.
-        """
-        return Variable(name, Wildcard.dot(length))
-
-    def _preorder_iter(self, predicate: ExprPredicate=None, position: Tuple[int, ...]=()) -> ExpressionsWithPos:
-        if predicate is None or predicate(self):
-            yield self, position
-        yield from self.expression._preorder_iter(predicate, position + (0, ))  # pylint: disable=protected-access
-
-    def __str__(self):
-        if isinstance(self.expression, Wildcard):
-            return self.name + str(self.expression)
-        return '{!s}: {!s}'.format(self.name, self.expression)
-
-    def __repr__(self):
-        return '{!s}({!r}, {!r})'.format(type(self).__name__, self.name, self.expression)
-
-    def __eq__(self, other):
-        return (
-            isinstance(other, type(self)) and self.name == other.name and self.expression == other.expression
-        )
-
-    def __lt__(self, other):
-        if not isinstance(other, Expression):
-            return NotImplemented
-        if isinstance(other, Variable):
-            if self.name == other.name:
-                return self.expression < other.expression
-            return self.name < other.name
-        return type(self).__name__ < type(other).__name__
-
-    def __getitem__(self, key: Tuple[int, ...]) -> Expression:
-        if len(key) == 0:
-            return self
-        if key[0] != 0:
-            raise IndexError("Invalid position.")
-        return self.expression[key[1:]]
-
-    def __hash__(self):
-        return hash((Variable, self.name, self.expression))
-
-    def __copy__(self) -> 'Variable':
-        return type(self)(self.name, self.expression)
+        return hash((Symbol, self.name, self.variable))
 
 
 class Wildcard(Atom):
@@ -739,7 +567,7 @@ class Wildcard(Atom):
 
     head = None
 
-    def __init__(self, min_count: int, fixed_size: bool) -> None:
+    def __init__(self, min_count: int, fixed_size: bool, variable=None) -> None:
         """
         Args:
             min_count:
@@ -756,7 +584,7 @@ class Wildcard(Atom):
         if min_count == 0 and fixed_size:
             raise ValueError("Cannot create a fixed zero length wildcard")
 
-        super().__init__()
+        super().__init__(variable)
         self.min_count = min_count
         self.fixed_size = fixed_size
 
@@ -767,24 +595,22 @@ class Wildcard(Atom):
         return self.fixed_size
 
     def with_renamed_vars(self, renaming) -> 'Wildcard':
-        return type(self)(self.min_count, self.fixed_size)
+        return type(self)(self.min_count, self.fixed_size, variable=renaming.get(self.variable, self.variable))
 
     @staticmethod
-    def dot(length: int=1) -> 'Wildcard':
-        """Create a `Wildcard` that matches a fixed number *length* of arguments.
-
-        Defaults to matching only a single argument.
+    def dot(name=None) -> 'Wildcard':
+        """Create a `Wildcard` that matches a a single argument.
 
         Args:
-            length: The fixed number of arguments to match.
+            name: An optional variable name for the wildcard.
 
         Returns:
             A wildcard with a fixed size.
         """
-        return Wildcard(min_count=length, fixed_size=True)
+        return Wildcard(min_count=1, fixed_size=True, variable=name)
 
     @staticmethod
-    def symbol(symbol_type: Type[Symbol]=Symbol) -> 'SymbolWildcard':
+    def symbol(name: str=None, symbol_type: Type[Symbol]=Symbol) -> 'SymbolWildcard':
         """Create a `SymbolWildcard` that matches a single `Symbol` argument.
 
         Args:
@@ -795,25 +621,27 @@ class Wildcard(Atom):
         Returns:
             A `SymbolWildcard` that matches the *symbol_type*.
         """
-        return SymbolWildcard(symbol_type)
+        if isinstance(name, type) and issubclass(name, Symbol) and symbol_type is Symbol:
+            return SymbolWildcard(name)
+        return SymbolWildcard(symbol_type, variable=name)
 
     @staticmethod
-    def star() -> 'Wildcard':
+    def star(name=None) -> 'Wildcard':
         """Creates a `Wildcard` that matches any number of arguments.
 
         Returns:
             A wildcard that matches any number of arguments.
         """
-        return Wildcard(min_count=0, fixed_size=False)
+        return Wildcard(min_count=0, fixed_size=False, variable=name)
 
     @staticmethod
-    def plus() -> 'Wildcard':
+    def plus(name=None) -> 'Wildcard':
         """Creates a `Wildcard` that matches at least one and up to any number of arguments
 
         Returns:
             A wildcard that matches at least one and up to any number of arguments
         """
-        return Wildcard(min_count=1, fixed_size=False)
+        return Wildcard(min_count=1, fixed_size=False, variable=name)
 
     def __str__(self):
         value = None
@@ -826,15 +654,21 @@ class Wildcard(Atom):
             value = '_'
         if value is None:
             value = '_[{:d}{!s}]'.format(self.min_count, '' if self.fixed_size else '+')
+        if self.variable:
+            value = '{}{}'.format(self.variable, value)
         return value
 
     def __repr__(self):
+        if self.variable:
+            return '{!s}({!r}, {!r}, variable={})'.format(type(self).__name__, self.min_count, self.fixed_size, self.variable)
         return '{!s}({!r}, {!r})'.format(type(self).__name__, self.min_count, self.fixed_size)
 
     def __lt__(self, other):
         if not isinstance(other, Expression):
             return NotImplemented
         if isinstance(other, Wildcard):
+            if self.min_count == other.min_count and self.fixed_size == other.fixed_size:
+                return (self.variable or '') < (other.variable or '')
             return self.min_count < other.min_count or (self.fixed_size and not other.fixed_size)
         return type(self).__name__ < type(other).__name__
 
@@ -842,14 +676,14 @@ class Wildcard(Atom):
         if not isinstance(other, type(self)):
             return NotImplemented
         return (
-            other.min_count == self.min_count and other.fixed_size == self.fixed_size
+            other.min_count == self.min_count and other.fixed_size == self.fixed_size and self.variable == other.variable
         )
 
     def __hash__(self):
-        return hash((Wildcard, self.min_count, self.fixed_size))
+        return hash((Wildcard, self.min_count, self.fixed_size, self.variable))
 
     def __copy__(self) -> 'Wildcard':
-        return type(self)(self.min_count, self.fixed_size)
+        return type(self)(self.min_count, self.fixed_size, variable=self.variable)
 
 
 class SymbolWildcard(Wildcard):
@@ -861,7 +695,7 @@ class SymbolWildcard(Wildcard):
             If not specified, the wildcard will match any `Symbol`.
     """
 
-    def __init__(self, symbol_type: Type[Symbol]=Symbol) -> None:
+    def __init__(self, symbol_type: Type[Symbol]=Symbol, variable=None) -> None:
         """
         Args:
             symbol_type:
@@ -871,7 +705,7 @@ class SymbolWildcard(Wildcard):
         Raises:
             TypeError: if *symbol_type* is not a subclass of `Symbol`.
         """
-        super().__init__(1, True)
+        super().__init__(1, True, variable)
 
         if not issubclass(symbol_type, Symbol):
             raise TypeError("The type constraint must be a subclass of Symbol")
@@ -879,24 +713,41 @@ class SymbolWildcard(Wildcard):
         self.symbol_type = symbol_type
 
     def with_renamed_vars(self, renaming) -> 'SymbolWildcard':
-        return type(self)(self.symbol_type)
+        return type(self)(self.symbol_type, variable=renaming.get(self.variable, self.variable))
+
+    def __lt__(self, other):
+        if not isinstance(other, Expression):
+            return NotImplemented
+        if isinstance(other, SymbolWildcard):
+            if self.symbol_type == other.symbol_type:
+                return (self.variable or '') < (other.variable or '')
+            return self.symbol_type.__name__ < other.symbol_type.__name__
+        if isinstance(other, Wildcard):
+            if other.min_count == 1 and other.fixed_size:
+                return not (other.variable or '') < (self.variable or '')
+            return other.min_count > 1 or not other.fixed_size
+        return type(self).__name__ < type(other).__name__
 
     def __eq__(self, other):
         return (
-            isinstance(other, type(self)) and self.symbol_type == other.symbol_type
+            isinstance(other, type(self)) and self.symbol_type == other.symbol_type and self.variable == other.variable
         )
 
     def __hash__(self):
-        return hash((SymbolWildcard, self.symbol_type))
+        return hash((SymbolWildcard, self.symbol_type, self.variable))
 
     def __repr__(self):
+        if self.variable:
+            return '{!s}({!r}, variable={})'.format(type(self).__name__, self.symbol_type, self.variable)
         return '{!s}({!r})'.format(type(self).__name__, self.symbol_type)
 
     def __str__(self):
+        if self.variable:
+            return '{}_[{!s}]'.format(self.variable, self.symbol_type.__name__)
         return '_[{!s}]'.format(self.symbol_type.__name__)
 
     def __copy__(self) -> 'SymbolWildcard':
-        return type(self)(self.symbol_type)
+        return type(self)(self.symbol_type, self.variable)
 
 
 class Pattern:

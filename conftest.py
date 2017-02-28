@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import pytest
 
-from matchpy.expressions.expressions import Operation, Symbol, Variable, Arity, Wildcard
+from matchpy.expressions.expressions import Operation, Symbol, Arity, Wildcard
 import matchpy
 
 @pytest.fixture(autouse=True)
@@ -10,8 +10,8 @@ def add_default_expressions(doctest_namespace):
     doctest_namespace['a'] = Symbol('a')
     doctest_namespace['b'] = Symbol('b')
     doctest_namespace['c'] = Symbol('c')
-    doctest_namespace['x_'] = Variable.dot('x')
-    doctest_namespace['y_'] = Variable.dot('y')
+    doctest_namespace['x_'] = Wildcard.dot('x')
+    doctest_namespace['y_'] = Wildcard.dot('y')
     doctest_namespace['_'] = Wildcard.dot()
     doctest_namespace['__'] = Wildcard.plus()
     doctest_namespace['___'] = Wildcard.star()

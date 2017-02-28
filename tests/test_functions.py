@@ -3,7 +3,7 @@ from hypothesis import assume, given
 import hypothesis.strategies as st
 import pytest
 
-from matchpy.expressions.expressions import Arity, Operation, Symbol, Variable, Wildcard, Pattern
+from matchpy.expressions.expressions import Arity, Operation, Symbol, Wildcard, Pattern
 from matchpy.functions import ReplacementRule, replace, replace_all, substitute, replace_many, is_match
 from matchpy.matching.one_to_one import match_anywhere
 from matchpy.matching.one_to_one import match as match_one_to_one
@@ -49,13 +49,6 @@ class TestSubstitute:
         assert did_replace == replaced, "Substitution did not yield expected result"
         if not did_replace:
             assert result is expression, "When nothing is substituted, the original expression has to be returned"
-
-    def test_error_with_nested_variables(self):
-        with pytest.raises(ValueError):
-            substitute(Variable('x', Variable('y', a)), {'y': [a, b]})
-
-        with pytest.raises(ValueError):
-            substitute(Variable('x', Variable('y', a)), {'y': []})
 
 
 def many_replace_wrapper(expression, position, replacement):

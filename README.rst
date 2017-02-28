@@ -26,30 +26,30 @@ Expressions and patterns both have a tree structure. Expressions consist of symb
     >>> print(f(a, a))
     f(a, a)
 
-Patterns are expressions which can additionally contain variables and wildcards. Variables can give a
-name to a node of the pattern so that it can be accessed later. Wildcards are placeholders that stand for any
-expression. Usually, the two are used in combination::
+Patterns are expressions which can additionally contain wildcards and subexpressions can have a variable name assigned
+to them. During matching, a subject matching a pattern with a variable will be captured so it can be accessed later.
+Wildcards are placeholders that stand for any expression. Usually, the wildcards are used in combination with a variable
+name::
 
-    >>> from matchpy.expressions import Variable
-    >>> x = Variable.dot('x')
+    >>> from matchpy.expressions import Wildcard
+    >>> x = Wildcard.dot('x')
     >>> print(f(a, x))
     f(a, x_)
 
 However, unnamed wildcards can also be used::
 
-    >>> from matchpy.expressions import Wildcard
     >>> w = Wildcard.dot()
     >>> print(f(w, w))
     f(_, _)
 
 Or a more complex expression can be named with a variable::
 
-    >>> print(Variable('y', f(w, a)))
+    >>> print(f(w, a, variable='y'))
     y: f(_, a)
 
-In addition, it supports sequence wildcards that stand for multiple expressions::
+In addition, sequence wildcards that can match for multiple expressions are supported::
 
-    >>> z = Variable.plus('z')
+    >>> z = Wildcard.plus('z')
     >>> print(f(z))
     f(z__)
 
@@ -60,7 +60,7 @@ Substitutions
 Matches are given in the form of substitutions, which are a mapping from variable names to expressions::
 
     >>> from matchpy.matching.one_to_one import match
-    >>> y = Variable.dot('y')
+    >>> y = Wildcard.dot('y')
     >>> b = Symbol('b')
     >>> expression = f(a, b)
     >>> pattern = Pattern(f(x, y))

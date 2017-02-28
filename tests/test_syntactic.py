@@ -5,7 +5,7 @@ from hypothesis import assume, example, given
 import hypothesis.strategies as st
 import pytest
 
-from matchpy.expressions.expressions import Atom, Operation, Symbol, Variable, Wildcard, Pattern
+from matchpy.expressions.expressions import Atom, Operation, Symbol, Wildcard, Pattern
 from matchpy.matching.one_to_one import match
 from matchpy.matching.syntactic import OPERATION_END as OP_END
 from matchpy.matching.syntactic import DiscriminationNet, FlatTerm, SequenceMatcher, is_operation, is_symbol_wildcard
@@ -21,7 +21,7 @@ CONSTANT_EXPRESSIONS = [e for e in [a, b, c, d]]
         (_,                     [_]),
         (x_,                    [_]),
         (_s,                    [Symbol]),
-        (Variable('v', f(_)),   [f, _, OP_END]),
+        (f(_, variable='v'),    [f, _, OP_END]),
         (f(),                   [f, OP_END]),
         (f(a),                  [f, a, OP_END]),
         (f2(b),                 [f2, b, OP_END]),
@@ -34,7 +34,7 @@ CONSTANT_EXPRESSIONS = [e for e in [a, b, c, d]]
         (f(a, f2(b), c),        [f, a, f2, b, OP_END, c, OP_END]),
         (f(f2(b), f2(c)),       [f, f2, b, OP_END, f2, c, OP_END, OP_END]),
         (f(f(f2(b)), f2(c)),    [f, f, f2, b, OP_END, OP_END, f2, c, OP_END, OP_END]),
-        (f(_, _),               [f, Wildcard.dot(2), OP_END]),
+        (f(_, _),               [f, Wildcard(2, True), OP_END]),
         (f(_, __),              [f, Wildcard(2, False), OP_END]),
         (f(_, __, __),          [f, Wildcard(3, False), OP_END]),
         (f(_, ___),             [f, __, OP_END]),

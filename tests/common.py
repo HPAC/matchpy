@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from matchpy.expressions.expressions import (Arity, Operation, Symbol, Variable, Wildcard, SymbolWildcard)
+from matchpy.expressions.expressions import (Arity, Operation, Symbol, Wildcard, SymbolWildcard)
 
 from .utils import MockConstraint
 
@@ -24,19 +24,19 @@ s = SpecialSymbol('s')
 _ = Wildcard.dot()
 _s = Wildcard.symbol()
 _ss = Wildcard.symbol(SpecialSymbol)
-x_ = Variable.dot('x')
-s_ = Variable.symbol('s')
-ss_ = Variable.symbol('ss', SpecialSymbol)
-y_ = Variable.dot('y')
-z_ = Variable.dot('z')
+x_ = Wildcard.dot('x')
+s_ = Wildcard.symbol('s')
+ss_ = Wildcard.symbol('ss', SpecialSymbol)
+y_ = Wildcard.dot('y')
+z_ = Wildcard.dot('z')
 __ = Wildcard.plus()
-x__ = Variable.plus('x')
-y__ = Variable.plus('y')
-z__ = Variable.plus('z')
+x__ = Wildcard.plus('x')
+y__ = Wildcard.plus('y')
+z__ = Wildcard.plus('z')
 ___ = Wildcard.star()
-x___ = Variable.star('x')
-y___ = Variable.star('y')
-z___ = Variable.star('z')
+x___ = Wildcard.star('x')
+y___ = Wildcard.star('y')
+z___ = Wildcard.star('z')
 
 mock_constraint_false = MockConstraint(False)
 mock_constraint_true = MockConstraint(True)
@@ -44,7 +44,6 @@ mock_constraint_true = MockConstraint(True)
 del Arity
 del Operation
 del Symbol
-del Variable
 del Wildcard
 del MockConstraint
 

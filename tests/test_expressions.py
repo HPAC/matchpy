@@ -5,7 +5,7 @@ import itertools
 import pytest
 from multiset import Multiset
 
-from matchpy.expressions.expressions import (Arity, Operation, Symbol, SymbolWildcard, Variable, Wildcard, Expression)
+from matchpy.expressions.expressions import (Arity, Operation, Symbol, SymbolWildcard, Wildcard, Expression)
 from .common import *
 
 SIMPLE_EXPRESSIONS = [
@@ -14,7 +14,7 @@ SIMPLE_EXPRESSIONS = [
     f(a, b),
     x_,
     ___,
-    Variable('x', f(_)),
+    f(_, variable='x'),
     s_,
     _s,
 ]
@@ -45,16 +45,20 @@ class TestExpression:
         assert expression == simplified
 
     @pytest.mark.parametrize(
-        '   operation,                                              operands,   expected_error',
+        '   operation,                                              operands,       expected_error',
         [
-            (Operation.new('f', Arity.unary),                       [],         ValueError),
-            (Operation.new('f', Arity.unary),                       [a, b],     ValueError),
-            (Operation.new('f', Arity.variadic),                    [],         None),
-            (Operation.new('f', Arity.variadic),                    [a],        None),
-            (Operation.new('f', Arity.variadic),                    [a, b],     None),
-            (Operation.new('f', Arity.binary, associative=True),    [a, a, b],  ValueError),
-            (Operation.new('f', Arity.binary),                      [x_, x___], ValueError),
-            (Operation.new('f', Arity.binary),                      [x_, x_],   None),
+            (Operation.new('f', Arity.unary),                       [],             ValueError),
+            (Operation.new('f', Arity.unary),                       [a, b],         ValueError),
+            (Operation.new('f', Arity.variadic),                    [],             None),
+            (Operation.new('f', Arity.variadic),                    [a],            None),
+            (Operation.new('f', Arity.variadic),                    [a, b],         None),
+            (Operation.new('f', Arity.binary, associative=True),    [a, a, b],      ValueError),
+            (Operation.new('f', Arity.binary),                      [x_, x___],     None),
+            (Operation.new('f', Arity.binary),                      [x_, x__],      None),
+            (Operation.new('f', Arity.binary),                      [x_, x_, x__],  ValueError),
+            (Operation.new('f', Arity.binary),                      [x_, x_, x___], None),
+            (Operation.new('f', Arity.binary),                      [x_, x_],       None),
+            (Operation.new('f', Arity.binary),                      [x_, x_, x_],   ValueError),
         ]
     )  # yapf: disable
     def test_operation_errors(self, operation, operands, expected_error):
@@ -129,14 +133,14 @@ class TestExpression:
         '   expression,             variables',
         [
             (a,                     []),
-            (x_,                    [x_]),
+            (x_,                    ['x']),
             (_,                     []),
             (f(a),                  []),
-            (f(x_),                 [x_]),
-            (f(x_, x_),             [x_, x_]),
-            (f(x_, a),              [x_]),
-            (f(x_, a, y_),          [x_, y_]),
-            (f(f(x_), f(b, x_)),    [x_, x_]),
+            (f(x_),                 ['x']),
+            (f(x_, x_),             ['x', 'x']),
+            (f(x_, a),              ['x']),
+            (f(x_, a, y_),          ['x', 'y']),
+            (f(f(x_), f(b, x_)),    ['x', 'x']),
         ]
     )  # yapf: disable
     def test_variables(self, expression, variables):
@@ -147,10 +151,8 @@ class TestExpression:
         [                                               # expression        position
             (f(a, x_),      None,                       [(f(a, x_),         ()),
                                                          (a,                (0, )),
-                                                         (x_,               (1, )),
-                                                         (_,                (1, 0))]),
-            (f(a, f(x_)),   lambda e: e.head is None,   [(x_,               (1, 0)),
-                                                         (_,                (1, 0, 0))]),
+                                                         (x_,               (1, ))]),
+            (f(a, f(x_)),   lambda e: e.head is None,   [(x_,               (1, 0))]),
             (f(a, f(x_)),   lambda e: e.head == f,      [(f(a, f(x_)),      ()),
                                                          (f(x_),            (1, ))])
         ]
@@ -169,8 +171,7 @@ class TestExpression:
             ((0, 0),        IndexError),
             ((1, ),         f(x_, b)),
             ((1, 0),        x_),
-            ((1, 0, 0),     _),
-            ((1, 0, 1),     IndexError),
+            ((1, 0, 0),     IndexError),
             ((1, 1),        b),
             ((1, 1, 0),     IndexError),
             ((1, 2),        IndexError),
@@ -187,22 +188,24 @@ class TestExpression:
             assert result == expected_result
 
     @pytest.mark.parametrize(
-        '   expression1,    expression2',
+        '   expression1,                    expression2',
         [
-            (a,             b),
-            (a,             x_),
-            (x_,            y_),
-            (x_,            x__),
-            (f(a),          f(b)),
-            (f(a),          f(a, a)),
-            (f(b),          f(a, a)),
-            (f(a, a),       f(a, b)),
-            (f(a, a),       f(a, a, a)),
-            (a,             f(a)),
-            (x_,            f(a)),
-            (_,             f(a)),
-            (x_,            _),
-            (a,             _),
+            (a,                             b),
+            (a,                             Symbol('a', variable='x')),
+            (Symbol('a', variable='x'),     Symbol('a', variable='y')),
+            (a,                             _),
+            (a,                             x_),
+            (_,                             x_),
+            (x_,                            y_),
+            (x_,                            x__),
+            (f(a),                          f(b)),
+            (f(a),                          f(a, a)),
+            (f(b),                          f(a, a)),
+            (f(a, a),                       f(a, b)),
+            (f(a, a),                       f(a, a, a)),
+            (a,                             f(a)),
+            (x_,                            f(a)),
+            (_,                             f(a)),
         ]
     )  # yapf: disable
     def test_lt(self, expression1, expression2):
@@ -220,13 +223,6 @@ class TestExpression:
 
         with pytest.raises(ValueError):
             _ = Operation.new('+', Arity.variadic)
-
-    def test_variable_error(self):
-        with pytest.raises(ValueError):
-            _ = Variable('x', Variable.fixed('y', 2))
-
-        with pytest.raises(ValueError):
-            _ = Variable('x', a)
 
     def test_wildcard_error(self):
         with pytest.raises(ValueError):

@@ -15,7 +15,7 @@ from typing import Callable, List, NamedTuple, Sequence, Tuple, Union, Iterable
 
 from multiset import Multiset
 
-from .expressions.expressions import Expression, Operation, Variable, Pattern
+from .expressions.expressions import Expression, Operation, Pattern
 from .expressions.substitution import Substitution
 from .matching.one_to_one import match
 
@@ -63,9 +63,8 @@ def substitute(expression: Union[Expression, Pattern], substitution: Substitutio
     """
     if isinstance(expression, Pattern):
         expression = expression.expression
-    if isinstance(expression, Variable):
-        if expression.name in substitution:
-            return substitution[expression.name], True
+    if expression.variable and expression.variable in substitution:
+        return substitution[expression.variable], True
     elif isinstance(expression, Operation):
         any_replaced = False
         new_operands = []
