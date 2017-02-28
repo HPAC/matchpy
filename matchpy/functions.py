@@ -24,30 +24,32 @@ __all__ = ['substitute', 'replace', 'replace_all', 'replace_many', 'is_match']
 Replacement = Union[Expression, List[Expression]]
 
 
-def substitute(expression: Union[Expression, Pattern], substitution: Substitution) -> Tuple[Replacement, bool]:
-    """Replaces variables in the given `expression` by the given `substitution`.
+def substitute(expression: Union[Expression, Pattern], substitution: Substitution) -> Replacement:
+    """Replaces variables in the given *expression* using the given *substitution*.
 
-    >>> print(substitute(f(x_), {'x': a})[0])
+    >>> print(substitute(f(x_), {'x': a}))
     f(a)
 
-    In addition to the resulting expression(s), a bool is returned indicating whether anything was substituted.
     If nothing was substituted, the original expression is returned:
 
-    >>> result, was_substituted = substitute(f(x_), {'y': a})
-    >>> print(result, was_substituted)
-    f(x_) False
+    >>> expression = f(x_)
+    >>> result = substitute(expression, {'y': a})
+    >>> print(result)
+    f(x_)
+    >>> expression is result
+    True
 
     Note that this function returns a list of expressions iff the expression is a variable and its substitution
     is a list of expressions. In other cases were a substitution is a list of expressions, the expressions will
     be integrated as operands in the surrounding operation:
 
-    >>> print(substitute(f(x_, c), {'x': [a, b]})[0])
+    >>> print(substitute(f(x_, c), {'x': [a, b]}))
     f(a, b, c)
 
     If you substitute with a `Multiset` of values, they will be sorted:
 
     >>> replacement = Multiset([b, a, b])
-    >>> print(substitute(f(x_, c), {'x': replacement})[0])
+    >>> print(substitute(f(x_, c), {'x': replacement}))
     f(a, b, b, c)
 
     Parameters:
@@ -63,13 +65,16 @@ def substitute(expression: Union[Expression, Pattern], substitution: Substitutio
     """
     if isinstance(expression, Pattern):
         expression = expression.expression
+    return _substitute(expression, substitution)[0]
+
+def _substitute(expression: Expression, substitution: Substitution) -> Tuple[Replacement, bool]:
     if expression.variable and expression.variable in substitution:
         return substitution[expression.variable], True
     elif isinstance(expression, Operation):
         any_replaced = False
         new_operands = []
         for operand in expression.operands:
-            result, replaced = substitute(operand, substitution)
+            result, replaced = _substitute(operand, substitution)
             if replaced:
                 any_replaced = True
             if isinstance(result, Expression):

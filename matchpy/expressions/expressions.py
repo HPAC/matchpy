@@ -668,7 +668,13 @@ class Wildcard(Atom):
             return NotImplemented
         if isinstance(other, Wildcard):
             if self.min_count == other.min_count and self.fixed_size == other.fixed_size:
-                return (self.variable or '') < (other.variable or '')
+                if self.variable != other.variable:
+                    return (self.variable or '') < (other.variable or '')
+                if isinstance(self, SymbolWildcard):
+                    if isinstance(other, SymbolWildcard):
+                        return self.symbol_type.__name__ < other.symbol_type.__name__
+                    return False
+                return isinstance(other, SymbolWildcard)
             return self.min_count < other.min_count or (self.fixed_size and not other.fixed_size)
         return type(self).__name__ < type(other).__name__
 
@@ -715,19 +721,6 @@ class SymbolWildcard(Wildcard):
     def with_renamed_vars(self, renaming) -> 'SymbolWildcard':
         return type(self)(self.symbol_type, variable=renaming.get(self.variable, self.variable))
 
-    def __lt__(self, other):
-        if not isinstance(other, Expression):
-            return NotImplemented
-        if isinstance(other, SymbolWildcard):
-            if self.symbol_type == other.symbol_type:
-                return (self.variable or '') < (other.variable or '')
-            return self.symbol_type.__name__ < other.symbol_type.__name__
-        if isinstance(other, Wildcard):
-            if other.min_count == 1 and other.fixed_size:
-                return not (other.variable or '') < (self.variable or '')
-            return other.min_count > 1 or not other.fixed_size
-        return type(self).__name__ < type(other).__name__
-
     def __eq__(self, other):
         return (
             isinstance(other, type(self)) and self.symbol_type == other.symbol_type and self.variable == other.variable
@@ -764,6 +757,11 @@ class Pattern:
         if not self.constraints:
             return '{}({})'.format(type(self).__name__, self.expression)
         return '{}({}, constraints={})'.format(type(self).__name__, self.expression, self.constraints)
+
+    def __eq__(self, other):
+        if not isinstance(other, Pattern):
+            return NotImplemented
+        return self.expression == other.expression and self.constraints == other.constraints
 
     @property
     def is_syntactic(self):

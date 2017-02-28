@@ -24,7 +24,7 @@ class MockConstraint(Constraint):
         return 'MockConstraint(%r, %r)' % (self.return_value, self.variables)
 
     def with_renamed_vars(self, renaming):
-        self.renaming = renaming
+        self.renaming.update(renaming)
         return self
 
     @property

@@ -12,24 +12,25 @@ from .common import *
 
 class TestSubstitution:
     @pytest.mark.parametrize(
-        '   substitution,                   variable,   value,                 expected_result',
+        '   substitution,                   variable,   value,                  expected_result',
         [
-            ({},                            'x',        a,                     {'x': a}),
-            ({'x': a},                      'x',        a,                     {'x': a}),
-            ({'x': a},                      'x',        b,                     ValueError),
-            ({'x': a},                      'x',        (a, b),                ValueError),
-            ({'x': (a, b)},                 'x',        (a, b),                {'x': (a, b)}),
-            ({'x': (a, b)},                 'x',        (a, a),                ValueError),
-            ({'x': (a, b)},                 'x',        Multiset([a, b]),      {'x': (a, b)}),
-            ({'x': (a, b)},                 'x',        Multiset([a]),         ValueError),
-            ({'x': Multiset([a, b])},       'x',        Multiset([a, b]),      {'x': Multiset([a, b])}),
-            ({'x': Multiset([a, b])},       'x',        Multiset([]),          ValueError),
-            ({'x': Multiset([a, b])},       'x',        (a, b),                {'x': (a, b)}),
-            ({'x': Multiset([a, b])},       'x',        (a, a),                ValueError),
-            ({'x': Multiset([a])},          'x',        (a,),                  {'x': (a,)}),
-            ({'x': Multiset([a])},          'x',        (b,),                  ValueError),
-            ({'x': Multiset([a])},          'x',        a,                     {'x': a}),
-            ({'x': Multiset([a])},          'x',        b,                     ValueError),
+            ({},                            'x',        a,                      {'x': a}),
+            ({'x': a},                      'x',        a,                      {'x': a}),
+            ({'x': a},                      'x',        b,                      ValueError),
+            ({'x': a},                      'x',        (a, b),                 ValueError),
+            ({'x': (a, )},                  'x',        a,                      ValueError),
+            ({'x': (a, b)},                 'x',        (a, b),                 {'x': (a, b)}),
+            ({'x': (a, b)},                 'x',        (a, a),                 ValueError),
+            ({'x': (a, b)},                 'x',        Multiset([a, b]),       {'x': (a, b)}),
+            ({'x': (a, b)},                 'x',        Multiset([a]),          ValueError),
+            ({'x': Multiset([a, b])},       'x',        Multiset([a, b]),       {'x': Multiset([a, b])}),
+            ({'x': Multiset([a, b])},       'x',        Multiset([]),           ValueError),
+            ({'x': Multiset([a, b])},       'x',        (a, b),                 {'x': (a, b)}),
+            ({'x': Multiset([a, b])},       'x',        (a, a),                 ValueError),
+            ({'x': Multiset([a])},          'x',        (a, ),                  {'x': (a, )}),
+            ({'x': Multiset([a])},          'x',        (b, ),                  ValueError),
+            ({'x': Multiset([a])},          'x',        a,                      ValueError),
+            ({'x': Multiset([a])},          'x',        b,                      ValueError),
         ]
     )  # yapf: disable
     def test_union_with_var(self, substitution, variable, value, expected_result):

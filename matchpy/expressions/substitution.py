@@ -62,9 +62,9 @@ class Substitution(Dict[str, VariableReplacement]):
                 elif replacement != existing_value:
                     raise ValueError
             elif isinstance(existing_value, Multiset):
-                compare_value = Multiset(
-                    isinstance(replacement, expressions.Expression) and [replacement] or replacement
-                )
+                if isinstance(replacement, expressions.Expression):
+                    raise ValueError
+                compare_value = Multiset(replacement)
                 if existing_value == compare_value:
                     if not isinstance(replacement, Multiset):
                         self[variable] = replacement

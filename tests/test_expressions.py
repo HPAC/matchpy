@@ -130,17 +130,19 @@ class TestExpression:
         assert expression.symbols == Multiset(symbols)
 
     @pytest.mark.parametrize(
-        '   expression,             variables',
+        '   expression,                 variables',
         [
-            (a,                     []),
-            (x_,                    ['x']),
-            (_,                     []),
-            (f(a),                  []),
-            (f(x_),                 ['x']),
-            (f(x_, x_),             ['x', 'x']),
-            (f(x_, a),              ['x']),
-            (f(x_, a, y_),          ['x', 'y']),
-            (f(f(x_), f(b, x_)),    ['x', 'x']),
+            (a,                         []),
+            (x_,                        ['x']),
+            (_,                         []),
+            (f(a),                      []),
+            (f(x_),                     ['x']),
+            (f(x_, x_),                 ['x', 'x']),
+            (f(x_, a),                  ['x']),
+            (f(x_, a, y_),              ['x', 'y']),
+            (f(f(x_), f(b, x_)),        ['x', 'x']),
+            (f(a, variable='x'),        ['x']),
+            (f(f(y_), variable='x'),    ['x', 'y']),
         ]
     )  # yapf: disable
     def test_variables(self, expression, variables):
@@ -194,11 +196,14 @@ class TestExpression:
             (a,                             Symbol('a', variable='x')),
             (Symbol('a', variable='x'),     Symbol('a', variable='y')),
             (a,                             _),
+            (a,                             _s),
             (a,                             x_),
             (_,                             x_),
+            (_s,                            x_),
             (x_,                            y_),
             (x_,                            x__),
             (f(a),                          f(b)),
+            (f(a),                          f2(a)),
             (f(a),                          f(a, a)),
             (f(b),                          f(a, a)),
             (f(a, a),                       f(a, b)),
@@ -206,6 +211,13 @@ class TestExpression:
             (a,                             f(a)),
             (x_,                            f(a)),
             (_,                             f(a)),
+            (_s,                            f(a)),
+            (_s,                            s_),
+            (SymbolWildcard(variable='x'),  SymbolWildcard(variable='y')),
+            (s_,                            ss_),
+            (_s,                            __),
+            (_,                             _s),
+            (SymbolWildcard(SpecialSymbol), SymbolWildcard(Symbol)),
         ]
     )  # yapf: disable
     def test_lt(self, expression1, expression2):

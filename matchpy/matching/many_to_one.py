@@ -127,7 +127,8 @@ class _MatchIter:
 
 
     def _check_transition(self, transition, subject, restore_subject=True):
-        restore_constraints = []
+        restore_constraints = set()
+        restore_patterns = set()
         old_value = None
         try:
             if transition.variable_name is not None:
@@ -136,7 +137,8 @@ class _MatchIter:
                     self.substitution.try_add_variable(transition.variable_name, subject)
                 except ValueError:
                     return
-                if not self._check_constraints(transition.variable_name, restore_constraints):
+                self._check_constraints(transition.variable_name, restore_constraints, restore_patterns)
+                if not self.patterns:
                     return
 
             yield from self._match(transition.target)
@@ -150,25 +152,28 @@ class _MatchIter:
                         self.subjects.extendleft(subject)
             for constraint in restore_constraints:
                 self.constraints.add(constraint)
+            for pattern in restore_patterns:
+                self.patterns.add(pattern)
             if transition.variable_name is not None:
                 if old_value is None:
                     del self.substitution[transition.variable_name]
                 else:
                     self.substitution[transition.variable_name] = old_value
 
-    def _check_constraints(self, variable: str, restore) -> bool:
+    def _check_constraints(self, variable: str, restore_constraints, restore_patterns) -> bool:
         variables = set(self.substitution.keys())
         for constraint_index in self.matcher.constraint_vars.get(variable, []):
             if constraint_index not in self.constraints:
                 continue
             constraint, patterns = self.matcher.constraints[constraint_index]
             if constraint.variables <= variables and not self.patterns.isdisjoint(patterns):
-                if constraint(self.substitution): # TODO: Renaming
-                    self.constraints.remove(constraint_index)
-                    restore.append(constraint_index)
-                else:
-                    return False
-        return True
+                self.constraints.remove(constraint_index)
+                restore_constraints.add(constraint_index)
+                if not constraint(self.substitution): # TODO: Renaming
+                    restore_patterns |= self.patterns & patterns
+                    self.patterns -= patterns
+                    if not self.patterns:
+                        break
 
     @staticmethod
     def _get_heads(expression: Expression) -> Iterator[HeadType]:
@@ -209,21 +214,22 @@ class _MatchIter:
         for operand in subject.operands:
             matcher.add_subject(operand)
         for matched_pattern, new_substitution in matcher.match(subject.operands, substitution):
-            restore_constraints = []
-            valid = True
-            diff = set(substitution.keys()) - set(new_substitution.keys())
-            for variable in diff:
-                if not self._check_constraints(variable, restore_constraints):
-                    for constraint in restore_constraints:
-                        self.constraints.add(constraint)
-                    valid = False
-                    break
-            if not valid:
-                continue
+            restore_constraints = set()
+            restore_patterns = set()
+            diff = set(new_substitution.keys()) - set(substitution.keys())
             self.substitution = new_substitution
-            transition_set = state.transitions[matched_pattern]
-            for next_transition in transition_set:
-                yield from self._check_transition(next_transition, subject, False)
+            for variable in diff:
+                self._check_constraints(variable, restore_constraints, restore_patterns)
+                if not self.patterns:
+                    break
+            if self.patterns:
+                transition_set = state.transitions[matched_pattern]
+                for next_transition in transition_set:
+                    yield from self._check_transition(next_transition, subject, False)
+            for constraint in restore_constraints:
+                self.constraints.add(constraint)
+            for pattern in restore_patterns:
+                self.patterns.add(pattern)
         self.substitution = substitution
         self.subjects.append(subject)
 
@@ -297,8 +303,9 @@ class ManyToOneMatcher:
         """
         pattern_index = len(self.patterns)
         index = 0
-        constraints = [self._add_constraint(c.with_renamed_vars(renaming), pattern_index) for c in pattern.local_constraints]
-        self.patterns.append((pattern, constraints))
+        renamed_constraints = [c.with_renamed_vars(renaming) for c in pattern.local_constraints]
+        constraint_indices = [self._add_constraint(c, pattern_index) for c in renamed_constraints]
+        self.patterns.append((pattern, constraint_indices))
         self.pattern_vars.append(renaming)
         pattern = pattern.expression.with_renamed_vars(renaming)
         state = self.root
@@ -313,7 +320,7 @@ class ManyToOneMatcher:
                     has_pre_constraint = False
                 state = self._create_expression_transition(state, subpattern, subpattern.variable, pattern_index)
                 if getattr(subpattern, 'commutative', False):
-                    subpattern_id = state.matcher.add_pattern(subpattern.operands)
+                    subpattern_id = state.matcher.add_pattern(subpattern.operands, renamed_constraints)
                     state = self._create_simple_transition(state, subpattern_id, pattern_index)
                 index += 1
             else:
@@ -501,8 +508,8 @@ class CommutativeMatcher(object):
         self.bipartite = BipartiteGraph()
         self.associative = associative
 
-    def add_pattern(self, operands: Iterable[Expression]) -> int:
-        pattern_set, pattern_vars = self._extract_sequence_wildcards(operands)
+    def add_pattern(self, operands: Iterable[Expression], constraints) -> int:
+        pattern_set, pattern_vars = self._extract_sequence_wildcards(operands, constraints)
         sorted_vars = tuple(sorted(pattern_vars.values()))
         sorted_subpatterns = tuple(sorted(pattern_set))
         pattern_key = sorted_subpatterns + sorted_vars
@@ -539,10 +546,8 @@ class CommutativeMatcher(object):
             if pattern_set:
                 if not pattern_set <= pattern_ids:
                     continue
-                # print(subject_ids, pattern_set, substitution)
                 bipartite_match_iter = self._match_with_bipartite(subject_ids, pattern_set, substitution)
                 for bipartite_substitution, matched_subjects in bipartite_match_iter:
-                    # print(bipartite_substitution)
                     if pattern_vars:
                         ids = subject_ids - matched_subjects
                         remaining = Multiset(self.subjects[id] for id in ids)  # pylint: disable=not-an-iterable
@@ -562,21 +567,22 @@ class CommutativeMatcher(object):
             elif len(subjects) == 0:
                 yield pattern_index, substitution
 
-    def _extract_sequence_wildcards(self, operands: Iterable[Expression]
-                                   ) -> Tuple[MultisetOfInt, Dict[str, Tuple[VariableWithCount, bool]]]:
+    def _extract_sequence_wildcards(
+        self, operands: Iterable[Expression], constraints
+    ) -> Tuple[MultisetOfInt, Dict[str, Tuple[VariableWithCount, bool]]]:
         pattern_set = Multiset()
         pattern_vars = dict()
         for operand in operands:
             if not self._is_sequence_wildcard(operand):
-                #if isinstance(operand, Wildcard):
-
+                actual_constraints = [c for c in constraints if not operand.variables.isdisjoint(c.variables)]
+                pattern = Pattern(operand, *actual_constraints)
                 index = None
                 for i, (p, _) in enumerate(self.automaton.patterns):
-                    if operand == p.expression:
+                    if pattern == p:
                         index = i
                         break
                 else:
-                    index = self.automaton._internal_add(Pattern(operand), {})
+                    index = self.automaton._internal_add(pattern, {})
                 pattern_set.add(index)
             else:
                 varname = operand.variable
@@ -609,14 +615,12 @@ class CommutativeMatcher(object):
             substitution: Substitution,
     ) -> Iterator[Tuple[Substitution, MultisetOfInt]]:
         bipartite = self._build_bipartite(subject_ids, pattern_set)
-        bipartite.as_graph().render('tmp/bip2')
         anonymous = set(i for i, (p, _) in enumerate(self.automaton.patterns) if not p.expression.variables)
         for matching in enum_maximum_matchings_iter(bipartite):
             if len(matching) < len(pattern_set):
                 break
             if not self._is_canonical_matching(matching, anonymous):
                 continue
-            # print(matching)
             try:
                 bipartite_substitution = substitution.union(*(bipartite[edge] for edge in matching.items()))
             except ValueError:

@@ -121,7 +121,7 @@ class TestMatch:
         assert len(result) == match_count, 'Wrong number of matches'
 
         for subst in result:
-            assert substitute(pattern.expression, subst)[0] == expression, 'Invalid match: {}'.format(subst)
+            assert substitute(pattern.expression, subst) == expression, 'Invalid match: {}'.format(subst)
 
     @pytest.mark.parametrize(
         '   expression,         pattern,    constraint,              expected_matches',
@@ -395,6 +395,13 @@ class TestMatch:
                                                              {'x': [a],         'y': b,        'z': [c]}]),
             (f(a, b, c),                f(x___, y_, z__),   [{'x': [a],         'y': b,        'z': [c]},
                                                              {'x': [],          'y': a,        'z': [b, c]}]),
+            (f(a, a),                   f(x_, x__),         []),
+            (f(a, a),                   f(x__, x_),         []),
+            (f_c(a, a),                 f_c(x__, x_),       []),
+            (f(a, f_c(a)),              f(x__, f_c(x_)),    []),
+            (f(a, f_c(a)),              f(x_, f_c(x__)),    []),
+            (f(f_c(a), a),              f(f_c(x_), x__),    []),
+            (f(f_c(a), a),              f(f_c(x__), x_),    []),
         ]
     )  # yapf: disable
     def test_wildcard_mixed_match(self, match, expression, pattern, expected_matches):
@@ -597,10 +604,30 @@ class TestMatch:
             (f(a),      f(a),           [True],             1),
         ]
     )  # yapf: disable
-    def test_constraint_syntactic_match(
+    def test_global_constraint_syntactic_match(
             self, match_syntactic, expression, pattern, constraint_values, match_count
     ):
         constraints = [MockConstraint(v) for v in constraint_values]
+        pattern = Pattern(pattern, *constraints)
+        expression = expression
+        result = list(match_syntactic(expression, pattern))
+        assert len(result) == match_count, "Wrong number of matched for {!r} and {!r}".format(expression, pattern)
+
+    @pytest.mark.parametrize(
+        'expression,    pattern,        constraint_values,  match_count',
+        [
+            (a,         x_,             [True],             1),
+            (a,         x_,             [False],            0),
+            (f(a, a),   f(x_, x_),      [False, False],     0),
+            (f(a, a),   f(x_, x_),      [True,  False],     0),
+            (f(a, a),   f(x_, x_),      [False, True],      0),
+            (f(a, a),   f(x_, x_),      [True,  True],      1),
+        ]
+    )  # yapf: disable
+    def test_local_constraint_syntactic_match(
+            self, match_syntactic, expression, pattern, constraint_values, match_count
+    ):
+        constraints = [MockConstraint(v, 'x') for v in constraint_values]
         pattern = Pattern(pattern, *constraints)
         expression = expression
         result = list(match_syntactic(expression, pattern))
@@ -634,8 +661,39 @@ class TestMatch:
             (f_c(a, a),     f_c(x___),          [True],             1),
         ]
     )  # yapf: disable
-    def test_constraint_non_syntactic_match(self, match, expression, pattern, constraint_values, match_count):
+    def test_global_constraint_non_syntactic_match(self, match, expression, pattern, constraint_values, match_count):
         constraints = [MockConstraint(v) for v in constraint_values]
+        pattern = Pattern(pattern, *constraints)
+        expression = expression
+        result = list(match(expression, pattern))
+        assert len(result) == match_count, "Wrong number of matched for {!r} and {!r}".format(expression, pattern)
+
+    @pytest.mark.parametrize(
+        'expression,        pattern,            constraint_values,  match_count',
+        [
+            (f_c(a, a),     f_c(x_, x_),        [False, False],     0),
+            (f_c(a, a),     f_c(x_, x_),        [True,  False],     0),
+            (f_c(a, a),     f_c(x_, x_),        [False, True],      0),
+            (f_c(a, a),     f_c(x_, x_),        [True,  True],      1),
+            (f(a, f_c(a)),  f(x_, f_c(x_)),     [False, False],     0),
+            (f(a, f_c(a)),  f(x_, f_c(x_)),     [True, False],      0),
+            (f(a, f_c(a)),  f(x_, f_c(x_)),     [False, True],      0),
+            (f(a, f_c(a)),  f(x_, f_c(x_)),     [True, True],       1),
+            (f_c(a, a),     f_c(x_, x_),        [True,  True],      1),
+            (f_c(a, f(a)),  f_c(x_, f(x_)),     [False, False],     0),
+            (f_c(a, f(a)),  f_c(x_, f(x_)),     [True, False],      0),
+            (f_c(a, f(a)),  f_c(x_, f(x_)),     [False, True],      0),
+            (f_c(a, f(a)),  f_c(x_, f(x_)),     [True, True],       1),
+            (f_c(a, f(a)),  f_c(x_, f(x_)),     [False, False],     0),
+            (f_c(a, f(a)),  f_c(x_, f(x_)),     [True, False],      0),
+            (f_c(a, f(a)),  f_c(x_, f(x_)),     [False, True],      0),
+            (f_c(a, f(a)),  f_c(x_, f(x_)),     [True, True],       1),
+            (f_c(a, a),     f_c(x___),          [False],            0),
+            (f_c(a, a),     f_c(x___),          [True],             1),
+        ]
+    )  # yapf: disable
+    def test_local_constraint_non_syntactic_match(self, match, expression, pattern, constraint_values, match_count):
+        constraints = [MockConstraint(v, 'x') for v in constraint_values]
         pattern = Pattern(pattern, *constraints)
         expression = expression
         result = list(match(expression, pattern))
@@ -692,7 +750,7 @@ def test_randomized_match(match, expression, pattern):
     # Exclude non-matching pairs
     assume(len(results) > 0)
     for result in results:
-        reverse, _ = substitute(pattern.expression, result)
+        reverse = substitute(pattern.expression, result)
         if isinstance(reverse, list) and len(reverse) == 1:
             reverse = reverse[0]
         assert expression == reverse

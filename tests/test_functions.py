@@ -40,14 +40,16 @@ class TestSubstitute:
             (f(x_, c),                          {'x': [a, b]},          f(a, b, c),         True),
             (f(x_, y_),                         {'x': a, 'y': b},       f(a, b),            True),
             (f(x_, y_),                         {'x': [a, c], 'y': b},  f(a, c, b),         True),
-            (f(x_, y_),                         {'x': a, 'y': [b, c]},  f(a, b, c),         True)
+            (f(x_, y_),                         {'x': a, 'y': [b, c]},  f(a, b, c),         True),
+            (Pattern(f(x_)),                    {'x': a},               f(a),               True)
         ]
     )  # yapf: disable
     def test_substitute(self, expression, substitution, expected_result, replaced):
-        result, did_replace = substitute(expression, substitution)
+        result = substitute(expression, substitution)
         assert result == expected_result, "Substitution did not yield expected result"
-        assert did_replace == replaced, "Substitution did not yield expected result"
-        if not did_replace:
+        if replaced:
+            assert result is not expression, "When substituting, the original expression may not be modified"
+        else:
             assert result is expression, "When nothing is substituted, the original expression has to be returned"
 
 

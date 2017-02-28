@@ -71,8 +71,7 @@ Matches are given in the form of substitutions, which are a mapping from variabl
 Replacing the variables in the pattern according to the substitution will yield the original subject expression::
 
     >>> from matchpy.functions import substitute
-    >>> original, _ = substitute(pattern, substitution)
-    >>> print(original)
+    >>> print(substitute(pattern, substitution))
     f(a, b)
 
 

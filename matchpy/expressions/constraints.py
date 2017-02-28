@@ -207,6 +207,6 @@ class CustomConstraint(Constraint):  # pylint: disable=too-few-public-methods
 
     def with_renamed_vars(self, renaming):
         cc = CustomConstraint(self.constraint)
-        for param_name, old_name in list(cc.variables.items()):
-            cc.variables[param_name] = renaming.get(old_name, old_name)
+        for param_name, old_name in list(cc._variables.items()):
+            cc._variables[param_name] = renaming.get(old_name, old_name)
         return cc

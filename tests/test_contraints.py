@@ -98,13 +98,46 @@ def test_custom_constraint_errors():
     with pytest.raises(ValueError):
         CustomConstraint(lambda **kwargs: True)
 
+def test_constraint_vars():
+    assert len(Constraint().variables) == 0
+
 
 def test_equal_variables_constraint_vars():
     c1 = EqualVariablesConstraint('x', 'y')
 
     assert c1.variables == {'x', 'y'}
 
+def test_equal_variables_constraint_with_renamed_vars():
+    c1 = EqualVariablesConstraint('x', 'y')
+    c2 = c1.with_renamed_vars({'x': 'z'})
+
+    assert c2({'x': 1, 'z': 2, 'y': 1}) is False
+    assert c2({'x': 1, 'z': 2, 'y': 2}) is True
+
 
 def test_custom_constraint_vars():
     c1 = CustomConstraint(lambda x, y: True)
     assert c1.variables == {'x', 'y'}
+
+
+def test_custom_constraint_with_renamed_vars():
+    actual_x = None
+    actual_y = None
+
+    def constraint(x, y):
+        nonlocal actual_x
+        nonlocal actual_y
+        actual_x = x
+        actual_y = y
+
+        return x == y
+
+    c1 = CustomConstraint(constraint)
+    c2 = c1.with_renamed_vars({'x': 'z'})
+
+    assert c2({'x': 1, 'z': 2, 'y': 1}) is False
+    assert actual_x == 2
+    assert actual_y == 1
+    assert c2({'x': 1, 'z': 3, 'y': 3}) is True
+    assert actual_x == 3
+    assert actual_y == 3
