@@ -41,15 +41,9 @@ def test_extended_euclid(a, b):
 
 class TestBaseSolutionLinear:
     @given(
-        st.integers(
-            min_value=1, max_value=1000
-        ),
-        st.integers(
-            min_value=1, max_value=1000
-        ),
-        st.integers(
-            min_value=0, max_value=1000
-        )
+        st.integers(min_value=1, max_value=1000),
+        st.integers(min_value=1, max_value=1000),
+        st.integers(min_value=0, max_value=1000),
     )
     def test_correctness(self, a, b, c):
         for x, y in base_solution_linear(a, b, c):
@@ -58,15 +52,9 @@ class TestBaseSolutionLinear:
             assert a * x + b * y == c, "Invalid solution {!r},{!r}".format(x, y)
 
     @given(
-        st.integers(
-            min_value=1, max_value=1000
-        ),
-        st.integers(
-            min_value=1, max_value=1000
-        ),
-        st.integers(
-            min_value=0, max_value=1000
-        )
+        st.integers(min_value=1, max_value=1000),
+        st.integers(min_value=1, max_value=1000),
+        st.integers(min_value=0, max_value=1000),
     )
     def test_completeness(self, a, b, c):
         solutions = set(base_solution_linear(a, b, c))
@@ -76,15 +64,9 @@ class TestBaseSolutionLinear:
                     assert (x, y) in solutions, "Missing solution {!r},{!r}".format(x, y)
 
     @given(
-        st.integers(
-            min_value=1, max_value=1000
-        ),
-        st.integers(
-            min_value=1, max_value=1000
-        ),
-        st.integers(
-            min_value=0, max_value=1000
-        )
+        st.integers(min_value=1, max_value=1000),
+        st.integers(min_value=1, max_value=1000),
+        st.integers(min_value=0, max_value=1000),
     )
     def test_uniqueness(self, a, b, c):
         solutions = list(base_solution_linear(a, b, c))

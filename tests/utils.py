@@ -37,4 +37,6 @@ class MockConstraint(Constraint):
 
     def assert_called_with(self, args):
         args = dict((self.renaming.get(n, n), v) for n, v in args.items())
-        assert args in self.called_with, "Constraint was not called with {}. List of calls: {}".format(args, self.called_with)
+        assert args in self.called_with, "Constraint was not called with {}. List of calls: {}".format(
+            args, self.called_with
+        )

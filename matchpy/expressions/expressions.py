@@ -441,8 +441,7 @@ class Operation(Expression, metaclass=_OperationMeta):
         if not isinstance(other, type(self)):
             return NotImplemented
         return (
-            len(self.operands) == len(other.operands) and
-            all(x == y for x, y in zip(self.operands, other.operands)) and
+            len(self.operands) == len(other.operands) and all(x == y for x, y in zip(self.operands, other.operands)) and
             self.variable == other.variable
         )
 
@@ -483,7 +482,10 @@ class Operation(Expression, metaclass=_OperationMeta):
         return hash((self.name, ) + tuple(self.operands))
 
     def with_renamed_vars(self, renaming) -> 'Operation':
-        return type(self)(*(o.with_renamed_vars(renaming) for o in self.operands), variable=renaming.get(self.variable, self.variable))
+        return type(self)(
+            *(o.with_renamed_vars(renaming) for o in self.operands),
+            variable=renaming.get(self.variable, self.variable)
+        )
 
     def __copy__(self) -> 'Operation':
         return type(self)(*self.operands, variable=self.variable)
@@ -660,7 +662,9 @@ class Wildcard(Atom):
 
     def __repr__(self):
         if self.variable:
-            return '{!s}({!r}, {!r}, variable={})'.format(type(self).__name__, self.min_count, self.fixed_size, self.variable)
+            return '{!s}({!r}, {!r}, variable={})'.format(
+                type(self).__name__, self.min_count, self.fixed_size, self.variable
+            )
         return '{!s}({!r}, {!r})'.format(type(self).__name__, self.min_count, self.fixed_size)
 
     def __lt__(self, other):
@@ -682,7 +686,8 @@ class Wildcard(Atom):
         if not isinstance(other, type(self)):
             return NotImplemented
         return (
-            other.min_count == self.min_count and other.fixed_size == self.fixed_size and self.variable == other.variable
+            other.min_count == self.min_count and other.fixed_size == self.fixed_size and
+            self.variable == other.variable
         )
 
     def __hash__(self):

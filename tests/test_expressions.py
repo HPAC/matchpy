@@ -222,7 +222,8 @@ class TestExpression:
     )  # yapf: disable
     def test_lt(self, expression1, expression2):
         assert expression1 < expression2, "{!s} < {!s} did not hold".format(expression1, expression2)
-        assert not (expression2 < expression1), "Inconsistent order: Both {0} < {1} and {1} < {0}".format(expression2, expression1)
+        assert not (expression2 < expression1
+                   ), "Inconsistent order: Both {0} < {1} and {1} < {0}".format(expression2, expression1)
 
     @pytest.mark.parametrize('expression', [a, f(a), x_, _])
     def test_lt_error(self, expression):

@@ -180,7 +180,6 @@ class CustomConstraint(Constraint):  # pylint: disable=too-few-public-methods
                     "Constraint cannot have positional-only or variable positional arguments ({})".format(param.name)
                 )
 
-
     @property
     def variables(self):
         return frozenset(self._variables.values())

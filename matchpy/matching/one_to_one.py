@@ -78,7 +78,8 @@ def match_anywhere(subject: Expression, pattern: Pattern) -> Iterator[Tuple[Subs
             yield subst, pos
 
 
-def _match(subjects: List[Expression], pattern: Expression, subst: Substitution, constraints: Set[Constraint]) -> Iterator[Substitution]:
+def _match(subjects: List[Expression], pattern: Expression, subst: Substitution,
+           constraints: Set[Constraint]) -> Iterator[Substitution]:
     match_iter = None
     expr = subjects[0] if subjects else None
     if isinstance(pattern, Wildcard):
@@ -217,7 +218,11 @@ def _match_operation(expressions, operation, subst, matcher, constraints):
 
 
 def _match_commutative_operation(
-        subject_operands: Iterable[Expression], pattern: CommutativePatternsParts, substitution: Substitution, constraints, matcher
+        subject_operands: Iterable[Expression],
+        pattern: CommutativePatternsParts,
+        substitution: Substitution,
+        constraints,
+        matcher
 ) -> Iterator[Substitution]:
     subjects = Multiset(subject_operands)  # type: Multiset
     if not pattern.constant <= subjects:

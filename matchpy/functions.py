@@ -67,6 +67,7 @@ def substitute(expression: Union[Expression, Pattern], substitution: Substitutio
         expression = expression.expression
     return _substitute(expression, substitution)[0]
 
+
 def _substitute(expression: Expression, substitution: Substitution) -> Tuple[Replacement, bool]:
     if expression.variable and expression.variable in substitution:
         return substitution[expression.variable], True

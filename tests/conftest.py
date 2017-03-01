@@ -16,7 +16,9 @@ def pytest_generate_tests(metafunc):
 
 def match_many_to_one(expression, pattern):
     try:
-        commutative, _ = next(p for p in pattern.expression.preorder_iter(lambda e: isinstance(e, Operation) and e.commutative))
+        commutative, _ = next(
+            p for p in pattern.expression.preorder_iter(lambda e: isinstance(e, Operation) and e.commutative)
+        )
         next(wc for wc in commutative.preorder_iter(lambda e: isinstance(e, Wildcard) and e.min_count > 1))
     except StopIteration:
         pass

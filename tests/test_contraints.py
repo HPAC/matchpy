@@ -98,6 +98,7 @@ def test_custom_constraint_errors():
     with pytest.raises(ValueError):
         CustomConstraint(lambda **kwargs: True)
 
+
 def test_constraint_vars():
     assert len(Constraint().variables) == 0
 
@@ -106,6 +107,7 @@ def test_equal_variables_constraint_vars():
     c1 = EqualVariablesConstraint('x', 'y')
 
     assert c1.variables == {'x', 'y'}
+
 
 def test_equal_variables_constraint_with_renamed_vars():
     c1 = EqualVariablesConstraint('x', 'y')

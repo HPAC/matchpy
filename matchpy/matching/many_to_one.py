@@ -74,7 +74,10 @@ class _MatchIter:
         for state in self._match(self.matcher.root):
             for pattern_index in self.patterns:
                 renaming = self.matcher.pattern_vars[pattern_index]
-                new_substitution = self.substitution.rename({renamed: original for original, renamed in renaming.items()})
+                new_substitution = self.substitution.rename(
+                    {renamed: original
+                     for original, renamed in renaming.items()}
+                )
                 pattern, _ = self.matcher.patterns[pattern_index]
                 valid = True
                 for constraint in pattern.global_constraints:
@@ -118,7 +121,6 @@ class _MatchIter:
         subject = self.subjects.popleft() if self.subjects else None
         yield from self._check_transition(transition, subject)
 
-
     def _check_transition(self, transition, subject, restore_subject=True):
         if self.patterns.isdisjoint(transition.patterns):
             return
@@ -141,7 +143,9 @@ class _MatchIter:
 
         finally:
             if restore_subject and subject is not None:
-                assert isinstance(subject, Expression), "Matching for sequence variables restores the subject on its own"
+                assert isinstance(
+                    subject, Expression
+                ), "Matching for sequence variables restores the subject on its own"
                 self.subjects.appendleft(subject)
             self.constraints |= restore_constraints
             self.patterns |= restore_patterns
@@ -245,7 +249,6 @@ class _MatchIter:
         self.subjects = after_subjects
         self.subjects.appendleft(subject)
         self.associative.pop()
-
 
 
 class ManyToOneMatcher:
@@ -352,17 +355,20 @@ class ManyToOneMatcher:
         """
         return _MatchIter(self, subject)
 
-    def _create_expression_transition( self, state: _State, expression: Expression, variable_name: Optional[str], index: int) -> _State:
+    def _create_expression_transition(
+            self, state: _State, expression: Expression, variable_name: Optional[str], index: int
+    ) -> _State:
         label, head = self._get_label_and_head(expression)
         transitions = state.transitions.setdefault(head, [])
         commutative = getattr(expression, 'commutative', False)
         matcher = None
         for transition in transitions:
-            if (transition.variable_name == variable_name and
-                    transition.label == label):
+            if transition.variable_name == variable_name and transition.label == label:
                 transition.patterns.add(index)
                 if variable_name is not None:
-                    constraints = set(self.constraint_vars[variable_name] if variable_name in self.constraint_vars else [])
+                    constraints = set(
+                        self.constraint_vars[variable_name] if variable_name in self.constraint_vars else []
+                    )
                     for c in list(constraints):
                         patterns = self.constraints[c][1]
                         if patterns.isdisjoint(transition.patterns):
@@ -458,15 +464,51 @@ class ManyToOneMatcher:
         return self._as_graph(None)
 
     _PATTERN_COLORS = [
-        '#2E4272', '#7887AB', '#4F628E', '#162955', '#061539', '#403075', '#887CAF', '#615192', '#261758', '#13073A', '#226666', '#669999', '#407F7F', '#0D4D4D', '#003333',
+        '#2E4272',
+        '#7887AB',
+        '#4F628E',
+        '#162955',
+        '#061539',
+        '#403075',
+        '#887CAF',
+        '#615192',
+        '#261758',
+        '#13073A',
+        '#226666',
+        '#669999',
+        '#407F7F',
+        '#0D4D4D',
+        '#003333',
     ]
 
     _CONSTRAINT_COLORS = [
-        '#AA3939', '#D46A6A', '#801515', '#550000', '#AA6C39', '#D49A6A', '#804515', '#552600', '#882D61', '#AA5585', '#661141', '#440027',
+        '#AA3939',
+        '#D46A6A',
+        '#801515',
+        '#550000',
+        '#AA6C39',
+        '#D49A6A',
+        '#804515',
+        '#552600',
+        '#882D61',
+        '#AA5585',
+        '#661141',
+        '#440027',
     ]
 
     _VARIABLE_COLORS = [
-        '#8EA336', '#B9CC66', '#677B14', '#425200', '#5C9632', '#B5E196', '#85BC5E', '#3A7113', '#1F4B00', '#AAA139', '#807715', '#554E00',
+        '#8EA336',
+        '#B9CC66',
+        '#677B14',
+        '#425200',
+        '#5C9632',
+        '#B5E196',
+        '#85BC5E',
+        '#3A7113',
+        '#1F4B00',
+        '#AAA139',
+        '#807715',
+        '#554E00',
     ]
 
     @classmethod
@@ -495,13 +537,22 @@ class ManyToOneMatcher:
     def _as_graph(self, finals: Optional[List[str]]) -> Digraph:  # pragma: no cover
         graph = Digraph()
         if finals is None:
-            patterns = ['{}: {} with {}'.format(self._colored_pattern(i), html.escape(str(p.expression)), self._format_constraint_set(c)) for i, (p, c) in enumerate(self.patterns)]
+            patterns = [
+                '{}: {} with {}'.format(
+                    self._colored_pattern(i), html.escape(str(p.expression)), self._format_constraint_set(c)
+                ) for i, (p, c) in enumerate(self.patterns)
+            ]
             graph.node('patterns', '<<b>Patterns:</b><br/>\n{}>'.format('<br/>\n'.join(patterns)), {'shape': 'box'})
 
         self._make_graph_nodes(graph, finals)
         if finals is None:
-            constraints = ['{}: {} for {}'.format(self._colored_constraint(i), html.escape(str(c)), self._format_pattern_set(p)) for i, (c, p) in enumerate(self.constraints)]
-            graph.node('constraints', '<<b>Constraints:</b><br/>\n{}>'.format('<br/>\n'.join(constraints)), {'shape': 'box'})
+            constraints = [
+                '{}: {} for {}'.format(self._colored_constraint(i), html.escape(str(c)), self._format_pattern_set(p))
+                for i, (c, p) in enumerate(self.constraints)
+            ]
+            graph.node(
+                'constraints', '<<b>Constraints:</b><br/>\n{}>'.format('<br/>\n'.join(constraints)), {'shape': 'box'}
+            )
         self._make_graph_edges(graph)
         return graph
 
@@ -519,9 +570,12 @@ class ManyToOneMatcher:
                 submatch_label = '<<b>Sub Matcher End</b>'
                 for pattern_index, subpatterns, variables in state.matcher.patterns.values():
                     var_formatted = ', '.join(
-                        '{}[{}]x{}{}'.format(self._colored_variable(n), m, c, 'W' if w else '') for (n, c, m), w in variables
+                        '{}[{}]x{}{}'.format(self._colored_variable(n), m, c, 'W' if w else '')
+                        for (n, c, m), w in variables
                     )
-                    submatch_label += '<br/>\n{}: {} {}'.format(self._colored_pattern(pattern_index), subpatterns, var_formatted)
+                    submatch_label += '<br/>\n{}: {} {}'.format(
+                        self._colored_pattern(pattern_index), subpatterns, var_formatted
+                    )
                 submatch_label += '>'
                 graph.node(name + '-end', submatch_label, {'shape': 'box'})
                 for f in subfinals:
@@ -533,11 +587,18 @@ class ManyToOneMatcher:
                 if id(state) in self.finals:
                     sp = state_patterns[state.number]
                     if finals is not None:
-                        finals.append(name+'-out')
-                    variables = ['{}: {}'.format(self._colored_pattern(i), ', '.join('{} -&gt; {}'.format(self._colored_variable(o), n) for n, o in r.items())) for i, r in enumerate(self.pattern_vars) if i in sp]
-                    graph.node(name+'-out', '<<b>Pattern Variables:</b><br/>\n{}>'.format('<br/>\n'.join(variables)), {'shape': 'box'})
-                    graph.edge(name, name+'-out')
-
+                        finals.append(name + '-out')
+                    variables = [
+                        '{}: {}'.format(
+                            self._colored_pattern(i),
+                            ', '.join('{} -&gt; {}'.format(self._colored_variable(o), n) for n, o in r.items())
+                        ) for i, r in enumerate(self.pattern_vars) if i in sp
+                    ]
+                    graph.node(
+                        name + '-out', '<<b>Pattern Variables:</b><br/>\n{}>'.format('<br/>\n'.join(variables)),
+                        {'shape': 'box'}
+                    )
+                    graph.edge(name, name + '-out')
 
     def _make_graph_edges(self, graph: Digraph) -> None:  # pragma: no cover
         for state in self.states:
@@ -626,17 +687,14 @@ class CommutativeMatcher(object):
                     elif len(subjects) == len(pattern_set):
                         yield pattern_index, bipartite_substitution
             elif pattern_vars:
-                sequence_var_iter = self._match_sequence_variables(
-                    Multiset(subjects), pattern_vars, substitution
-                )
+                sequence_var_iter = self._match_sequence_variables(Multiset(subjects), pattern_vars, substitution)
                 for variable_substitution in sequence_var_iter:
                     yield pattern_index, variable_substitution
             elif len(subjects) == 0:
                 yield pattern_index, substitution
 
-    def _extract_sequence_wildcards(
-        self, operands: Iterable[Expression], constraints
-    ) -> Tuple[MultisetOfInt, Dict[str, Tuple[VariableWithCount, bool]]]:
+    def _extract_sequence_wildcards(self, operands: Iterable[Expression],
+                                    constraints) -> Tuple[MultisetOfInt, Dict[str, Tuple[VariableWithCount, bool]]]:
         pattern_set = Multiset()
         pattern_vars = dict()
         for operand in operands:
@@ -752,7 +810,6 @@ class CommutativeMatcher(object):
                 elif s1 == s2 and n1 < n2 and m1 > m2:
                     return False
         return True
-
 
 
 class SecondaryAutomaton():  # pragma: no cover

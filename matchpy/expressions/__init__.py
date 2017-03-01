@@ -8,6 +8,6 @@ from .substitution import Substitution
 from .constraints import Constraint, CustomConstraint, EqualVariablesConstraint
 
 __all__ = [
-    'Arity', 'Atom', 'Constraint', 'CustomConstraint', 'EqualVariablesConstraint', 'Expression',
-    'Operation', 'Substitution', 'Symbol', 'SymbolWildcard', 'Wildcard', 'Pattern'
+    'Arity', 'Atom', 'Constraint', 'CustomConstraint', 'EqualVariablesConstraint', 'Expression', 'Operation',
+    'Substitution', 'Symbol', 'SymbolWildcard', 'Wildcard', 'Pattern'
 ]
