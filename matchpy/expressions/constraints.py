@@ -183,7 +183,7 @@ class CustomConstraint(Constraint):  # pylint: disable=too-few-public-methods
 
     @property
     def variables(self):
-        return frozenset(self._variables.keys())
+        return frozenset(self._variables.values())
 
     def __call__(self, match: substitution.Substitution) -> bool:
         args = dict((name, match[var_name]) for name, var_name in self._variables.items())

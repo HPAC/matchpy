@@ -4,11 +4,11 @@ from matchpy.expressions.substitution import Substitution
 
 
 class MockConstraint(Constraint):
-    def __init__(self, return_value, *variables):
+    def __init__(self, return_value, *variables, renaming=None):
         self.return_value = return_value
         self.called_with = []
         self._variables = set(variables)
-        self.renaming = {}
+        self.renaming = renaming or {}
 
     def __call__(self, match):
         self.called_with.append(Substitution(match))
