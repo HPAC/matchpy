@@ -209,9 +209,13 @@ class _MatchIter:
             matcher.add_subject(operand)
         for matched_pattern, new_substitution in matcher.match(subject.operands, substitution):
             restore_constraints = set()
-            restore_patterns = set()
             diff = set(new_substitution.keys()) - set(substitution.keys())
             self.substitution = new_substitution
+            transition_set = state.transitions[matched_pattern]
+            t_iter = iter(t.patterns for t in transition_set)
+            potential_patterns = next(t_iter).union(*t_iter)
+            restore_patterns = self.patterns - potential_patterns
+            self.patterns &= potential_patterns
             for variable in diff:
                 self._check_constraints(variable, restore_constraints, restore_patterns)
                 if not self.patterns:
@@ -220,10 +224,8 @@ class _MatchIter:
                 transition_set = state.transitions[matched_pattern]
                 for next_transition in transition_set:
                     yield from self._check_transition(next_transition, subject, False)
-            for constraint in restore_constraints:
-                self.constraints.add(constraint)
-            for pattern in restore_patterns:
-                self.patterns.add(pattern)
+            self.constraints |= restore_constraints
+            self.patterns |= restore_patterns
         self.substitution = substitution
         self.subjects.append(subject)
 
