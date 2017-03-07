@@ -1,7 +1,7 @@
-matchpy.matching.common module
-==============================
+matchpy.matching._common module
+===============================
 
-.. automodule:: matchpy.matching.common
+.. automodule:: matchpy.matching._common
     :members:
     :undoc-members:
     :show-inheritance:

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """This module contains various utility functions."""
 import inspect
+import itertools
 import math
 import ast
 import os
@@ -84,6 +85,8 @@ def integer_partition_vector_iter(total: int, parts: int) -> Iterator[Tuple[int]
         >>> list(map(sum, vectors))
         [5, 5, 5, 5, 5, 5]
 
+    The code was adapted from an answer to this `Stackoverflow question`_.
+
     Args:
         total:
             The integer to partition.
@@ -97,6 +100,7 @@ def integer_partition_vector_iter(total: int, parts: int) -> Iterator[Tuple[int]
         ValueError:
             If *total* or *parts* are negative.
 
+    .. _Stackoverflow question: http://stackoverflow.com/questions/40538923/40540014#40540014
     """
     if total < 0:
         raise ValueError("Total must not be negative")
@@ -106,12 +110,11 @@ def integer_partition_vector_iter(total: int, parts: int) -> Iterator[Tuple[int]
         if total == 0:
             yield tuple()
         return
-    if parts == 1:
-        yield (total, )
-        return
-    for i in range(0, total + 1):
-        for vec in integer_partition_vector_iter(total - i, parts - 1):
-            yield (i, ) + vec
+    m = total + parts - 1
+    last = (m,)
+    first = (-1,)
+    for t in itertools.combinations(range(m), parts - 1):
+        yield tuple(v - u - 1 for u, v in zip(first + t, t + last))
 
 
 def _make_variable_generator_factory(value, total, variables: List[VariableWithCount]):
