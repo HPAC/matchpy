@@ -109,8 +109,8 @@ class CommutativePatternsParts(object):
                 self.constant[expression] += 1
             elif expression.head is None:
                 wc = cast(Wildcard, expression)
-                if wc.variable:
-                    name = wc.variable
+                if wc.variable_name:
+                    name = wc.variable_name
                     if wc.fixed_size:
                         self.fixed_variables[name] += 1
                         symbol_type = getattr(wc, 'symbol_type', None)

@@ -85,7 +85,7 @@ def weak_composition_iter(n: int, num_parts: int) -> Iterator[Tuple[int]]:
 
         We can easily verify that all compositions are indeed valid:
 
-        >>> list(map(sum, vectors))
+        >>> list(map(sum, compositions))
         [5, 5, 5, 5, 5, 5]
 
     The algorithm was adapted from an answer to this `Stackoverflow question`_.

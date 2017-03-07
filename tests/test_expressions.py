@@ -14,7 +14,7 @@ SIMPLE_EXPRESSIONS = [
     f(a, b),
     x_,
     ___,
-    f(_, variable='x'),
+    f(_, variable_name='x'),
     s_,
     _s,
 ]
@@ -141,8 +141,8 @@ class TestExpression:
             (f(x_, a),                  ['x']),
             (f(x_, a, y_),              ['x', 'y']),
             (f(f(x_), f(b, x_)),        ['x', 'x']),
-            (f(a, variable='x'),        ['x']),
-            (f(f(y_), variable='x'),    ['x', 'y']),
+            (f(a, variable_name='x'),        ['x']),
+            (f(f(y_), variable_name='x'),    ['x', 'y']),
         ]
     )  # yapf: disable
     def test_variables(self, expression, variables):
@@ -193,8 +193,8 @@ class TestExpression:
         '   expression1,                    expression2',
         [
             (a,                             b),
-            (a,                             Symbol('a', variable='x')),
-            (Symbol('a', variable='x'),     Symbol('a', variable='y')),
+            (a,                             Symbol('a', variable_name='x')),
+            (Symbol('a', variable_name='x'),     Symbol('a', variable_name='y')),
             (a,                             _),
             (a,                             _s),
             (a,                             x_),
@@ -213,7 +213,7 @@ class TestExpression:
             (_,                             f(a)),
             (_s,                            f(a)),
             (_s,                            s_),
-            (SymbolWildcard(variable='x'),  SymbolWildcard(variable='y')),
+            (SymbolWildcard(variable_name='x'),  SymbolWildcard(variable_name='y')),
             (s_,                            ss_),
             (_s,                            __),
             (_,                             _s),

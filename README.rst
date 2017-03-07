@@ -44,7 +44,7 @@ However, unnamed wildcards can also be used::
 
 Or a more complex expression can be named with a variable::
 
-    >>> print(f(w, a, variable='y'))
+    >>> print(f(w, a, variable_name='y'))
     y: f(_, a)
 
 In addition, sequence wildcards that can match for multiple expressions are supported::

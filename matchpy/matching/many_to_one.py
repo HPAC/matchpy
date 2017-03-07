@@ -316,7 +316,7 @@ class ManyToOneMatcher:
                 subpattern = patterns_stack[-1].popleft()
                 if isinstance(subpattern, Operation) and not subpattern.commutative:
                     patterns_stack.append(deque(subpattern.operands))
-                state = self._create_expression_transition(state, subpattern, subpattern.variable, pattern_index)
+                state = self._create_expression_transition(state, subpattern, subpattern.variable_name, pattern_index)
                 if isinstance(subpattern, Operation) and subpattern.commutative:
                     subpattern_id = state.matcher.add_pattern(subpattern.operands, renamed_constraints)
                     state = self._create_simple_transition(state, subpattern_id, pattern_index)
@@ -434,9 +434,9 @@ class ManyToOneMatcher:
             position = [0]
         if variables is None:
             variables = {}
-        if expression.variable:
-            if expression.variable not in variables:
-                variables[expression.variable] = cls._get_name_for_position(position, variables.values())
+        if expression.variable_name:
+            if expression.variable_name not in variables:
+                variables[expression.variable_name] = cls._get_name_for_position(position, variables.values())
         position[-1] += 1
         if isinstance(expression, Operation):
             if expression.commutative:
@@ -710,7 +710,7 @@ class CommutativeMatcher(object):
                     index = self.automaton._internal_add(pattern, {})
                 pattern_set.add(index)
             else:
-                varname = operand.variable
+                varname = operand.variable_name
                 if varname is None:
                     if varname in pattern_vars:
                         (_, _, min_count), _ = pattern_vars[varname]

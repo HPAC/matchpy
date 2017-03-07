@@ -109,10 +109,10 @@ def _match(subjects: List[Expression], pattern: Expression, subst: Substitution,
         assert False, "Unexpected pattern of type {!r}".format(type(pattern))
 
     if match_iter is not None:
-        if pattern.variable:
+        if pattern.variable_name:
             for new_subst in match_iter:
                 try:
-                    new_subst = new_subst.union_with_variable(pattern.variable, expr)
+                    new_subst = new_subst.union_with_variable(pattern.variable_name, expr)
                 except ValueError:
                     pass
                 else:
@@ -325,12 +325,12 @@ def _fixed_expr_factory(expression, constraints, matcher):
     return factory
 
 
-def _fixed_var_iter_factory(variable, count, length, symbol_type, constraints):
+def _fixed_var_iter_factory(variable_name, count, length, symbol_type, constraints):
     def factory(data):
         expressions, substitution = data
-        if variable in substitution:
-            value = ([substitution[variable]]
-                     if isinstance(substitution[variable], Expression) else substitution[variable])
+        if variable_name in substitution:
+            value = ([substitution[variable_name]]
+                     if isinstance(substitution[variable_name], Expression) else substitution[variable_name])
             existing = Multiset(value) * count
             if not existing <= expressions:
                 return
@@ -339,15 +339,15 @@ def _fixed_var_iter_factory(variable, count, length, symbol_type, constraints):
             if length == 1:
                 for expr, expr_count in expressions.items():
                     if expr_count >= count and (symbol_type is None or isinstance(expr, symbol_type)):
-                        if variable is not None:
+                        if variable_name is not None:
                             new_substitution = Substitution(substitution)
-                            new_substitution[variable] = expr
+                            new_substitution[variable_name] = expr
                             for new_substitution in _check_constraints(new_substitution, constraints):
                                 yield expressions - Multiset({expr: count}), new_substitution
                         else:
                             yield expressions - Multiset({expr: count}), substitution
             else:
-                assert variable is None, "Fixed variables with length != 1 are not supported."
+                assert variable_name is None, "Fixed variables with length != 1 are not supported."
                 exprs_with_counts = list(expressions.items())
                 counts = tuple(c // count for _, c in exprs_with_counts)
                 for subset in fixed_integer_vector_iter(counts, length):

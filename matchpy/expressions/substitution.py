@@ -26,12 +26,12 @@ class Substitution(Dict[str, VariableReplacement]):
     The key is a variable's name and the value the replacement for it.
     """
 
-    def try_add_variable(self, variable: str, replacement: VariableReplacement) -> None:
+    def try_add_variable(self, variable_name: str, replacement: VariableReplacement) -> None:
         """Try to add the variable with its replacement to the substitution.
 
         This considers an existing replacement and will only succeed if the new replacement
         can be merged with the old replacement. Merging can occur if either the two replacements
-        are equivalent. Replacements can also be merged if the old replacement for the variable was
+        are equivalent. Replacements can also be merged if the old replacement for the variable_name was
         unordered (i.e. a :class:`~.Multiset`) and the new one is an equivalent ordered version of it:
 
         >>> subst = Substitution({'x': Multiset(['a', 'b'])})
@@ -48,12 +48,12 @@ class Substitution(Dict[str, VariableReplacement]):
         Raises:
             ValueError:
                 if the variable cannot be merged because it conflicts with the existing
-                substitution for the variable.
+                substitution for the variable_name.
         """
-        if variable not in self:
-            self[variable] = replacement.copy() if isinstance(replacement, Multiset) else replacement
+        if variable_name not in self:
+            self[variable_name] = replacement.copy() if isinstance(replacement, Multiset) else replacement
         else:
-            existing_value = self[variable]
+            existing_value = self[variable_name]
 
             if isinstance(existing_value, tuple):
                 if isinstance(replacement, Multiset):
@@ -67,7 +67,7 @@ class Substitution(Dict[str, VariableReplacement]):
                 compare_value = Multiset(replacement)
                 if existing_value == compare_value:
                     if not isinstance(replacement, Multiset):
-                        self[variable] = replacement
+                        self[variable_name] = replacement
                 else:
                     raise ValueError
             elif replacement != existing_value:
@@ -80,13 +80,13 @@ class Substitution(Dict[str, VariableReplacement]):
         in place.
 
         Args:
-            variable:
+            variable_name:
                 The name of the variable to add.
             replacement:
                 The substitution for the variable.
 
         Returns:
-            The new substitution with the variable added or merged.
+            The new substitution with the variable_name added or merged.
 
         Raises:
             ValueError:
@@ -145,9 +145,9 @@ class Substitution(Dict[str, VariableReplacement]):
         Returns:
             ``True`` iff the substitution could be extracted successfully.
         """
-        if pattern.variable:
+        if pattern.variable_name:
             try:
-                self.try_add_variable(pattern.variable, subject)
+                self.try_add_variable(pattern.variable_name, subject)
             except ValueError:
                 return False
             return True
@@ -189,8 +189,8 @@ class Substitution(Dict[str, VariableReplacement]):
         """
         new_subst = Substitution(self)
         for other in others:
-            for variable, replacement in other.items():
-                new_subst.try_add_variable(variable, replacement)
+            for variable_name, replacement in other.items():
+                new_subst.try_add_variable(variable_name, replacement)
         return new_subst
 
     def rename(self, renaming: Dict[str, str]) -> 'Substitution':

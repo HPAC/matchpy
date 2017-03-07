@@ -768,7 +768,7 @@ class SequenceMatcher:
         if not isinstance(operand, Wildcard) or operand.fixed_size or operand.min_count > 0:
             raise ValueError('Expected a star wildcard, got {!s}.'.format(operand))
 
-        return operand.variable
+        return operand.variable_name
 
     @classmethod
     def can_match(cls, pattern: Pattern) -> bool:

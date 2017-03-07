@@ -21,7 +21,7 @@ CONSTANT_EXPRESSIONS = [e for e in [a, b, c, d]]
         (_,                     [_]),
         (x_,                    [_]),
         (_s,                    [Symbol]),
-        (f(_, variable='v'),    [f, _, OP_END]),
+        (f(_, variable_name='v'),    [f, _, OP_END]),
         (f(),                   [f, OP_END]),
         (f(a),                  [f, a, OP_END]),
         (f2(b),                 [f2, b, OP_END]),

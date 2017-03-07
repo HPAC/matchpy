@@ -66,9 +66,9 @@ class TestCommutativePatternsParts:
         assert sum(c for _, c in sequence_variables) == parts.sequence_variable_min_length
         assert sum(c for _, c in fixed_variables) == parts.fixed_variable_length
 
-        if any(isinstance(o, Wildcard) and not o.variable for o in expressions):
-            fixed = all(wc.fixed_size for wc in expressions if isinstance(wc, Wildcard) and not wc.variable)
-            length = sum(wc.min_count for wc in expressions if isinstance(wc, Wildcard) and not wc.variable)
+        if any(isinstance(o, Wildcard) and not o.variable_name for o in expressions):
+            fixed = all(wc.fixed_size for wc in expressions if isinstance(wc, Wildcard) and not wc.variable_name)
+            length = sum(wc.min_count for wc in expressions if isinstance(wc, Wildcard) and not wc.variable_name)
 
             assert parts.wildcard_fixed is fixed
             assert parts.wildcard_min_length == length
