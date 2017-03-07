@@ -100,8 +100,8 @@ class _MatchIter:
                 yield from self._match_transition(transition)
 
     def _match_transition(self, transition: _Transition) -> Iterator[_State]:
-        # TODO: Once a Repeat pattern is introduced, the following does not hold anymore:
-        assert not self.patterns.isdisjoint(transition.patterns), "The automaton should have a tree structure"
+        if self.patterns.isdisjoint(transition.patterns):
+            return
         label = transition.label
         if is_operation(label):
             if transition.target.matcher:

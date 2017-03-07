@@ -108,16 +108,17 @@ def _match(subjects: List[Expression], pattern: Expression, subst: Substitution,
     else:
         assert False, "Unexpected pattern of type {!r}".format(type(pattern))
 
-    if pattern.variable:
-        for new_subst in match_iter:
-            try:
-                new_subst = new_subst.union_with_variable(pattern.variable, expr)
-            except ValueError:
-                pass
-            else:
-                yield from _check_constraints(new_subst, constraints)
-    elif match_iter:
-        yield from match_iter
+    if match_iter is not None:
+        if pattern.variable:
+            for new_subst in match_iter:
+                try:
+                    new_subst = new_subst.union_with_variable(pattern.variable, expr)
+                except ValueError:
+                    pass
+                else:
+                    yield from _check_constraints(new_subst, constraints)
+        else:
+            yield from match_iter
 
 
 def _check_constraints(substitution, constraints):
