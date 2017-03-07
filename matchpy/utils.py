@@ -13,7 +13,7 @@ from typing import (Callable, Dict, Iterator, List, NamedTuple, Optional, Sequen
 from multiset import Multiset
 
 __all__ = [
-    'fixed_integer_vector_iter', 'integer_partition_vector_iter', 'commutative_sequence_variable_partition_iter',
+    'fixed_integer_vector_iter', 'weak_composition_iter', 'commutative_sequence_variable_partition_iter',
     'get_short_lambda_source', 'solve_linear_diop', 'generator_chain', 'cached_property', 'slot_cached_property',
     'extended_euclid', 'base_solution_linear'
 ]
@@ -71,49 +71,52 @@ def fixed_integer_vector_iter(max_vector: Tuple[int, ...], vector_sum: int) -> I
                 yield (j, ) + vec
 
 
-def integer_partition_vector_iter(total: int, parts: int) -> Iterator[Tuple[int]]:
-    """Yield all integer partitions of *total* into *parts* parts.
+def weak_composition_iter(n: int, num_parts: int) -> Iterator[Tuple[int]]:
+    """Yield all weak compositions of integer *n* into *num_parts* parts.
 
-    Each partition is yielded as a *parts*-tuple. The generated partitions are order-dependant and not unique when
+    Each composition is yielded as a tuple. The generated partitions are order-dependant and not unique when
     ignoring the order of the components. The partitions are yielded in lexicographical order.
 
     Example:
 
-        >>> vectors = list(integer_partition_vector_iter(5, 2))
-        >>> vectors
+        >>> compositions = list(weak_composition_iter(5, 2))
+        >>> compositions
         [(0, 5), (1, 4), (2, 3), (3, 2), (4, 1), (5, 0)]
+
+        We can easily verify that all compositions are indeed valid:
+
         >>> list(map(sum, vectors))
         [5, 5, 5, 5, 5, 5]
 
-    The code was adapted from an answer to this `Stackoverflow question`_.
+    The algorithm was adapted from an answer to this `Stackoverflow question`_.
 
     Args:
-        total:
+        n:
             The integer to partition.
-        parts:
-            The number of summands for the partition.
+        num_parts:
+            The number of parts for the combination.
 
     Yields:
-        All non-negative vectors that have the given sum and have the given dimension.
+        All non-negative tuples that have the given sum and size.
 
     Raises:
         ValueError:
-            If *total* or *parts* are negative.
+            If *n* or *num_parts* are negative.
 
     .. _Stackoverflow question: http://stackoverflow.com/questions/40538923/40540014#40540014
     """
-    if total < 0:
+    if n < 0:
         raise ValueError("Total must not be negative")
-    if parts < 0:
-        raise ValueError("Number of parts must not be negative")
-    if parts == 0:
-        if total == 0:
+    if num_parts < 0:
+        raise ValueError("Number of num_parts must not be negative")
+    if num_parts == 0:
+        if n == 0:
             yield tuple()
         return
-    m = total + parts - 1
+    m = n + num_parts - 1
     last = (m,)
     first = (-1,)
-    for t in itertools.combinations(range(m), parts - 1):
+    for t in itertools.combinations(range(m), num_parts - 1):
         yield tuple(v - u - 1 for u, v in zip(first + t, t + last))
 
 

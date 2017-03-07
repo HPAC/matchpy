@@ -9,7 +9,7 @@ from multiset import Multiset
 
 from matchpy.utils import (
     VariableWithCount, base_solution_linear, cached_property, commutative_sequence_variable_partition_iter,
-    extended_euclid, fixed_integer_vector_iter, get_short_lambda_source, integer_partition_vector_iter,
+    extended_euclid, fixed_integer_vector_iter, get_short_lambda_source, weak_composition_iter,
     slot_cached_property, solve_linear_diop
 )
 
@@ -91,7 +91,7 @@ class TestIntegerPartitionVectorIter:
     @pytest.mark.parametrize('n', range(0, 11))
     @pytest.mark.parametrize('m', range(0, 4))
     def test_correctness(self, n, m):
-        for part in integer_partition_vector_iter(n, m):
+        for part in weak_composition_iter(n, m):
             assert all(p >= 0 for p in part)
             assert sum(part) == n
             assert len(part) == m
@@ -99,7 +99,7 @@ class TestIntegerPartitionVectorIter:
     @pytest.mark.parametrize('n', range(0, 11))
     @pytest.mark.parametrize('m', range(0, 4))
     def test_completeness_and_uniqueness(self, n, m):
-        solutions = set(integer_partition_vector_iter(n, m))
+        solutions = set(weak_composition_iter(n, m))
 
         if m == 0 and n > 0:
             expected_count = 0
@@ -116,9 +116,9 @@ class TestIntegerPartitionVectorIter:
 
     def test_error(self):
         with pytest.raises(ValueError):
-            next(integer_partition_vector_iter(-1, 1))
+            next(weak_composition_iter(-1, 1))
         with pytest.raises(ValueError):
-            next(integer_partition_vector_iter(1, -1))
+            next(weak_composition_iter(1, -1))
 
 
 class TestSolveLinearDiop:

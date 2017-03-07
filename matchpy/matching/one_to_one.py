@@ -8,7 +8,7 @@ from ..expressions.constraints import Constraint
 from ..expressions.substitution import Substitution
 from ..utils import (
     VariableWithCount, commutative_sequence_variable_partition_iter, fixed_integer_vector_iter,
-    integer_partition_vector_iter, generator_chain
+    weak_composition_iter, generator_chain
 )
 from ._common import CommutativePatternsParts
 
@@ -198,7 +198,7 @@ def _non_commutative_match(subjects, operation, subst, constraints, matcher):
         remaining, sequence_var_count = _count_seq_vars(subjects, operation)
     except ValueError:
         return
-    for part in integer_partition_vector_iter(remaining, sequence_var_count):
+    for part in weak_composition_iter(remaining, sequence_var_count):
         partition = _build_full_partition(part, subjects, operation)
         factories = [_match_factory(e, o, constraints, matcher) for e, o in zip(partition, operation.operands)]
 
