@@ -9,8 +9,8 @@ from multiset import Multiset
 
 from matchpy.utils import (
     VariableWithCount, base_solution_linear, cached_property, commutative_sequence_variable_partition_iter,
-    extended_euclid, fixed_integer_vector_iter, get_short_lambda_source, weak_composition_iter,
-    slot_cached_property, solve_linear_diop
+    extended_euclid, fixed_integer_vector_iter, get_short_lambda_source, weak_composition_iter, slot_cached_property,
+    solve_linear_diop
 )
 
 

@@ -30,7 +30,10 @@ from multiset import Multiset
 
 from ..utils import cached_property
 
-__all__ = ['Expression', 'Arity', 'Atom', 'Symbol', 'Wildcard', 'Operation', 'SymbolWildcard', 'Pattern']
+__all__ = [
+    'Expression', 'Arity', 'Atom', 'Symbol', 'Wildcard', 'Operation', 'SymbolWildcard', 'Pattern', 'make_dot_variable',
+    'make_plus_variable', 'make_star_variable', 'make_symbol_variable'
+]
 
 ExprPredicate = Optional[Callable[['Expression'], bool]]
 ExpressionsWithPos = Iterator[Tuple['Expression', Tuple[int, ...]]]
@@ -597,7 +600,9 @@ class Wildcard(Atom):
         return self.fixed_size
 
     def with_renamed_vars(self, renaming) -> 'Wildcard':
-        return type(self)(self.min_count, self.fixed_size, variable_name=renaming.get(self.variable_name, self.variable_name))
+        return type(self)(
+            self.min_count, self.fixed_size, variable_name=renaming.get(self.variable_name, self.variable_name)
+        )
 
     @staticmethod
     def dot(name=None) -> 'Wildcard':
@@ -728,7 +733,8 @@ class SymbolWildcard(Wildcard):
 
     def __eq__(self, other):
         return (
-            isinstance(other, type(self)) and self.symbol_type == other.symbol_type and self.variable_name == other.variable_name
+            isinstance(other, type(self)) and self.symbol_type == other.symbol_type and
+            self.variable_name == other.variable_name
         )
 
     def __hash__(self):
@@ -779,3 +785,19 @@ class Pattern:
     @property
     def global_constraints(self):
         return [c for c in self.constraints if not c.variables]
+
+
+def make_dot_variable(name):
+    return Wildcard.dot(name)
+
+
+def make_symbol_variable(name, symbol_type=Symbol):
+    return Wildcard.symbol(name, symbol_type)
+
+
+def make_star_variable(name):
+    return Wildcard.star(name)
+
+
+def make_plus_variable(name):
+    return Wildcard.plus(name)

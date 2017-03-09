@@ -74,10 +74,10 @@ class _MatchIter:
         for state in self._match(self.matcher.root):
             for pattern_index in self.patterns:
                 renaming = self.matcher.pattern_vars[pattern_index]
-                new_substitution = self.substitution.rename(
-                    {renamed: original
-                     for original, renamed in renaming.items()}
-                )
+                new_substitution = self.substitution.rename({
+                    renamed: original
+                    for original, renamed in renaming.items()
+                })
                 pattern, _ = self.matcher.patterns[pattern_index]
                 valid = True
                 for constraint in pattern.global_constraints:

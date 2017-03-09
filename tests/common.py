@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
-from matchpy.expressions.expressions import (Arity, Operation, Symbol, Wildcard, SymbolWildcard)
+from matchpy.expressions.expressions import (
+    Arity, Operation, Symbol, Wildcard, SymbolWildcard, make_dot_variable, make_plus_variable, make_star_variable,
+    make_symbol_variable
+)
 
 from .utils import MockConstraint
 
@@ -24,19 +27,19 @@ s = SpecialSymbol('s')
 _ = Wildcard.dot()
 _s = Wildcard.symbol()
 _ss = Wildcard.symbol(SpecialSymbol)
-x_ = Wildcard.dot('x')
-s_ = Wildcard.symbol('s')
-ss_ = Wildcard.symbol('ss', SpecialSymbol)
-y_ = Wildcard.dot('y')
-z_ = Wildcard.dot('z')
+x_ = make_dot_variable('x')
+s_ = make_symbol_variable('s')
+ss_ = make_symbol_variable('ss', SpecialSymbol)
+y_ = make_dot_variable('y')
+z_ = make_dot_variable('z')
 __ = Wildcard.plus()
-x__ = Wildcard.plus('x')
-y__ = Wildcard.plus('y')
-z__ = Wildcard.plus('z')
+x__ = make_plus_variable('x')
+y__ = make_plus_variable('y')
+z__ = make_plus_variable('z')
 ___ = Wildcard.star()
-x___ = Wildcard.star('x')
-y___ = Wildcard.star('y')
-z___ = Wildcard.star('z')
+x___ = make_star_variable('x')
+y___ = make_star_variable('y')
+z___ = make_star_variable('z')
 
 mock_constraint_false = MockConstraint(False)
 mock_constraint_true = MockConstraint(True)

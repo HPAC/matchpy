@@ -7,8 +7,8 @@ from ..expressions.expressions import Expression, Pattern, Operation, Symbol, Sy
 from ..expressions.constraints import Constraint
 from ..expressions.substitution import Substitution
 from ..utils import (
-    VariableWithCount, commutative_sequence_variable_partition_iter, fixed_integer_vector_iter,
-    weak_composition_iter, generator_chain
+    VariableWithCount, commutative_sequence_variable_partition_iter, fixed_integer_vector_iter, weak_composition_iter,
+    generator_chain
 )
 from ._common import CommutativePatternsParts
 

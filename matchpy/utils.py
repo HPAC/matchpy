@@ -114,8 +114,8 @@ def weak_composition_iter(n: int, num_parts: int) -> Iterator[Tuple[int]]:
             yield tuple()
         return
     m = n + num_parts - 1
-    last = (m,)
-    first = (-1,)
+    last = (m, )
+    first = (-1, )
     for t in itertools.combinations(range(m), num_parts - 1):
         yield tuple(v - u - 1 for u, v in zip(first + t, t + last))
 
