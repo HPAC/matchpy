@@ -123,17 +123,19 @@ def _match(subjects: List[Expression], pattern: Expression, subst: Substitution,
 
 def _check_constraints(substitution, constraints):
     restore_constraints = set()
-    for constraint in list(constraints):
-        for var in constraint.variables:
-            if var not in substitution:
-                break
+    try:
+        for constraint in list(constraints):
+            for var in constraint.variables:
+                if var not in substitution:
+                    break
+            else:
+                if not constraint(substitution):
+                    break
+                restore_constraints.add(constraint)
+                constraints.remove(constraint)
         else:
-            restore_constraints.add(constraint)
-            constraints.remove(constraint)
-            if not constraint(substitution):
-                break
-    else:
-        yield substitution
+            yield substitution
+    finally:
         for constraint in restore_constraints:
             constraints.add(constraint)
 

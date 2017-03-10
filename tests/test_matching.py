@@ -714,6 +714,18 @@ class TestMatch:
         constraint3.assert_called_with({'x': a, 'y': b})
         constraint4.assert_called_with({'x': a, 'y': b})
 
+    def test_selective_constraint(self, match):
+        c = CustomConstraint(lambda x: len(str(x)) > 1)
+
+        pattern = Pattern(f(___, x_, ___), c)
+        subject = f(a, Symbol('aa'), b, Symbol('bb'))
+
+        result = list(match(subject, pattern))
+
+        assert len(result) == 2
+        assert {'x': Symbol('aa')} in result
+        assert {'x': Symbol('bb')} in result
+
 
 def func_wrap_strategy(args, func):
     min_size = func.arity[0]
