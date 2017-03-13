@@ -19,6 +19,9 @@ SIMPLE_EXPRESSIONS = [
     _s,
 ]
 
+class SpecialF(f):
+    name = 'special'
+
 
 class TestExpression:
     @pytest.mark.parametrize(
@@ -218,6 +221,7 @@ class TestExpression:
             (_s,                            __),
             (_,                             _s),
             (SymbolWildcard(SpecialSymbol), SymbolWildcard(Symbol)),
+            (f(a),                          SpecialF(a)),
         ]
     )  # yapf: disable
     def test_lt(self, expression1, expression2):

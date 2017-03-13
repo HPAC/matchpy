@@ -427,7 +427,7 @@ class Operation(Expression, metaclass=_OperationMeta):
     def __lt__(self, other):
         if not isinstance(other, Expression):
             return NotImplemented
-        if not isinstance(other, Operation):
+        if not isinstance(other, type(self)) and not isinstance(self, type(other)):
             return type(self).__name__ < type(other).__name__
         if self.name != other.name:
             return self.name < other.name
