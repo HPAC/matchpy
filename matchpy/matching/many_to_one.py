@@ -71,21 +71,36 @@ class _MatchIter:
         self.associative = [intial_associative]
 
     def __iter__(self):
-        for state in self._match(self.matcher.root):
-            for pattern_index in self.patterns:
-                renaming = self.matcher.pattern_vars[pattern_index]
-                new_substitution = self.substitution.rename({
-                    renamed: original
-                    for original, renamed in renaming.items()
-                })
-                pattern, _ = self.matcher.patterns[pattern_index]
-                valid = True
-                for constraint in pattern.global_constraints:
-                    if not constraint(new_substitution):
-                        valid = False
-                        break
-                if valid:
-                    yield pattern, new_substitution
+        for _ in self._match(self.matcher.root):
+            yield from self._internal_iter()
+
+    def grouped(self):
+        """
+        Yield the matches grouped by their final state in the automaton, i.e. structurally identical patterns
+        only differing in constraints will be yielded together. Each group is yielded as a list of tuples consisting of
+        a pattern and a match substitution.
+
+        Yields:
+            The grouped matches.
+        """
+        for _ in self._match(self.matcher.root):
+            yield list(self._internal_iter())
+
+    def _internal_iter(self):
+        for pattern_index in self.patterns:
+            renaming = self.matcher.pattern_vars[pattern_index]
+            new_substitution = self.substitution.rename({
+                renamed: original
+                for original, renamed in renaming.items()
+            })
+            pattern, _ = self.matcher.patterns[pattern_index]
+            valid = True
+            for constraint in pattern.global_constraints:
+                if not constraint(new_substitution):
+                    valid = False
+                    break
+            if valid:
+                yield pattern, new_substitution
 
     def _match(self, state: _State) -> Iterator[_State]:
         if len(self.subjects) == 0:

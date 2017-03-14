@@ -147,3 +147,23 @@ def test_same_commutative_but_different_pattern():
     subject = f(f_c(a), b)
     result = list(matcher.match(subject))
     assert result == [(pattern2, {'x': a})]
+
+
+def test_grouped():
+    pattern1 = Pattern(a, MockConstraint(True))
+    pattern2 = Pattern(a, MockConstraint(True))
+    pattern3 = Pattern(x_, MockConstraint(True))
+    matcher = ManyToOneMatcher(pattern1, pattern2, pattern3)
+
+    result = [[p for p, _ in ps] for ps in matcher.match(a).grouped()]
+
+    assert len(result) == 2
+    for res in result:
+        if len(res) == 2:
+            assert pattern1 in res
+            assert pattern2 in res
+        elif len(res) == 1:
+            assert pattern3 in res
+        else:
+            assert False, "Wrong number of grouped matches"
+
