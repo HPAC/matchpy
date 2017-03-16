@@ -10,7 +10,12 @@ You can initialize the matcher with a list of the patterns that you wish to matc
 You can also add patterns later:
 
 >>> pattern3 = Pattern(f(a, b))
->>> _ = matcher.add(pattern3)
+>>> matcher.add(pattern3)
+
+A pattern can be added with a label which is yielded instead of the pattern during matching:
+
+>>> pattern4 = Pattern(f(x_, y_))
+>>> matcher.add(pattern4, "some label")
 
 Then you can match a subject against all the patterns at once:
 
@@ -21,12 +26,12 @@ Then you can match a subject against all the patterns at once:
 f(a, b) matched with {}
 f(a, x_) matched with {x ↦ b}
 f(y_, b) matched with {y ↦ a}
+some label matched with {x ↦ a, y ↦ b}
 """
 
 import html
 import itertools
 from collections import deque
-from itertools import groupby
 from operator import itemgetter
 from typing import Container, Dict, Iterable, Iterator, List, NamedTuple, Optional, Sequence, Set, Tuple, Type, Union
 
@@ -93,14 +98,14 @@ class _MatchIter:
                 renamed: original
                 for original, renamed in renaming.items()
             })
-            pattern, _ = self.matcher.patterns[pattern_index]
+            pattern, label, _ = self.matcher.patterns[pattern_index]
             valid = True
             for constraint in pattern.global_constraints:
                 if not constraint(new_substitution):
                     valid = False
                     break
             if valid:
-                yield pattern, new_substitution
+                yield label, new_substitution
 
     def _match(self, state: _State) -> Iterator[_State]:
         if len(self.subjects) == 0:
@@ -285,26 +290,32 @@ class ManyToOneMatcher:
         for pattern in patterns:
             self.add(pattern)
 
-    def add(self, pattern: Pattern) -> int:
+    def add(self, pattern: Pattern, label=None) -> None:
         """Add a new pattern to the matcher.
 
-        Equivalent patterns are not added again. However, patterns that are structurally equivalent,
+        The optional label defaults to the pattern itself and is yielded during matching. The same pattern can be
+        added with different labels which means that every match for the pattern will result in every associated label
+        being yielded with that match individually.
+
+        Equivalent patterns with the same label are not added again. However, patterns that are structurally equivalent,
         but have different constraints or different variable names are distinguished by the matcher.
 
         Args:
-            pattern: The pattern to add.
-
-        Returns:
-            The internal id for the pattern. This is mainly used by the :class:`CommutativeMatcher`.
+            pattern:
+                The pattern to add.
+            label:
+                An optional label for the pattern. Defaults to the pattern itself.
         """
-        for i, (p, _) in enumerate(self.patterns):
-            if pattern == p:
+        if label is None:
+            label = pattern
+        for i, (p, l, _) in enumerate(self.patterns):
+            if pattern == p and label == l:
                 return i
         # TODO: Avoid renaming in the pattern, use variable indices instead
         renaming = self._collect_variable_renaming(pattern.expression)
-        return self._internal_add(pattern, renaming)
+        self._internal_add(pattern, label, renaming)
 
-    def _internal_add(self, pattern: Pattern, renaming) -> int:
+    def _internal_add(self, pattern: Pattern, label, renaming) -> int:
         """Add a new pattern to the matcher.
 
         Equivalent patterns are not added again. However, patterns that are structurally equivalent,
@@ -320,7 +331,7 @@ class ManyToOneMatcher:
         index = 0
         renamed_constraints = [c.with_renamed_vars(renaming) for c in pattern.local_constraints]
         constraint_indices = [self._add_constraint(c, pattern_index) for c in renamed_constraints]
-        self.patterns.append((pattern, constraint_indices))
+        self.patterns.append((pattern, label, constraint_indices))
         self.pattern_vars.append(renaming)
         pattern = pattern.expression.with_renamed_vars(renaming)
         state = self.root
@@ -555,7 +566,7 @@ class ManyToOneMatcher:
             patterns = [
                 '{}: {} with {}'.format(
                     self._colored_pattern(i), html.escape(str(p.expression)), self._format_constraint_set(c)
-                ) for i, (p, c) in enumerate(self.patterns)
+                ) for i, (p, l, c) in enumerate(self.patterns)
             ]
             graph.node('patterns', '<<b>Patterns:</b><br/>\n{}>'.format('<br/>\n'.join(patterns)), {'shape': 'box'})
 
@@ -668,7 +679,7 @@ class CommutativeMatcher(object):
             subject_id, pattern_set = self.subjects[subject] = (len(self.subjects), set())
             self.subjects[subject_id] = subject
             match_iter = _MatchIter(self.automaton, subject, self.associative)
-            for state in match_iter._match(self.automaton.root):
+            for _ in match_iter._match(self.automaton.root):
                 for pattern_index in match_iter.patterns:
                     variables = self.automaton.pattern_vars[pattern_index]
                     substitution = Substitution(match_iter.substitution)
@@ -717,12 +728,12 @@ class CommutativeMatcher(object):
                 actual_constraints = [c for c in constraints if not operand.variables.isdisjoint(c.variables)]
                 pattern = Pattern(operand, *actual_constraints)
                 index = None
-                for i, (p, _) in enumerate(self.automaton.patterns):
+                for i, (p, _, _) in enumerate(self.automaton.patterns):
                     if pattern == p:
                         index = i
                         break
                 else:
-                    index = self.automaton._internal_add(pattern, {})
+                    index = self.automaton._internal_add(pattern, None, {})
                 pattern_set.add(index)
             else:
                 varname = operand.variable_name
@@ -755,7 +766,7 @@ class CommutativeMatcher(object):
             substitution: Substitution,
     ) -> Iterator[Tuple[Substitution, MultisetOfInt]]:
         bipartite = self._build_bipartite(subject_ids, pattern_set)
-        anonymous = set(i for i, (p, _) in enumerate(self.automaton.patterns) if not p.expression.variables)
+        anonymous = set(i for i, (p, _, _) in enumerate(self.automaton.patterns) if not p.expression.variables)
         for matching in enum_maximum_matchings_iter(bipartite):
             if len(matching) < len(pattern_set):
                 break
@@ -876,7 +887,7 @@ class SecondaryAutomaton():  # pragma: no cover
             graph.node(str(i), str(i))
 
         for state, edges in enumerate(self.states):
-            for target, labels in groupby(sorted(edges.items()), key=itemgetter(1)):
+            for target, labels in itertools.groupby(sorted(edges.items()), key=itemgetter(1)):
                 label = '\n'.join(bin(l)[2:].zfill(self.k) for l, _ in labels)
                 graph.edge(str(state), str(target), label)
 

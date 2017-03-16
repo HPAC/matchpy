@@ -12,10 +12,10 @@ def test_add_duplicate_pattern():
     pattern = Pattern(f(a))
     matcher = ManyToOneMatcher()
 
-    first_id = matcher.add(pattern)
-    second_id = matcher.add(pattern)
+    matcher.add(pattern)
+    matcher.add(pattern)
 
-    assert first_id == second_id
+    assert len(matcher.patterns) == 1
 
 
 def test_add_duplicate_pattern_with_different_constraint():
@@ -23,10 +23,10 @@ def test_add_duplicate_pattern_with_different_constraint():
     pattern2 = Pattern(f(a), MockConstraint(False))
     matcher = ManyToOneMatcher()
 
-    first_id = matcher.add(pattern1)
-    second_id = matcher.add(pattern2)
+    matcher.add(pattern1)
+    matcher.add(pattern2)
 
-    assert first_id != second_id
+    assert len(matcher.patterns) == 2
 
 
 def test_different_constraints():
@@ -167,3 +167,33 @@ def test_grouped():
         else:
             assert False, "Wrong number of grouped matches"
 
+
+def test_same_pattern_different_label():
+    pattern = Pattern(a)
+    matcher = ManyToOneMatcher()
+    matcher.add(pattern, 42)
+    matcher.add(pattern, 23)
+
+    result = sorted((l, sorted(map(tuple, s.items()))) for l, s in matcher.match(a))
+
+    assert result == [(23, []), (42, [])]
+
+
+def test_different_pattern_same_label():
+    matcher = ManyToOneMatcher()
+    matcher.add(Pattern(a), 42)
+    matcher.add(Pattern(x_), 42)
+
+    result = sorted((l, sorted(map(tuple, s.items()))) for l, s in matcher.match(a))
+
+    assert result == [(42, []), (42, [('x', a)])]
+
+
+def test_different_pattern_different_label():
+    matcher = ManyToOneMatcher()
+    matcher.add(Pattern(a), 42)
+    matcher.add(Pattern(x_), 23)
+
+    result = sorted((l, sorted(map(tuple, s.items()))) for l, s in matcher.match(a))
+
+    assert result == [(23, [('x', a)]), (42, [])]
