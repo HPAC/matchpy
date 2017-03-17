@@ -1,6 +1,24 @@
 # -*- coding: utf-8 -*-
 """This module contains the expression classes.
 
+`Expressions <Expression>` can be used to model any kind of tree-like data structure. They consist of `operations
+<Operation>` and `symbols <Symbol>`. In addition, `patterns <Pattern>` can be constructed, which may additionally,
+contain `wildcards <Wildcard>` and variables.
+
+You can define your own symbols and operations like this:
+
+>>> f = Operation.new('f', Arity.variadic)
+>>> a = Symbol('a')
+>>> b = Symbol('b')
+
+Then you can compose expressions out of these:
+
+>>> print(f(a, b))
+f(a, b)
+
+For more information on how to create you own `operations <Operation>` and `symbols <Symbol>` you can look at their
+documentation.
+
 Normal expressions are immutable and hence :term:`hashable`:
 
 >>> expr = f(b, x_)
@@ -9,7 +27,7 @@ f(b, x_)
 >>> hash(expr) == hash(expr)
 True
 
-Hence you should not modify an expression directly because some properties are cached:
+Hence, some of the expression's properties are cached and nor updated when you modify them:
 
 >>> expr.is_constant
 False
@@ -17,6 +35,16 @@ False
 >>> expr.is_constant
 False
 >>> print(expr)
+f(a)
+>>> f(a).is_constant
+True
+
+Therefore, you should modify an expression but rather create a new one:
+
+>>> expr2 = type(expr)(*[a])
+>>> expr2.is_constant
+True
+>>> print(expr2)
 f(a)
 """
 import itertools
@@ -65,6 +93,16 @@ class Expression:
         return variables
 
     def collect_variables(self, variables: MultisetOfVariables) -> None:
+        """Recursively adds all variables occuring in the expression to the given multiset.
+
+        This is used internally by `variables`. Needs to be overwritten by inheriting container expression classes.
+        This method can be used when gathering the `variables` of multiple expressions, because only one multiset
+        needs to be created and that is more efficient.
+
+        Args:
+            variables:
+                Multiset of variables. All variables contained in the expression are recursively added to this multiset.
+        """
         if self.variable_name is not None:
             variables.add(self.variable_name)
 
@@ -76,6 +114,16 @@ class Expression:
         return symbols
 
     def collect_symbols(self, symbols: MultisetOfStr) -> None:
+        """Recursively adds all symbols occuring in the expression to the given multiset.
+
+        This is used internally by `symbols`. Needs to be overwritten by inheriting expression classes that
+        can contain symbols. This method can be used when gathering the `symbols` of multiple expressions, because only
+        one multiset needs to be created and that is more efficient.
+
+        Args:
+            symbols:
+                Multiset of symbols. All symbols contained in the expression are recursively added to this multiset.
+        """
         pass
 
     @cached_property
@@ -606,13 +654,13 @@ class Wildcard(Atom):
 
     @staticmethod
     def dot(name=None) -> 'Wildcard':
-        """Create a `Wildcard` that matches a a single argument.
+        """Create a `Wildcard` that matches a single argument.
 
         Args:
-            name: An optional variable_name name for the wildcard.
+            name: An optional name for the wildcard.
 
         Returns:
-            A wildcard with a fixed size.
+            A dot wildcard.
         """
         return Wildcard(min_count=1, fixed_size=True, variable_name=name)
 
@@ -621,8 +669,10 @@ class Wildcard(Atom):
         """Create a `SymbolWildcard` that matches a single `Symbol` argument.
 
         Args:
+            name:
+                Optional variable name for the wildcard.
             symbol_type:
-                An optional subclass of `Symbol` to further limit which kind of smybols are
+                An optional subclass of `Symbol` to further limit which kind of symbols are
                 matched by the wildcard.
 
         Returns:
@@ -636,8 +686,12 @@ class Wildcard(Atom):
     def star(name=None) -> 'Wildcard':
         """Creates a `Wildcard` that matches any number of arguments.
 
+        Args:
+            name:
+                Optional variable name for the wildcard.
+
         Returns:
-            A wildcard that matches any number of arguments.
+            A star wildcard.
         """
         return Wildcard(min_count=0, fixed_size=False, variable_name=name)
 
@@ -645,8 +699,12 @@ class Wildcard(Atom):
     def plus(name=None) -> 'Wildcard':
         """Creates a `Wildcard` that matches at least one and up to any number of arguments
 
+        Args:
+            name:
+                Optional variable name for the wildcard.
+
         Returns:
-            A wildcard that matches at least one and up to any number of arguments
+            A plus wildcard.
         """
         return Wildcard(min_count=1, fixed_size=False, variable_name=name)
 
@@ -675,17 +733,17 @@ class Wildcard(Atom):
     def __lt__(self, other):
         if not isinstance(other, Expression):
             return NotImplemented
-        if isinstance(other, Wildcard):
-            if self.min_count == other.min_count and self.fixed_size == other.fixed_size:
-                if self.variable_name != other.variable_name:
-                    return (self.variable_name or '') < (other.variable_name or '')
-                if isinstance(self, SymbolWildcard):
-                    if isinstance(other, SymbolWildcard):
-                        return self.symbol_type.__name__ < other.symbol_type.__name__
-                    return False
-                return isinstance(other, SymbolWildcard)
+        if not isinstance(other, Wildcard):
+            return type(self).__name__ < type(other).__name__
+        if self.min_count != other.min_count or self.fixed_size != other.fixed_size:
             return self.min_count < other.min_count or (self.fixed_size and not other.fixed_size)
-        return type(self).__name__ < type(other).__name__
+        if self.variable_name != other.variable_name:
+            return (self.variable_name or '') < (other.variable_name or '')
+        if not isinstance(self, SymbolWildcard):
+            return isinstance(other, SymbolWildcard)
+        if isinstance(other, SymbolWildcard):
+            return self.symbol_type.__name__ < other.symbol_type.__name__
+        return False
 
     def __eq__(self, other):
         if not isinstance(other, type(self)):
@@ -755,7 +813,20 @@ class SymbolWildcard(Wildcard):
 
 
 class Pattern:
-    def __init__(self, expression, *constraints):
+    """A pattern is a term that can be matched against another subject term.
+
+    A pattern can contain variables and can optionally have constraints attached to it.
+    Those constraints a predicates which limit what the pattern can match.
+    """
+
+    def __init__(self, expression, *constraints) -> None:
+        """
+        Args:
+            expression:
+                The term that forms the pattern.
+            *constraints:
+                Optional constraints for the pattern.
+        """
         self.expression = expression
         self.constraints = constraints
 
@@ -776,28 +847,83 @@ class Pattern:
 
     @property
     def is_syntactic(self):
+        """True, iff the pattern is :term:`syntactic`."""
         return self.expression.is_syntactic
 
     @property
     def local_constraints(self):
+        """The subset of the patterns contrainst which are local.
+
+        A local constraint has a defined non-empty set of dependency variables.
+        These constraints can be evaluated once their dependency variables have a substitution.
+        """
         return [c for c in self.constraints if c.variables]
 
     @property
     def global_constraints(self):
+        """The subset of the patterns contrainst which are global.
+
+        A global constraint does not define dependency variables and can only be evaluated, once the
+        match has been completed.
+        """
         return [c for c in self.constraints if not c.variables]
 
 
 def make_dot_variable(name):
+    """Create a new variable with the given name that matches a single term.
+
+    Args:
+        name:
+            The name of the variable
+
+    Returns:
+        The new dot variable.
+    """
     return Wildcard.dot(name)
 
 
 def make_symbol_variable(name, symbol_type=Symbol):
+    """Create a new variable with the given name that matches a single symbol.
+
+    Optionally, a symbol type can be specified to further limit what the variable can match.
+
+    Args:
+        name:
+            The name of the variable
+        symbol_type:
+            The symbol type must be a subclass of `Symbol`. Defaults to `Symbol` itself.
+
+    Returns:
+        The new symbol variable.
+    """
     return Wildcard.symbol(name, symbol_type)
 
 
 def make_star_variable(name):
+    """Create a new variable with the given name that matches any number of terms.
+
+    Can also match an empty argument sequence.
+
+    Args:
+        name:
+            The name of the variable
+
+    Returns:
+        The new star variable.
+    """
     return Wildcard.star(name)
 
 
 def make_plus_variable(name):
+    """Create a new variable with the given name that matches any number of terms.
+
+    Only matches sequences with at least one argument.
+
+    Args:
+        name:
+            The name of the variable
+
+    Returns:
+        The new plus variable.
+    """
     return Wildcard.plus(name)
