@@ -8,6 +8,7 @@ Contents:
    :glob:
    :titlesonly:
 
+   example
    api/matchpy
    glossary
 

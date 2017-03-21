@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
+"""Contains all the classes necessary to construct expressions and patterns."""
+
 from . import expressions
 from . import substitution
 from . import constraints
 
-from .expressions import Expression, Arity, Atom, Symbol, Wildcard, Operation, SymbolWildcard, Pattern
-from .substitution import Substitution
-from .constraints import Constraint, CustomConstraint, EqualVariablesConstraint
+# pylint: disable=wildcard-import
+from .expressions import *
+from .substitution import *
+from .constraints import *
 
-__all__ = [
-    'Arity', 'Atom', 'Constraint', 'CustomConstraint', 'EqualVariablesConstraint', 'Expression', 'Operation',
-    'Substitution', 'Symbol', 'SymbolWildcard', 'Wildcard', 'Pattern'
-]
+__all__ = expressions.__all__ + substitution.__all__ + constraints.__all__

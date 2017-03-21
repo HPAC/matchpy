@@ -17,6 +17,8 @@ from multiset import Multiset
 
 from . import expressions
 
+__all__ = ['Substitution']
+
 VariableReplacement = Union[Tuple['expressions.Expression', ...], Multiset, 'expressions.Expression']
 
 

@@ -47,7 +47,6 @@ True
 >>> print(expr2)
 f(a)
 """
-import itertools
 import keyword
 from enum import Enum, EnumMeta
 # pylint: disable=unused-import

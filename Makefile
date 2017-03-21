@@ -2,10 +2,10 @@ init:
 	pip install -r requirements.txt
 
 test:
-	py.test tests/ --doctest-modules matchpy/ README.rst
+	py.test tests/ --doctest-modules matchpy/ README.rst docs/example.rst
 
 doctest:
-	py.test --doctest-modules -k "not tests" matchpy/ README.rst
+	py.test --doctest-modules -k "not tests" matchpy/ README.rst docs/example.rst
 
 check:
 	pylint matchpy
@@ -19,6 +19,6 @@ api-docs:
 	make docs
 
 docs:
-	cd docs/api
+	cd docs
 	make html
 	cd ..

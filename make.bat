@@ -14,11 +14,11 @@ goto :eof
 goto :eof
 
 :test
-	py.test tests\ --doctest-modules matchpy\ README.rst
+	py.test tests\ --doctest-modules matchpy\ README.rst docs\example.rst
 goto :eof
 
 :doctest
-	py.test --doctest-modules -k "not tests" matchpy\ README.rst
+	py.test --doctest-modules -k "not tests" matchpy\ README.rst docs\example.rst
 goto :eof
 
 :check
