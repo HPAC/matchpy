@@ -35,8 +35,9 @@ example it might be a diagonal or triangular matrix. We will just use a set of s
 
 Now we can create matrices like this:
 
->>> A = Matrix('A', ['diagonal', 'square'])
->>> B = Matrix('B', ['symmetric', 'square'])
+>>> M1 = Matrix('M1', ['diagonal', 'square'])
+>>> M2 = Matrix('M2', ['symmetric', 'square'])
+>>> M3 = Matrix('M3', ['triangular'])
 
 Operations
 ----------
@@ -75,8 +76,8 @@ Lets define the remaining operations:
 
 Finally, we can compose more complex terms:
 
->>> print(Plus(Times(v, Transpose(v)), Times(a, Inverse(A))))
-((a * I(A)) + (v * (v)^T))
+>>> print(Plus(Times(v, Transpose(v)), Times(a, Inverse(M1))))
+((a * I(M1)) + (v * (v)^T))
 
 Note that the summands are automatically sorted, because *Plus* is commutative.
 
@@ -108,19 +109,137 @@ populate the match substitution in case there is a match:
 Constraints
 -----------
 
-Patterns can be limited in what is matched by adding constraints. A constraints is essentially a callback,
+Patterns can be limited in what is matched by adding constraints. A constraint is essentially a callback,
 that gets the match substitution and can return either ``True`` or ``False``. You can either use the `.CustomConstraint`
 class with any (lambda) function, or create your own subclass of `.Constraint`.
 
 For example, if we want to only match diagonal matrices with a certain variable, we can create a constraint for that:
 
->>> C_ = Wildcard.symbol('C', Matrix)
->>> C_is_diagonal_matrix = CustomConstraint(lambda C: 'diagonal' in C.properties)
+>>> C_ = Wildcard.symbol('M3', Matrix)
+>>> C_is_diagonal_matrix = CustomConstraint(lambda M3: 'diagonal' in M3.properties)
 >>> pattern = Pattern(C_, C_is_diagonal_matrix)
 
-Then the variable *C* will only match diagonal matrices:
+Then the variable *M3* will only match diagonal matrices:
 
->>> is_match(A, pattern)
+>>> is_match(M1, pattern)
 True
->>> is_match(B, pattern)
+>>> is_match(M2, pattern)
 False
+
+Example: Simplifying multiplication with inverse matrix
+-------------------------------------------------------
+
+Now, we can build patterns to find whatever subexpressions we are interested in. For example, we could remove all
+occurences of a matrix being multiplied with its inverse. For that we need sequence wildcards. Instead of
+matching a single term, they can match a sequence of terms. We can create sequence variables like this:
+
+>>> ctx1 = Wildcard.plus('ctx1')
+>>> ctx2 = Wildcard.star('ctx2')
+
+``ctx1`` is a plus variables and matches a sequence one or more terms. ``ctx2`` is a star variables and can match any
+sequence of terms, including the empty one. With these sequence variables, we can create the rules:
+
+>>> x = Wildcard.dot('x')
+>>> simplify_matrix_inverse_rules = [
+...     ReplacementRule(
+...         Pattern(Times(ctx1, x, Inverse(x), ctx2)),
+...         lambda ctx1, ctx2, x: Times(*ctx1, *ctx2)
+...     ),
+...     ReplacementRule(
+...         Pattern(Times(ctx2, x, Inverse(x), ctx1)),
+...         lambda ctx1, ctx2, x: Times(*ctx2, *ctx1)
+...     )
+... ]
+
+We need two variations of the rule to make sure that we do not accidentially create an empty product. In the first
+rule, at least one operand must preceed the inverse pair. In the second one, at least one operand must come after it.
+
+For the actual replacement, we can use the `.replace_all` function:
+
+>>> expr = Times(M1, Inverse(M1), M2)
+>>> replace_all(expr, simplify_matrix_inverse_rules)
+Matrix('M2')
+
+For the case that there are no other factors in the product, we can add another rule that replaces
+it with the identity matrix:
+
+>>> Identity = Matrix('I')
+>>> simplify_matrix_inverse_rules.append(
+...     ReplacementRule(
+...         Pattern(Times(x, Inverse(x))),
+...         lambda x: Identity
+...     )
+... )
+
+Lets see this new rule in action:
+
+>>> expr2 = Times(M1, Inverse(M1))
+>>> replace_all(expr2, simplify_matrix_inverse_rules)
+Matrix('I')
+
+Because ``Times`` is associative, these rules even work for more complex expressions:
+
+>>> expr3 = Times(M1, M1, M2, Inverse(Times(M1, M2)), M2)
+>>> replace_all(expr3, simplify_matrix_inverse_rules)
+Times(Matrix('M1'), Matrix('M2'))
+
+Note that we can normalize a matrix product inside an inversion by moving it outside, i.e.
+using the equality :math:`(A B)^{-1} = B^{-1} A^{-1}`:
+
+>>> y = Wildcard.dot('y')
+>>> simplify_matrix_inverse_rules.append(
+...     ReplacementRule(
+...         Pattern(Inverse(Times(x, y))),
+...         lambda x, y: Times(Inverse(y), Inverse(x))
+...     )
+... )
+
+This allows us to simplify an expression like this:
+
+>>> expr4 = Times(M1, M2, Inverse(Times(M3, M1, M2)))
+>>> replace_all(expr4, simplify_matrix_inverse_rules)
+Inverse(Matrix('M3'))
+
+Or this:
+
+>>> expr5 = Times(M1, M2, Inverse(Times(M3, M2)))
+>>> replace_all(expr5, simplify_matrix_inverse_rules)
+Times(Matrix('M1'), Inverse(Matrix('M3')))
+
+Example: Finding matches for a BLAS kernel
+------------------------------------------
+
+Lets assume we want to find all subexpressions of some expression which we can compute efficiently with
+the `?TRMM`_ BLAS_ routine. These all have the form :math:`\alpha op(A) B` or :math:`\alpha B op(A)` where
+:math:`op(A)` is either :math:`A` or :math:`A^T` and :math:`A` is a triangular matrix. Here, we will ignore
+:math:`\alpha` and just assume it as 1.
+
+First, we define the variables and constraints we need:
+
+>>> A_ = Wildcard.symbol('A', Matrix)
+>>> B_ = Wildcard.symbol('B', Matrix)
+>>> before_ = Wildcard.star('before')
+>>> after_ = Wildcard.star('after')
+>>> A_is_triangular = CustomConstraint(lambda A: 'triangular' in A.properties)
+
+Then we can construct the patterns, again using context variables to capture the remaining operands:
+
+>>> trmm_patterns = [
+...     Pattern(Times(before_, A_, B_, after_), A_is_triangular),
+...     Pattern(Times(before_, Transpose(A_), B_, after_), A_is_triangular),
+...     Pattern(Times(before_, B_, A_, after_), A_is_triangular),
+...     Pattern(Times(before_, B_, Transpose(A_), after_), A_is_triangular),
+... ]
+
+Then, we can find all matching subexpressions using `.one_to_one.match`:
+
+>>> expr = Times(Transpose(M3), M1, M3, M2)
+>>> for i, pattern in enumerate(trmm_patterns):
+...     for substitution in match(expr, pattern):
+...         print('Pattern {} matched with {} as A and {} as B'.format(i, substitution['A'], substitution['B']))
+Pattern 0 matched with M3 as A and M2 as B
+Pattern 1 matched with M3 as A and M1 as B
+Pattern 2 matched with M3 as A and M1 as B
+
+.. _`?TRMM`: https://software.intel.com/en-us/node/468494
+.. _BLAS: http://www.netlib.org/blas/
