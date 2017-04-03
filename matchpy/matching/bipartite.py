@@ -9,7 +9,10 @@ The function `enum_maximum_matchings_iter` can be used to enumerate all maximum 
 
 from typing import (Dict, Generic, Hashable, Iterator, List, Set, Tuple, TypeVar, Union, cast)
 
-from graphviz import Digraph, Graph
+try:
+    from graphviz import Digraph, Graph
+except ImportError:
+    Digraph = Graph = None
 from hopcroftkarp import HopcroftKarp
 
 __all__ = ['BipartiteGraph', 'enum_maximum_matchings_iter']
@@ -88,6 +91,8 @@ class BipartiteGraph(Generic[TLeft, TRight, TEdgeValue]):
 
     def as_graph(self) -> Graph:  # pragma: no cover
         """Returns a :class:`graphviz.Graph` representation of this bipartite graph."""
+        if Graph is None:
+            raise ImportError('The graphviz package is required to draw the graph.')
         graph = Graph()
         nodes_left = {}  # type: Dict[TLeft, str]
         nodes_right = {}  # type: Dict[TRight, str]
@@ -165,6 +170,8 @@ class _DirectedMatchGraph(Dict[Node, NodeSet], Generic[TLeft, TRight]):
 
     def as_graph(self) -> Digraph:  # pragma: no cover
         """Returns a :class:`graphviz.Digraph` representation of this directed match graph."""
+        if Digraph is None:
+            raise ImportError('The graphviz package is required to draw the graph.')
         graph = Digraph()
 
         subgraphs = [Digraph(graph_attr={'rank': 'same'}), Digraph(graph_attr={'rank': 'same'})]

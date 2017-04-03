@@ -27,20 +27,22 @@ setup(
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6'
+        'Programming Language :: Python :: 3.6',
     ],
     setup_requires=[
         'setuptools_scm >= 1.7.0',
-        'pytest-runner'
+        'pytest-runner',
     ],
     tests_require=[
         'pytest',
         'hypothesis',
     ],
     install_requires=[
-        'graphviz>=0.5,<0.6',
         'hopcroftkarp>=1.2,<2.0',
-        'multiset>=2.0,<3.0'
-    ]
+        'multiset>=2.0,<3.0',
+    ],
+    extras_require={
+        'graphs': ['graphviz>=0.5,<0.6'],
+    },
 )
 

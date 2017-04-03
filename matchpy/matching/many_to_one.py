@@ -35,7 +35,10 @@ from collections import deque
 from operator import itemgetter
 from typing import Container, Dict, Iterable, Iterator, List, NamedTuple, Optional, Sequence, Set, Tuple, Type, Union
 
-from graphviz import Digraph
+try:
+    from graphviz import Digraph
+except ImportError:
+    Digraph = None
 from multiset import Multiset
 
 from ..expressions.expressions import Expression, Operation, Symbol, SymbolWildcard, Wildcard, Pattern
@@ -561,6 +564,8 @@ class ManyToOneMatcher:
         return '{{{}}}'.format(', '.join(map(cls._colored_constraint, constraints)))
 
     def _as_graph(self, finals: Optional[List[str]]) -> Digraph:  # pragma: no cover
+        if Digraph is None:
+            raise ImportError('The graphviz package is required to draw the graph.')
         graph = Digraph()
         if finals is None:
             patterns = [
@@ -882,6 +887,8 @@ class SecondaryAutomaton():  # pragma: no cover
         return new_states
 
     def as_graph(self):
+        if Digraph is None:
+            raise ImportError('The graphviz package is required to draw the graph.')
         graph = Digraph()
         for i in range(len(self.states)):
             graph.node(str(i), str(i))

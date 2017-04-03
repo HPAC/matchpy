@@ -14,7 +14,10 @@ import itertools
 from reprlib import recursive_repr
 from typing import (Any, Dict, FrozenSet, Generic, Iterator, List, Optional, Sequence, Set, Tuple, Type, TypeVar, Union)
 
-from graphviz import Digraph
+try:
+    from graphviz import Digraph
+except ImportError:
+    Digraph = None
 
 from ..expressions.expressions import Expression, Operation, Symbol, SymbolWildcard, Wildcard, Pattern
 from ..expressions.substitution import Substitution
@@ -659,6 +662,8 @@ class DiscriminationNet(Generic[T]):
 
     def as_graph(self) -> Digraph:  # pragma: no cover
         """Renders the discrimination net as graphviz digraph."""
+        if Digraph is None:
+            raise ImportError('The graphviz package is required to draw the graph.')
         dot = Digraph()
 
         nodes = set()
