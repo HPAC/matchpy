@@ -11,68 +11,73 @@ Overview
 --------
 
 This package implements `pattern matching <https://en.wikipedia.org/wiki/Pattern_matching>`_ in python. It is similar
-to the implementation in `Mathematica <https://reference.wolfram.com/language/guide/Patterns.html>`_ or
-`Haskell <https://www.haskell.org/tutorial/patterns.html>`_.
+to the implementation in `Mathematica <https://reference.wolfram.com/language/guide/Patterns.html>`_.
+A `detailed example <https://matchpy.readthedocs.io/en/latest/example.html>`_ of how you can use matchpy can be found
+in the `documentation <https://matchpy.readthedocs.io/en/latest/>`_.
+
+In addition to the basic matching algorithm, there are data structures that can be used for more efficient many-to-one
+matching like the `ManyToOneMatcher <https://matchpy.readthedocs.io/en/latest/api/matchpy.matching.many_to_one.html>`_
+and the `DiscriminationNet <https://matchpy.readthedocs.io/en/latest/api/matchpy.matching.syntactic.html>`_.
 
 Expressions
 ...........
 
 Expressions and patterns both have a tree structure. Expressions consist of symbols (leafs) and operations
-(internal nodes)::
+(internal nodes):
 
-    >>> from matchpy.expressions import Operation, Symbol, Arity
-    >>> f = Operation.new('f', Arity.binary)
-    >>> a = Symbol('a')
-    >>> print(f(a, a))
-    f(a, a)
+>>> from matchpy import Operation, Symbol, Arity
+>>> f = Operation.new('f', Arity.binary)
+>>> a = Symbol('a')
+>>> print(f(a, a))
+f(a, a)
 
 Patterns are expressions which can additionally contain wildcards and subexpressions can have a variable name assigned
 to them. During matching, a subject matching a pattern with a variable will be captured so it can be accessed later.
 Wildcards are placeholders that stand for any expression. Usually, the wildcards are used in combination with a variable
-name::
+name:
 
-    >>> from matchpy.expressions import Wildcard
-    >>> x = Wildcard.dot('x')
-    >>> print(f(a, x))
-    f(a, x_)
+>>> from matchpy import Wildcard
+>>> x = Wildcard.dot('x')
+>>> print(Pattern(f(a, x)))
+f(a, x_)
 
-However, unnamed wildcards can also be used::
+Here x is the name of the variable. However, unnamed wildcards can also be used:
 
-    >>> w = Wildcard.dot()
-    >>> print(f(w, w))
-    f(_, _)
+>>> w = Wildcard.dot()
+>>> print(Pattern(f(w, w)))
+f(_, _)
 
-Or a more complex expression can be named with a variable::
+Or a more complex expression can be named with a variable:
 
-    >>> print(f(w, a, variable_name='y'))
-    y: f(_, a)
+>>> print(Pattern(f(w, a, variable_name='y')))
+y: f(_, a)
 
-In addition, sequence wildcards that can match for multiple expressions are supported::
+In addition, sequence wildcards that can match for multiple expressions are supported:
 
-    >>> z = Wildcard.plus('z')
-    >>> print(f(z))
-    f(z__)
+>>> z = Wildcard.plus('z')
+>>> print(Pattern(f(z)))
+f(z__)
 
 
 Substitutions
 .............
 
-Matches are given in the form of substitutions, which are a mapping from variable names to expressions::
+Matches are given in the form of substitutions, which are a mapping from variable names to expressions:
 
-    >>> from matchpy.matching.one_to_one import match
-    >>> y = Wildcard.dot('y')
-    >>> b = Symbol('b')
-    >>> expression = f(a, b)
-    >>> pattern = Pattern(f(x, y))
-    >>> substitution = next(match(expression, pattern))
-    >>> substitution
-    {'x': Symbol('a'), 'y': Symbol('b')}
+>>> from matchpy import match
+>>> y = Wildcard.dot('y')
+>>> b = Symbol('b')
+>>> expression = f(a, b)
+>>> pattern = Pattern(f(x, y))
+>>> substitution = next(match(expression, pattern))
+>>> substitution
+{'x': Symbol('a'), 'y': Symbol('b')}
 
-Replacing the variables in the pattern according to the substitution will yield the original subject expression::
+Replacing the variables in the pattern according to the substitution will yield the original subject expression:
 
-    >>> from matchpy.functions import substitute
-    >>> print(substitute(pattern, substitution))
-    f(a, b)
+>>> from matchpy import substitute
+>>> print(substitute(pattern, substitution))
+f(a, b)
 
 
 .. |pypi| image:: https://img.shields.io/pypi/v/matchpy.svg?style=flat-square&label=latest%20version
@@ -88,5 +93,5 @@ Replacing the variables in the pattern according to the substitution will yield 
     :alt: Build status of the master branch
 
 .. |docs| image:: https://readthedocs.org/projects/matchpy/badge/?version=latest
-    :target: http://matchpy.readthedocs.io/en/latest/?badge=latest
+    :target: https://matchpy.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status
