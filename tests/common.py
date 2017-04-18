@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from matchpy.expressions.expressions import (
+from matchpy.expressions import (
     Arity, Operation, Symbol, Wildcard, SymbolWildcard, make_dot_variable, make_plus_variable, make_star_variable,
     make_symbol_variable
 )

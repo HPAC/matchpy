@@ -2,7 +2,7 @@
 import pytest
 
 from matchpy.expressions.constraints import CustomConstraint
-from matchpy.expressions.expressions import Symbol, Pattern
+from matchpy.expressions import Symbol, Pattern
 from matchpy.matching.many_to_one import ManyToOneMatcher
 from .common import *
 from .utils import MockConstraint

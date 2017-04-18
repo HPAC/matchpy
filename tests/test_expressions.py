@@ -5,7 +5,7 @@ import itertools
 import pytest
 from multiset import Multiset
 
-from matchpy.expressions.expressions import (Arity, Operation, Symbol, SymbolWildcard, Wildcard, Expression)
+from matchpy.expressions import (Arity, Operation, Symbol, SymbolWildcard, Wildcard, Expression)
 from .common import *
 
 SIMPLE_EXPRESSIONS = [

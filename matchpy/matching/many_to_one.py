@@ -41,7 +41,7 @@ except ImportError:
     Digraph = None
 from multiset import Multiset
 
-from ..expressions.expressions import Expression, Operation, Symbol, SymbolWildcard, Wildcard, Pattern
+from ..expressions import Expression, Operation, Symbol, SymbolWildcard, Wildcard, Pattern
 from ..expressions.substitution import Substitution
 from ..utils import (VariableWithCount, commutative_sequence_variable_partition_iter)
 from .bipartite import BipartiteGraph, enum_maximum_matchings_iter

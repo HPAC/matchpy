@@ -2,7 +2,7 @@
 import pytest
 
 from matchpy.expressions.constraints import CustomConstraint
-from matchpy.expressions.expressions import Wildcard
+from matchpy.expressions import Wildcard
 from matchpy.matching._common import CommutativePatternsParts
 from .common import *
 

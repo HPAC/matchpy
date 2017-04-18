@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import pytest
 
-from matchpy.expressions.expressions import Operation, Symbol, Arity, Wildcard, make_dot_variable, make_star_variable, make_plus_variable
+from matchpy.expressions import Operation, Symbol, Arity, Wildcard, make_dot_variable, make_star_variable, make_plus_variable
 import matchpy
 
 @pytest.fixture(autouse=True)

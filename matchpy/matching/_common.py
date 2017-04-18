@@ -3,7 +3,7 @@ from typing import Callable, Dict, Iterator, NamedTuple, Optional, Sequence, Typ
 
 from multiset import Multiset
 
-from ..expressions.expressions import Expression, Operation, Wildcard
+from ..expressions import Expression, Operation, Wildcard
 from ..expressions.substitution import Substitution
 
 __all__ = ['CommutativePatternsParts', 'Matcher', 'VarInfo']

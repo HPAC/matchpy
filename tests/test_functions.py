@@ -3,7 +3,7 @@ from hypothesis import assume, given
 import hypothesis.strategies as st
 import pytest
 
-from matchpy.expressions.expressions import Arity, Operation, Symbol, Wildcard, Pattern
+from matchpy.expressions import Arity, Operation, Symbol, Wildcard, Pattern
 from matchpy.functions import ReplacementRule, replace, replace_all, substitute, replace_many, is_match
 from matchpy.matching.one_to_one import match_anywhere
 from matchpy.matching.one_to_one import match as match_one_to_one

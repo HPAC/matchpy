@@ -5,7 +5,7 @@ from hypothesis import assume, example, given
 import hypothesis.strategies as st
 import pytest
 
-from matchpy.expressions.expressions import Atom, Operation, Symbol, Wildcard, Pattern
+from matchpy.expressions import Atom, Operation, Symbol, Wildcard, Pattern
 from matchpy.matching.one_to_one import match
 from matchpy.matching.syntactic import OPERATION_END as OP_END
 from matchpy.matching.syntactic import DiscriminationNet, FlatTerm, SequenceMatcher, is_operation, is_symbol_wildcard

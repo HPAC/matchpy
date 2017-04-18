@@ -15,8 +15,7 @@ from typing import Callable, List, NamedTuple, Sequence, Tuple, Union, Iterable
 
 from multiset import Multiset
 
-from .expressions.expressions import Expression, Operation, Pattern
-from .expressions.substitution import Substitution
+from .expressions import Expression, Operation, Pattern, Substitution
 from .matching.one_to_one import match
 
 __all__ = ['substitute', 'replace', 'replace_all', 'replace_many', 'is_match', 'ReplacementRule']

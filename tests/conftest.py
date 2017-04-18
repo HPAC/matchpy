@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import pytest
 
-from matchpy.expressions.expressions import Operation, Wildcard
+from matchpy.expressions import Operation, Wildcard
 from matchpy.matching.one_to_one import match as match_one_to_one
 from matchpy.matching.many_to_one import ManyToOneMatcher
 from matchpy.matching.syntactic import DiscriminationNet
