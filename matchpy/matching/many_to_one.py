@@ -94,6 +94,17 @@ class _MatchIter:
         for _ in self._match(self.matcher.root):
             yield list(self._internal_iter())
 
+    def any(self):
+        """
+        Returns:
+            True, if any match is found.
+        """
+        try:
+            next(self)
+        except StopIteration:
+            return False
+        return True
+
     def _internal_iter(self):
         for pattern_index in self.patterns:
             renaming = self.matcher.pattern_vars[pattern_index]
