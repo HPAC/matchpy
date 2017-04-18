@@ -395,6 +395,18 @@ class ManyToOneMatcher:
         """
         return _MatchIter(self, subject)
 
+    def is_match(self, subject: Expression) -> bool:
+        """Check if the subject matches any of the matcher's patterns.
+
+        Args:
+            subject: The subject to match.
+
+        Return:
+            True, if the subject is matched by any of the matcher's patterns.
+            False, otherwise.
+        """
+        return _MatchIter(self, subject).any()
+
     def _create_expression_transition(
             self, state: _State, expression: Expression, variable_name: Optional[str], index: int
     ) -> _State:
