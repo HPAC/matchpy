@@ -5,6 +5,7 @@ import itertools
 import math
 import ast
 import os
+from collections import deque
 from types import LambdaType
 # pylint: disable=unused-import
 from typing import (Callable, Dict, Iterator, List, NamedTuple, Optional, Sequence, Tuple, TypeVar, cast, Union, Any)
@@ -118,6 +119,90 @@ def weak_composition_iter(n: int, num_parts: int) -> Iterator[Tuple[int]]:
     first = (-1, )
     for t in itertools.combinations(range(m), num_parts - 1):
         yield tuple(v - u - 1 for u, v in zip(first + t, t + last))
+
+
+class anything():
+    def __contains__(self, other):
+        return True
+
+
+class unbounded_range():
+    def __init__(self, start):
+        self.start = start
+
+    def __contains__(self, other):
+        return other >= self.start
+
+    def __iter__(self):
+        i = self.start
+        while True:
+            yield i
+            i += 1
+
+
+def weak_composition_iter_second_order(R, s):
+    """Compute and yield all weak compositions of *s* with restriction sets $R$ for every part.
+
+    Note that the number of parts *n* is given by len(R)
+
+    Algorithm adapted from the paper "Generalized Algorithm for Restricted Weak Composition Generation"
+    by Daniel R. Page.
+
+    http://link.springer.com/article/10.1007/s10852-012-9194-4
+    """
+    if s < 0:
+        raise ValueError('s must be non-negative')
+    n = len(R)
+    if n == 0:
+        if s == 0:
+            yield tuple()
+        return
+    elif n == 1:
+        if s in R[0]:
+            yield (s, )
+    elif n == 2:
+        for i in range(s + 1):
+            if i in R[0] and s - i in R[1]:
+                yield (i, s - i)
+    else:
+        R_map = [[1 if i in r else 0 for i in range(s + 1)] for r in R]
+        Q = [deque() for _ in range(s)]
+        try:
+            carryTill = next(i - 1 for i in range(n - 2, 0, -1) if not R_map[i][0])
+        except StopIteration:
+            carryTill = -1
+
+        edges = [[[i + j for j in range(0, s - i + 1) if R_map[k][j] and (carryTill <= k - 1 or i + j != s)]
+                  for i in range(s + 1)] for k in range(1, n - 1)]
+
+        for i in range(s):
+            if R_map[0][i]:
+                Q[i].append([i] + ([0] * (n - 1)))
+
+        if R_map[0][s] and all(r[0] for r in R_map[1:]):
+            yield tuple([s] + ([0] * (n - 1)))
+
+        for current_round in range(1, n - 2):
+            for i in range(s - 1, -1, -1):
+                countDown = len(Q[i])
+                for _ in range(countDown):
+                    element = Q[i].popleft()
+                    if current_round < n - 2:
+                        for e in edges[current_round - 1][i]:
+                            copy = element[:]
+                            copy[current_round] = e - i
+                            Q[e].append(copy)
+
+        for i in range(s - 1, -1, -1):
+            reachable = any(R_map[n - 1][s - e] for e in edges[n - 3][i])
+            if not reachable:
+                continue
+            for element in Q[i]:
+                for e in edges[n - 3][i]:
+                    if R_map[n - 1][s - e]:
+                        element[n - 2] = e - i
+                        element[n - 1] = s - e
+                        yield tuple(element)
 
 
 def _make_variable_generator_factory(value, total, variables: List[VariableWithCount]):

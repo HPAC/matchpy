@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import itertools
 import os
+import math
 
 from hypothesis import assume, example, given
 import hypothesis.strategies as st
@@ -10,7 +11,7 @@ from multiset import Multiset
 from matchpy.utils import (
     VariableWithCount, base_solution_linear, cached_property, commutative_sequence_variable_partition_iter,
     extended_euclid, fixed_integer_vector_iter, get_short_lambda_source, weak_composition_iter, slot_cached_property,
-    solve_linear_diop
+    solve_linear_diop, weak_composition_iter_second_order
 )
 
 
@@ -158,6 +159,36 @@ class TestSolveLinearDiop:
         self._limit_possible_solution_count(coeffs, c)
         solutions = list(solve_linear_diop(c, *coeffs))
         assert is_unique_list(solutions), "Duplicate solution found"
+
+
+class TestWeakCompositionIter:
+    @given(st.lists(st.sets(st.integers(min_value=1, max_value=10), min_size=1, max_size=10), max_size=5), st.integers(min_value=0, max_value=10))
+    def test_second_order(self, restrictions, s):
+        n = len(restrictions)
+        all_solutions = list(weak_composition_iter(s, n))
+        restricted_solutions = list(weak_composition_iter_second_order(restrictions, s))
+
+        if n == 0 and s > 0:
+            assert len(all_solutions) == 0, "No solutions for n = 0 and s > 0"
+        else:
+            expected_number = math.factorial(max(s + n - 1, 0)) // math.factorial(max(n - 1, 0)) // math.factorial(s)
+            assert expected_number == len(all_solutions), "Unexpected number of solutions, should be binom(s + n - 1, n - 1)"
+
+        # uniqueness
+        unique_all = set(all_solutions)
+        assert len(unique_all) == len(all_solutions), "Duplicate solution"
+        unique_restricted = set(restricted_solutions)
+        assert len(unique_restricted) == len(restricted_solutions), "Duplicate solution"
+
+        assert unique_restricted <= unique_all, "Restricted solutions should be subset of all solutions"
+
+        # completeness + correctness
+        for solution in all_solutions:
+            assert sum(solution) == s
+            if all(x in r for x, r in zip(solution, restrictions)):
+                assert solution in unique_restricted, "Solution fulfills restriction, but is not in restricted results"
+            else:
+                assert solution not in unique_restricted, "Solution breaks restriction, but is in restricted results"
 
 
 @st.composite
