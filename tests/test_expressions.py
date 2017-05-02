@@ -5,7 +5,7 @@ import itertools
 import pytest
 from multiset import Multiset
 
-from matchpy.expressions import (Arity, Operation, Symbol, SymbolWildcard, Wildcard, Expression)
+from matchpy.expressions import (Arity, Operation, Symbol, SymbolWildcard, Wildcard, Expression, Alternatives, ExpressionSequence, Repeated)
 from .common import *
 
 SIMPLE_EXPRESSIONS = [
@@ -296,3 +296,7 @@ class TestOperation:
     def test_infix_error(self):
         with pytest.raises(TypeError):
             Operation.new('Invalid', Arity.unary, infix=True)
+
+
+def test_alternatives_transformation():
+    assert Alternatives(ExpressionSequence(), a, variable_name='x') == Repeated(a, 0, 1, variable_name='x')

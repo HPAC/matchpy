@@ -232,7 +232,7 @@ class ExpressionSequence(Expression):
     def __init__(self, *children, variable_name=None):
         super().__init__(variable_name)
         self.children = children
-        self.head = children[0].head
+        self.head = children[0].head if len(children) > 0 else None
         self.min_length = sum(c.min_length for c in children)
         self.max_length = sum(c.max_length for c in children)
 
@@ -248,13 +248,18 @@ class ExpressionSequence(Expression):
         return all(c.is_syntactic for c in self.children)
 
     def with_renamed_vars(self, renaming) -> 'Wildcard':
-        return type(self)(*(c.with_renamed_vars(renaming) for c in self.children))
+        return type(self)(*(c.with_renamed_vars(renaming) for c in self.children),
+            variable_name=renaming.get(self.variable_name, self.variable_name))
 
     def collect_variables(self, variables) -> None:
-        return sum((x.variables for x in self.children), Multiset())
+        super().collect_variables(variables)
+        for child in self.children:
+            child.collect_variables(variables)
 
     def collect_symbols(self, symbols) -> None:
-        return sum((x.symbols for x in self.children), Multiset())
+        super().collect_symbols(symbols)
+        for child in self.children:
+            child.collect_symbols(symbols)
 
     def _preorder_iter(self, predicate: ExprPredicate=None, position: Tuple[int, ...]=()) -> ExpressionsWithPos:
         if predicate is None or predicate(self):
@@ -263,9 +268,7 @@ class ExpressionSequence(Expression):
             yield from child._preorder_iter(predicate, position + (i, ))  # pylint: disable=protected-access
 
     def __eq__(self, other):
-        return (
-            isinstance(other, type(self)) and self.children == other.children
-        )
+        return (isinstance(other, type(self)) and self.children == other.children and self.variable_name == other.variable_name)
 
     def __lt__(self, other):
         if not isinstance(other, Expression):
@@ -281,7 +284,7 @@ class ExpressionSequence(Expression):
                 return True
             elif right < left:
                 return False
-        return False
+        return (self.variable_name or '') < (other.variable_name or '')
 
     def __getitem__(self, key: Tuple[int, ...]) -> Expression:
         if len(key) == 0:
@@ -300,7 +303,7 @@ class ExpressionSequence(Expression):
         return hash((type(self), ) + tuple(self.children))
 
     def __copy__(self) -> 'ExpressionSequence':
-        return type(self)(*self.children)
+        return type(self)(*self.children, variable_name=self.variable_name)
 
 
 class Alternatives(Expression):
@@ -311,11 +314,14 @@ class Alternatives(Expression):
         self.min_length = min(c.min_length for c in children)
         self.max_length = max(c.max_length for c in children)
 
-    def __new__(cls, *children):
+    def __new__(cls, *children, variable_name=None):
         if len(children) < 1:
             raise ValueError("Must have at least one alternative")
         if len(children) == 1:
             return children[0]
+        if any(isinstance(c, ExpressionSequence) and len(c.children) == 0 for c in children):
+            new_children = [c for c in children if not isinstance(c, ExpressionSequence) or len(c.children) != 0]
+            return Repeated(Alternatives(*new_children), 0, 1, variable_name)
         return super(Alternatives, cls).__new__(cls)
 
     def _is_constant(self) -> bool:
@@ -325,15 +331,22 @@ class Alternatives(Expression):
         return False
 
     def with_renamed_vars(self, renaming) -> 'Wildcard':
-        return type(self)(*(c.with_renamed_vars(renaming) for c in self.children))
+        return type(self)(*(c.with_renamed_vars(renaming) for c in self.children),
+            variable_name=renaming.get(self.variable_name, self.variable_name))
 
     def collect_variables(self, variables) -> None:
-        subvars = [x.variables for x in self.children]
-        variables.update(Multiset(subvars[0]).intersection(*subvars[1:]))
+        super().collect_variables(variables)
+        common = self.children[0].variables
+        for child in self.children[1:]:
+            common.intersection_update(child.variables)
+        variables.update(common)
 
     def collect_symbols(self, symbols) -> None:
-        subsymbols = [x.symbols for x in self.children]
-        return Multiset(subsymbols[0]).intersection(*subsymbols[1:])
+        super().collect_symbols(symbols)
+        common = self.children[0].symbols
+        for child in self.children[1:]:
+            common.intersection_update(child.symbols)
+        symbols.update(common)
 
     def _preorder_iter(self, predicate: ExprPredicate=None, position: Tuple[int, ...]=()) -> ExpressionsWithPos:
         if predicate is None or predicate(self):
@@ -342,9 +355,7 @@ class Alternatives(Expression):
             yield from child._preorder_iter(predicate, position + (i, ))  # pylint: disable=protected-access
 
     def __eq__(self, other):
-        return (
-            isinstance(other, type(self)) and self.children == other.children
-        )
+        return (isinstance(other, type(self)) and self.children == other.children and self.variable_name == other.variable_name)
 
     def __lt__(self, other):
         if not isinstance(other, Expression):
@@ -360,7 +371,7 @@ class Alternatives(Expression):
                 return True
             elif right < left:
                 return False
-        return False
+        return (self.variable_name or '') < (other.variable_name or '')
 
     def __getitem__(self, key: Tuple[int, ...]) -> Expression:
         if len(key) == 0:
@@ -379,22 +390,29 @@ class Alternatives(Expression):
         return hash((type(self), ) + tuple(self.children))
 
     def __copy__(self) -> 'Alternatives':
-        return type(self)(*self.children)
+        return type(self)(*self.children, variable_name=self.variable_name)
 
 
 class Repeated(Expression):
-    def __init__(self, expression, required=True, unlimited=True, variable_name=None):
+    def __init__(self, expression, min_count=1, max_count=math.inf, variable_name=None):
+        if max_count < 1:
+            raise ValueError('The max_count must be positive')
+        if min_count < 0:
+            raise ValueError('The min_count must not be negative')
+        if max_count < min_count:
+            raise ValueError('The max_count must not be smaller than the min_count')
         super().__init__(variable_name)
         self.expression = expression
-        self.required = required
-        self.unlimited = unlimited
+        self.min_count = min_count
+        self.max_count = max_count
         self.head = expression.head
-        self.min_length = expression.min_length if required else 0
-        self.max_length = math.inf if unlimited else expression.min_length
+        self.min_length = expression.min_length * min_count
+        self.max_length = expression.max_length * max_count
 
-    def __new__(cls, expression, required=True, unlimited=True):
-        if required and not unlimited:
-            return expression
+    def __new__(cls, expression, min_count=1, max_count=math.inf, variable_name=None):
+        if min_count == max_count:
+            sequence = [expression] * min_count
+            return ExpressionSequence(sequence)
         return super(Repeated, cls).__new__(cls)
 
     def _is_constant(self) -> bool:
@@ -404,14 +422,18 @@ class Repeated(Expression):
         return False
 
     def with_renamed_vars(self, renaming) -> 'Repeated':
-        return type(self)(self.expression.with_renamed_vars(renaming), self.required, self.unlimited)
+        return type(self)(
+            self.expression.with_renamed_vars(renaming), self.min_count, self.max_count,
+            renaming.get(self.variable_name, self.variable_name)
+        )
 
     def collect_variables(self, variables) -> None:
+        super().collect_variables(variables)
         self.expression.collect_variables(variables)
 
     def collect_symbols(self, symbols) -> None:
+        super().collect_symbols(symbols)
         self.expression.collect_symbols(symbols)
-
 
     def _preorder_iter(self, predicate: ExprPredicate=None, position: Tuple[int, ...]=()) -> ExpressionsWithPos:
         if predicate is None or predicate(self):
@@ -421,7 +443,8 @@ class Repeated(Expression):
     def __eq__(self, other):
         return (
             isinstance(other, type(self)) and self.expression == other.expression and
-            self.required == other.required and self.unlimited == other.unlimited
+            self.min_count == other.min_count and self.max_count == other.max_count and
+            self.variable_name == other.variable_name
         )
 
     def __lt__(self, other):
@@ -431,7 +454,13 @@ class Repeated(Expression):
             return False
         if not isinstance(other, type(self)):
             return type(other).__name__ < type(self).__name__
-        return (self.expression < other.expression or (self.required and not other.required) or (not self.unlimited and other.unlimited))
+        if self.expression != other.expression:
+            return self.expression < other.expression
+        if self.max_count != other.max_count:
+            return self.max_count < other.max_count
+        if self.min_count != other.min_count:
+            return self.min_count < other.min_count
+        return (self.variable_name or '') < (other.variable_name or '')
 
     def __getitem__(self, key: Tuple[int, ...]) -> Expression:
         if len(key) == 0:
@@ -441,17 +470,25 @@ class Repeated(Expression):
         return self.expression[key[1:]]
 
     def __str__(self):
-        symbol = self.unlimited and (self.required and '^+' or '^*') or '?'
-        return '({}){}'.format(self.expression, symbol)
+        if self.max_count == math.inf:
+            if self.min_count == 1:
+                return '({})+'.format(self.expression)
+            elif self.min_count == 0:
+                return '({})*'.format(self.expression)
+        elif self.min_count == 0 and self.max_count == 1:
+            return '({})?'.format(self.expression)
+        return '({}){{{}, {}}}'.format(self.expression, self.min_count, self.max_count)
 
     def __repr__(self):
-        return '{}({}, required={}, unlimited={})'.format(type(self).__name__, self.expression, self.required, self.unlimited)
+        return '{}({}, min_count={}, max_count={})'.format(
+            type(self).__name__, self.expression, self.min_count, self.max_count
+        )
 
     def __hash__(self):
         return hash((type(self), self.expression))
 
     def __copy__(self) -> 'Repeated':
-        return type(self)(self.expression, self.required, self.unlimited)
+        return type(self)(self.expression, self.min_count, self.max_count, self.variable_name)
 
 
 class Pattern:
@@ -509,6 +546,7 @@ class Pattern:
         match has been completed.
         """
         return [c for c in self.constraints if not c.variables]
+
 
 def make_dot_variable(name):
     """Create a new variable with the given name that matches a single term.
