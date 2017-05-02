@@ -120,11 +120,19 @@ def weak_composition_iter(n: int, num_parts: int) -> Iterator[Tuple[int]]:
         yield tuple(v - u - 1 for u, v in zip(first + t, t + last))
 
 
+_linear_diop_solution_cache = {}
+
 def _make_variable_generator_factory(value, total, variables: List[VariableWithCount]):
     var_counts = [v.count for v in variables]
+    cache_key = (total, *var_counts)
 
     def _factory(subst):
-        for solution in solve_linear_diop(total, *var_counts):
+        if cache_key in _linear_diop_solution_cache:
+            solutions = _linear_diop_solution_cache[cache_key]
+        else:
+            solutions = list(solve_linear_diop(total, *var_counts))
+            _linear_diop_solution_cache[cache_key] = solutions
+        for solution in solutions:
             for var, count in zip(variables, solution):
                 subst[var.name][value] = count
             yield subst
@@ -385,10 +393,6 @@ def base_solution_linear(a: int, b: int, c: int) -> Iterator[Tuple[int, int]]:
                 y += a
 
 
-_linear_diop_solution_cache = {}
-
-
-# TODO: Move caching elsewhere
 def solve_linear_diop(total: int, *coeffs: int) -> Iterator[Tuple[int, ...]]:
     r"""Yield non-negative integer solutions of a linear Diophantine equation of the format
     :math:`c_1 x_1 + \dots + c_n x_n = total`.
@@ -423,17 +427,11 @@ def solve_linear_diop(total: int, *coeffs: int) -> Iterator[Tuple[int, ...]]:
         if total % coeffs[0] == 0:
             yield (total // coeffs[0], )
         return
-    cache_key = (total, coeffs)
-    if cache_key in _linear_diop_solution_cache:
-        for solution in _linear_diop_solution_cache[cache_key]:
-            yield solution
-        return
     if len(coeffs) == 2:
         solutions = []
         for solution in base_solution_linear(coeffs[0], coeffs[1], total):
             solutions.append(solution)
             yield solution
-        _linear_diop_solution_cache[cache_key] = tuple(solutions)
         return
 
     # calculate gcd(coeffs[1:])
@@ -441,16 +439,13 @@ def solve_linear_diop(total: int, *coeffs: int) -> Iterator[Tuple[int, ...]]:
     for coeff in coeffs[3:]:
         remainder_gcd = math.gcd(remainder_gcd, coeff)
 
-    solutions = []
     # solve coeffs[0] * x + remainder_gcd * y = total
     for coeff0_solution, remainder_gcd_solution in base_solution_linear(coeffs[0], remainder_gcd, total):
         new_coeffs = [c // remainder_gcd for c in coeffs[1:]]
         # use the solutions for y to solve the remaining variables recursively
         for remainder_solution in solve_linear_diop(remainder_gcd_solution, *new_coeffs):
             solution = (coeff0_solution, ) + remainder_solution
-            solutions.append(solution)
             yield solution
-    _linear_diop_solution_cache[cache_key] = tuple(solutions)
 
 
 def generator_chain(initial_data: Any, *factories: Callable[..., Iterator[Any]]) -> Iterator[Any]:
