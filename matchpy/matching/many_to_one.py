@@ -94,6 +94,17 @@ class _MatchIter:
         for _ in self._match(self.matcher.root):
             yield list(self._internal_iter())
 
+    def any(self):
+        """
+        Returns:
+            True, if any match is found.
+        """
+        try:
+            next(self)
+        except StopIteration:
+            return False
+        return True
+
     def _internal_iter(self):
         for pattern_index in self.patterns:
             renaming = self.matcher.pattern_vars[pattern_index]
@@ -383,6 +394,18 @@ class ManyToOneMatcher:
             For every match, a tuple of the matching pattern and the match substitution.
         """
         return _MatchIter(self, subject)
+
+    def is_match(self, subject: Expression) -> bool:
+        """Check if the subject matches any of the matcher's patterns.
+
+        Args:
+            subject: The subject to match.
+
+        Return:
+            True, if the subject is matched by any of the matcher's patterns.
+            False, otherwise.
+        """
+        return _MatchIter(self, subject).any()
 
     def _create_expression_transition(
             self, state: _State, expression: Expression, variable_name: Optional[str], index: int

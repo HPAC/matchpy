@@ -189,11 +189,17 @@ class CustomConstraint(Constraint):  # pylint: disable=too-few-public-methods
 
         return self.constraint(**args)
 
+    def _get_name(self):
+        try:
+            return get_short_lambda_source(self.constraint) or self.constraint.__name__
+        except Exception:
+            return 'UNKNOWN'
+
     def __str__(self):
-        return '({!s})'.format(get_short_lambda_source(self.constraint) or self.constraint.__name__)
+        return '({!s})'.format(self._get_name())
 
     def __repr__(self):
-        return 'CustomConstraint({!s})'.format(get_short_lambda_source(self.constraint) or self.constraint.__name__)
+        return 'CustomConstraint({!s})'.format(self._get_name())
 
     def __eq__(self, other):
         return (

@@ -20,7 +20,6 @@ __all__ = [
 ]
 
 T = TypeVar('T')
-MultisetOfT = Multiset
 VariableWithCount = NamedTuple('VariableWithCount', [('name', str), ('count', int), ('minimum', int)])
 
 
@@ -72,7 +71,7 @@ def fixed_integer_vector_iter(max_vector: Tuple[int, ...], vector_sum: int) -> I
                 yield (j, ) + vec
 
 
-def weak_composition_iter(n: int, num_parts: int) -> Iterator[Tuple[int]]:
+def weak_composition_iter(n: int, num_parts: int) -> Iterator[Tuple[int, ...]]:
     """Yield all weak compositions of integer *n* into *num_parts* parts.
 
     Each composition is yielded as a tuple. The generated partitions are order-dependant and not unique when
@@ -205,11 +204,20 @@ def weak_composition_iter_second_order(R, s):
                         yield tuple(element)
 
 
+_linear_diop_solution_cache = {} # type: Dict[Tuple[int, ...], List[Tuple[int, ...]]]
+
+
 def _make_variable_generator_factory(value, total, variables: List[VariableWithCount]):
     var_counts = [v.count for v in variables]
+    cache_key = (total, *var_counts)
 
     def _factory(subst):
-        for solution in solve_linear_diop(total, *var_counts):
+        if cache_key in _linear_diop_solution_cache:
+            solutions = _linear_diop_solution_cache[cache_key]
+        else:
+            solutions = list(solve_linear_diop(total, *var_counts))
+            _linear_diop_solution_cache[cache_key] = solutions
+        for solution in solutions:
             for var, count in zip(variables, solution):
                 subst[var.name][value] = count
             yield subst
@@ -217,8 +225,8 @@ def _make_variable_generator_factory(value, total, variables: List[VariableWithC
     return _factory
 
 
-def _commutative_single_variable_partiton_iter(values: MultisetOfT,
-                                               variable: VariableWithCount) -> Iterator[Dict[str, MultisetOfT]]:
+def _commutative_single_variable_partiton_iter(values: 'Multiset[T]',
+                                               variable: VariableWithCount) -> Iterator[Dict[str, 'Multiset[T]']]:
     name, count, minimum = variable
     if count == 1:
         if len(values) >= minimum:
@@ -233,8 +241,8 @@ def _commutative_single_variable_partiton_iter(values: MultisetOfT,
             yield {name: new_values} if name is not None else {}
 
 
-def commutative_sequence_variable_partition_iter(values: MultisetOfT, variables: List[VariableWithCount]
-                                                ) -> Iterator[Dict[str, MultisetOfT]]:
+def commutative_sequence_variable_partition_iter(values: 'Multiset[T]', variables: List[VariableWithCount]
+                                                ) -> Iterator[Dict[str, 'Multiset[T]']]:
     """Yield all possible variable substitutions for given values and variables.
 
     .. note::
@@ -280,7 +288,7 @@ def commutative_sequence_variable_partition_iter(values: MultisetOfT, variables:
     for value, count in values.items():
         generators.append(_make_variable_generator_factory(value, count, variables))
 
-    initial = dict((var.name, Multiset()) for var in variables)  # type: Dict[str, MultisetOfT]
+    initial = dict((var.name, Multiset()) for var in variables)  # type: Dict[str, 'Multiset[T]']
     for subst in generator_chain(initial, *generators):
         valid = True
         for var in variables:
@@ -470,10 +478,6 @@ def base_solution_linear(a: int, b: int, c: int) -> Iterator[Tuple[int, int]]:
                 y += a
 
 
-_linear_diop_solution_cache = {}
-
-
-# TODO: Move caching elsewhere
 def solve_linear_diop(total: int, *coeffs: int) -> Iterator[Tuple[int, ...]]:
     r"""Yield non-negative integer solutions of a linear Diophantine equation of the format
     :math:`c_1 x_1 + \dots + c_n x_n = total`.
@@ -485,11 +489,6 @@ def solve_linear_diop(total: int, *coeffs: int) -> Iterator[Tuple[int, ...]]:
     2. Solve :math:`c_1 x + d y = total`
     3. Recursively solve :math:`c_2 x_2 + \dots + c_n x_n = y` for each solution for `y`
     4. Combine these solutions to form a solution for the whole equation
-
-    .. note::
-
-        The results are cached such that they do not have to be recomputed when the function is called with the same
-        arguments. This caching is transparent to the user and might be removed in the future.
 
     Args:
         total:
@@ -508,17 +507,8 @@ def solve_linear_diop(total: int, *coeffs: int) -> Iterator[Tuple[int, ...]]:
         if total % coeffs[0] == 0:
             yield (total // coeffs[0], )
         return
-    cache_key = (total, coeffs)
-    if cache_key in _linear_diop_solution_cache:
-        for solution in _linear_diop_solution_cache[cache_key]:
-            yield solution
-        return
     if len(coeffs) == 2:
-        solutions = []
-        for solution in base_solution_linear(coeffs[0], coeffs[1], total):
-            solutions.append(solution)
-            yield solution
-        _linear_diop_solution_cache[cache_key] = tuple(solutions)
+        yield from base_solution_linear(coeffs[0], coeffs[1], total)
         return
 
     # calculate gcd(coeffs[1:])
@@ -526,19 +516,15 @@ def solve_linear_diop(total: int, *coeffs: int) -> Iterator[Tuple[int, ...]]:
     for coeff in coeffs[3:]:
         remainder_gcd = math.gcd(remainder_gcd, coeff)
 
-    solutions = []
     # solve coeffs[0] * x + remainder_gcd * y = total
     for coeff0_solution, remainder_gcd_solution in base_solution_linear(coeffs[0], remainder_gcd, total):
         new_coeffs = [c // remainder_gcd for c in coeffs[1:]]
         # use the solutions for y to solve the remaining variables recursively
         for remainder_solution in solve_linear_diop(remainder_gcd_solution, *new_coeffs):
-            solution = (coeff0_solution, ) + remainder_solution
-            solutions.append(solution)
-            yield solution
-    _linear_diop_solution_cache[cache_key] = tuple(solutions)
+            yield (coeff0_solution, ) + remainder_solution
 
 
-def generator_chain(initial_data: Any, *factories: Callable[..., Iterator[Any]]) -> Iterator[Any]:
+def generator_chain(initial_data: T, *factories: Callable[[T], Iterator[T]]) -> Iterator[T]:
     """Chain multiple generators together by passing results from one to the next.
 
     This helper function allows to create a chain of generator where each generator is constructed by a factory that
@@ -577,7 +563,7 @@ def generator_chain(initial_data: Any, *factories: Callable[..., Iterator[Any]])
     if generator_count == 0:
         yield initial_data
         return
-    generators = [None] * generator_count  # type: List[Optional[Iterator[tuple]]]
+    generators = [None] * generator_count  # type: List[Optional[Iterator[T]]]
     next_data = initial_data
     generator_index = 0
     while True:

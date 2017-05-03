@@ -660,6 +660,22 @@ class DiscriminationNet(Generic[T]):
                 else:
                     yield label, subst
 
+    def is_match(self, subject: Union[Expression, FlatTerm]) -> bool:
+        """Check if the given subject matches any pattern in the net.
+
+        Args:
+            subject:
+                The subject that is matched. Must be constant.
+
+        Returns:
+            True, if any pattern matches the subject.
+        """
+        try:
+            next(self.match(subject))
+        except StopIteration:
+            return False
+        return True
+
     def as_graph(self) -> Digraph:  # pragma: no cover
         """Renders the discrimination net as graphviz digraph."""
         if Digraph is None:

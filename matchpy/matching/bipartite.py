@@ -31,7 +31,7 @@ LEFT = 0
 RIGHT = 1
 
 
-class BipartiteGraph(Generic[TLeft, TRight, TEdgeValue]):
+class BipartiteGraph(Generic[TLeft, TRight, TEdgeValue], Dict[Tuple[TLeft, TRight], TEdgeValue]):
     """A bipartite graph representation.
 
     This class is a specialized dictionary, where each edge is represented by a 2-tuple that is used as a key in the
