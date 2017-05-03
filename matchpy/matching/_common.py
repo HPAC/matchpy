@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-from typing import Callable, Dict, Iterator, NamedTuple, Optional, Sequence, Type, cast
+"""This module contains the CommutativePatternsParts class which is used by multiple matching algorithms."""
+from typing import Callable, Dict, Iterator, NamedTuple, Optional, Sequence, Type, cast  # pylint: disable=unused-import
 
 from multiset import Multiset
 
