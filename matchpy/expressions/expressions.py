@@ -174,18 +174,32 @@ class Expression:
         if predicate is None or predicate(self):
             yield self, position
 
-    def __getitem__(self, position: Tuple[int, ...]) -> 'Expression':
-        """Return the subexpression at the given position.
+    def __getitem__(self, position: Union[Tuple[int, ...], slice]) -> 'Expression':
+        """Return the subexpression at the given position(s).
+
+        It is also possible to use a slice notation to extract a sequence of subexpressions:
+
+        >>> expr = f(a, b, a, c)
+        >>> expr[(1, ):(2, )]
+        [Symbol('b'), Symbol('a')]
 
         Args:
-            position: The position as a tuple. See :meth:`preorder_iter` for its format.
+            position:
+                The position as a tuple. See :meth:`preorder_iter` for its format.
+                Alternatively, a range of positions can be passed using the slice notation.
 
         Returns:
-            The subexpression at the given position.
+            The subexpression at the given position(s).
 
         Raises:
             IndexError: If the position is invalid, i.e. it refers to a non-existing subexpression.
         """
+        if isinstance(position, slice):
+            if len(position.start) != len(position.stop):
+                raise IndexError('Invalid slice: Start and stop must have the same length')
+            if len(position.start) == 0:
+                return [self]
+            raise IndexError('Invalid slice: Parent expression is not an operation')
         if len(position) == 0:
             return self
         raise IndexError("Invalid position")
@@ -496,7 +510,21 @@ class Operation(Expression, metaclass=_OperationMeta):
             self.variable_name == other.variable_name
         )
 
-    def __getitem__(self, key: Tuple[int, ...]) -> Expression:
+    def __getitem__(self, key: Union[Tuple[int, ...], slice]) -> Expression:
+        if isinstance(key, slice):
+            if len(key.start) != len(key.stop):
+                raise IndexError('Invalid slice: Start and stop must have the same length')
+            if len(key.start) == 0:
+                return [self]
+            if key.start > key.stop:
+                raise IndexError('Invalid slice: Start must come before stop')
+            if len(key.start) == 1:
+                return self.operands[key.start[0]:key.stop[0] + 1]
+            start, *new_start = key.start
+            stop, *new_stop = key.stop
+            if start != stop:
+                raise IndexError('Invalid slice: Start and stop must have the same parent')
+            return self.operands[start][new_start:new_stop]
         if len(key) == 0:
             return self
         head, *remainder = key
