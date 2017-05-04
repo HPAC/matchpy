@@ -7,7 +7,7 @@ The `BipartiteGraph` class is used to represent a bipartite graph as a dictionar
 The function `enum_maximum_matchings_iter` can be used to enumerate all maximum matchings of a `BipartiteGraph`.
 """
 
-from typing import (Dict, Generic, Hashable, Iterator, List, Set, Tuple, TypeVar, Union, cast)
+from typing import (Dict, Generic, Hashable, Iterator, List, Set, Tuple, TypeVar, Union, cast, MutableMapping)
 
 try:
     from graphviz import Digraph, Graph
@@ -31,7 +31,7 @@ LEFT = 0
 RIGHT = 1
 
 
-class BipartiteGraph(Generic[TLeft, TRight, TEdgeValue], Dict[Tuple[TLeft, TRight], TEdgeValue]):
+class BipartiteGraph(Generic[TLeft, TRight, TEdgeValue], MutableMapping[Tuple[TLeft, TRight], TEdgeValue]):
     """A bipartite graph representation.
 
     This class is a specialized dictionary, where each edge is represented by a 2-tuple that is used as a key in the
