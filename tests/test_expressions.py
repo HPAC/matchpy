@@ -187,10 +187,42 @@ class TestExpression:
     def test_getitem(self, position, expected_result):
         if inspect.isclass(expected_result) and issubclass(expected_result, Exception):
             with pytest.raises(expected_result):
-                _ = self.GETITEM_TEST_EXPRESSION[position]
+                result = self.GETITEM_TEST_EXPRESSION[position]
+                print(result)
         else:
             result = self.GETITEM_TEST_EXPRESSION[position]
             assert result == expected_result
+
+    @pytest.mark.parametrize(
+        '   start,          end,    expected_result',
+        [
+            ((),            (),     [GETITEM_TEST_EXPRESSION]),
+            ((0, ),         (0, ),  [a]),
+            ((0, ),         (1, ),  [a, f(x_, b)]),
+            ((0, ),         (2, ),  [a, f(x_, b), _]),
+            ((0, ),         (3, ),  [a, f(x_, b), _]),
+            ((1, ),         (2, ),  [f(x_, b), _]),
+            ((1, 0),        (1, 1), [x_, b]),
+            ((1, 0),        (2, ),  IndexError),
+            ((1, ),         (0, ),  IndexError),
+            ((1, 0),        (2, 0), IndexError),
+        ]
+    )  # yapf: disable
+    def test_getitem_slice(self, start, end, expected_result):
+        if inspect.isclass(expected_result) and issubclass(expected_result, Exception):
+            with pytest.raises(expected_result):
+                result = self.GETITEM_TEST_EXPRESSION[start:end]
+                print(result)
+        else:
+            result = self.GETITEM_TEST_EXPRESSION[start:end]
+            assert result == expected_result
+
+    def test_getitem_slice_symbol(self):
+        with pytest.raises(IndexError):
+            print(a[(0, ):()])
+        with pytest.raises(IndexError):
+            print(a[(0, ):(1, )])
+        assert a[():()] == [a]
 
     @pytest.mark.parametrize(
         '   expression1,                    expression2',
