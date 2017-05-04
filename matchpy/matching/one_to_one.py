@@ -85,7 +85,7 @@ def _match(
         pattern: Expression,
         subst: Substitution,
         constraints: Set[Constraint],
-        associative: Optional[Type[Operation]]
+        parent_operation: Optional[Type[Operation]]
 ) -> Iterator[Substitution]:
     match_iter = None
     subject = subjects[0] if len(subjects) == 1 else None
@@ -99,8 +99,8 @@ def _match(
         match_iter = iter([subst])
         if not pattern.fixed_size:
             subject = tuple(subjects)
-        elif associative and len(subjects) > 1:
-            subject = associative(*subjects)
+        elif parent_operation is not None and parent_operation.associative and len(subjects) > 1:
+            subject = parent_operation(*subjects)
 
     elif isinstance(pattern, Symbol):
         if len(subjects) == 1 and isinstance(subjects[0], type(pattern)) and subjects[0].name == pattern.name:
@@ -118,7 +118,7 @@ def _match(
                 yield subst
             return
         if not op_expr.commutative:
-            associative = op_expr.associative and type(op_expr)
+            associative = type(op_expr) if op_expr.associative else None
             match_iter = _match_sequence(subjects, pattern.operands, subst, constraints, associative)
         else:
             parts = CommutativePatternsParts(type(op_expr), *pattern.operands)
@@ -126,20 +126,33 @@ def _match(
 
     elif isinstance(pattern, Alternatives):
         match_iter = chain.from_iterable(
-            _match(subjects, option, subst, constraints, associative) for option in pattern.children
+            _match(subjects, option, subst, constraints, parent_operation) for option in pattern.children
         )
 
     elif isinstance(pattern, ExpressionSequence):
-        match_iter = _match_sequence(subjects, pattern.children, subst, constraints, associative)
+        if parent_operation is not None and parent_operation.commutative:
+            parts = CommutativePatternsParts(parent_operation, pattern.children)
+            match_iter = _match_commutative_sequence(subjects, parts, subst, constraints)
+        else:
+            associative = parent_operation if (parent_operation is not None and parent_operation.associative) else None
+            match_iter = _match_sequence(subjects, pattern.children, subst, constraints, associative)
 
     elif isinstance(pattern, Repeated):
         min_repeats = max(int(len(subjects) / pattern.expression.max_length), pattern.min_count)
         max_repeats = min(int(len(subjects) / pattern.expression.min_length), pattern.max_count)
 
-        match_iter = chain.from_iterable(
-            _match_sequence(subjects, [pattern.expression] * i, subst, constraints, associative)
-            for i in range(min_repeats, max_repeats + 1)
-        )
+        if parent_operation is not None and parent_operation.commutative:
+            parts = CommutativePatternsParts(parent_operation, pattern.children)
+            match_iter = chain.from_iterable(
+                _match_commutative_sequence(subjects, CommutativePatternsParts(parent_operation, *([pattern.expression] * i)), subst, constraints)
+                for i in range(min_repeats, max_repeats + 1)
+            )
+        else:
+            associative = parent_operation if (parent_operation is not None and parent_operation.associative) else None
+            match_iter = chain.from_iterable(
+                _match_sequence(subjects, [pattern.expression] * i, subst, constraints, associative)
+                for i in range(min_repeats, max_repeats + 1)
+            )
 
     else:
         assert False, "Unexpected pattern of type {!r}".format(type(pattern))
@@ -264,11 +277,13 @@ def _match_sequence(subjects, patterns, subst, constraints, associative):
 def _match_commutative_sequence(
         subjects: Iterable[Expression], pattern: CommutativePatternsParts, substitution: Substitution, constraints
 ) -> Iterator[Substitution]:
+    print(subjects)
+    print(pattern)
     subjects = Multiset(subjects)  # type: Multiset
     if not pattern.constant <= subjects:
         return
     subjects -= pattern.constant
-    rest_expr = pattern.rest + pattern.syntactic
+    rest_expr = pattern.fixed_terms + pattern.variable_terms
     needed_length = (
         pattern.sequence_variable_min_length + pattern.fixed_variable_length + len(rest_expr) +
         pattern.wildcard_min_length
@@ -299,8 +314,8 @@ def _match_commutative_sequence(
 
     if not pattern.operation.associative:
         for name, count in fixed_vars.items():
-            min_count, symbol_type = pattern.fixed_variable_infos[name]
-            factory = _fixed_var_iter_factory(name, count, min_count, symbol_type, constraints)
+            symbol_type = pattern.fixed_variables_type[name]
+            factory = _fixed_var_iter_factory(name, count, 1, symbol_type, constraints)
             factories.append(factory)
 
         if pattern.wildcard_fixed is True:
@@ -308,28 +323,24 @@ def _match_commutative_sequence(
             factories.append(factory)
     else:
         for name, count in fixed_vars.items():
-            min_count, symbol_type = pattern.fixed_variable_infos[name]
+            symbol_type = pattern.fixed_variables_type[name]
             if symbol_type is not None:
-                factory = _fixed_var_iter_factory(name, count, min_count, symbol_type, constraints)
+                factory = _fixed_var_iter_factory(name, count, 1, symbol_type, constraints)
                 factories.append(factory)
 
     expr_counter = Multiset(subjects)  # type: Multiset
 
     for rem_expr, substitution in generator_chain((expr_counter, substitution), *factories):
-        sequence_vars = _variables_with_counts(pattern.sequence_variables, pattern.sequence_variable_infos)
-        if pattern.operation.associative:
-            sequence_vars += _variables_with_counts(fixed_vars, pattern.fixed_variable_infos)
-            if pattern.wildcard_fixed is True:
-                sequence_vars += (VariableWithCount(None, 1, pattern.wildcard_min_length), )
-        if pattern.wildcard_fixed is False:
+        sequence_vars = _variables_with_counts(pattern.sequence_variables, pattern.sequence_variables_min)
+        if pattern.wildcard_fixed is False or (pattern.operation.associative and pattern.wildcard_fixed is True):
             sequence_vars += (VariableWithCount(None, 1, pattern.wildcard_min_length), )
 
         for sequence_subst in commutative_sequence_variable_partition_iter(Multiset(rem_expr), sequence_vars):
             if pattern.operation.associative:
-                for v in fixed_vars.distinct_elements():
-                    if v not in sequence_subst:
+                for v, w in pattern.sequence_variables_wrap.items():
+                    if v not in sequence_subst or not w:
                         continue
-                    l = pattern.fixed_variable_infos[v].min_count
+                    l = 1
                     value = cast(Multiset, sequence_subst[v])
                     if len(value) > l:
                         normal = Multiset(list(value)[:l - 1])
@@ -349,8 +360,8 @@ def _match_commutative_sequence(
 
 def _variables_with_counts(variables, infos):
     return tuple(
-        VariableWithCount(name, count, infos[name].min_count)
-        for name, count in variables.items() if infos[name].type is None
+        VariableWithCount(name, count, infos[name])
+        for name, count in variables.items()
     )
 
 

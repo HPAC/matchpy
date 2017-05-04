@@ -5,12 +5,8 @@ from typing import Callable, Dict, Iterator, NamedTuple, Optional, Sequence, Typ
 from multiset import Multiset
 
 from ..expressions import Expression, Operation, Wildcard
-from ..expressions.substitution import Substitution
 
-__all__ = ['CommutativePatternsParts', 'Matcher', 'VarInfo']
-
-Matcher = Callable[[Sequence[Expression], Expression, Substitution], Iterator[Substitution]]
-VarInfo = NamedTuple('VarInfo', [('min_count', int), ('type', Optional[type])])
+__all__ = ['CommutativePatternsParts']
 
 
 class CommutativePatternsParts(object):
@@ -32,29 +28,20 @@ class CommutativePatternsParts(object):
             The type of of the original pattern expression. Must be a subclass of
             :class:`.Operation`.
 
-        constant (Multiset):
+        constant (Multiset[Expression]):
             A :class:`~.Multiset` representing the constant operands of the pattern.
             An expression is constant, if it does not contain variables or wildcards.
-        syntactic (Multiset[Operation]):
-            A :class:`.Multiset` representing the syntactic operands of the pattern.
-            An expression is syntactic, if it does contain neither associative nor commutative operations
-            nor sequence variables. Here, constant expressions and variables also get their own counters,
-            so they are not included in this counter.
+        fixed_variables (Multiset[str]):
+            A :class:`.Multiset` representing the fixed length variables of the pattern.
+        fixed_variables_type (Dict[str, Optional[Type[Symbol]]]):
+            A dictionary mapping fixed variable names to an optional symbol type constraint.
         sequence_variables (Multiset[str]):
             A :class:`.Multiset` representing the sequence variables of the pattern.
-            Variables are represented by their name. Additional information is stored in
-            ``sequence_variable_infos``. For wildcards without variable, the name will be ``None``.
-        sequence_variable_infos (Dict[str, VarInfo]):
-            A dictionary mapping sequence variable names to more information about the variable, i.e. its
-            ``min_count`` and ``constraint``.
-        fixed_variables (Multiset[VarInfo]):
-            A :class:`.Multiset` representing the fixed length variables of the pattern.
-            Here the key is a tuple of the form `(name, length)` of the variable.
-            For wildcards without variable, the name will be `None`.
-        fixed_variable_infos (Dict[str, VarInfo]):
-            A dictionary mapping fixed variable names to more information about the variable, i.e. its
-            ``min_count`` and ``constraint``.
-        rest (Multiset):
+        sequence_variables_min (Dict[str, int]):
+            A dictionary mapping sequence variable names to its ``min_count``.
+        variable_terms (Multiset[Expression]):
+            A :class:`.Multiset` representing the operands of the pattern that .
+        fixed_terms (Multiset[Expression]):
             A :class:`.Multiset` representing the operands of the pattern that do not fall
             into one of the previous categories. That means it contains operation expressions, which
             are not syntactic.
@@ -91,13 +78,14 @@ class CommutativePatternsParts(object):
         self.operation = operation
         self.length = len(expressions)
 
-        self.constant = Multiset()  # type: Multiset
-        self.syntactic = Multiset()  # type: Multiset
+        self.constant = Multiset()  # type: Multiset[Expression]
         self.sequence_variables = Multiset()  # type: Multiset[str]
-        self.sequence_variable_infos = dict()
+        self.sequence_variables_min = dict() # type: Dict[str, int]
+        self.sequence_variables_wrap = dict() # type: Dict[str, bool]
         self.fixed_variables = Multiset()  # type: Multiset[str]
-        self.fixed_variable_infos = dict()
-        self.rest = Multiset()  # type: Multiset
+        self.fixed_variables_type = dict() # type: Dict[str, Optional[Type[Symbol]]]
+        self.variable_terms = Multiset()  # type: Multiset[Expression]
+        self.fixed_terms = Multiset()  # type: Multiset[Expression]
 
         self.sequence_variable_min_length = 0
         self.fixed_variable_length = 0
@@ -105,47 +93,36 @@ class CommutativePatternsParts(object):
         self.wildcard_fixed = None
 
         for expression in expressions:
-            expression = expression
             if expression.is_constant:
                 self.constant[expression] += 1
-            elif expression.head is None:
-                wc = cast(Wildcard, expression)
-                if wc.variable_name:
-                    name = wc.variable_name
-                    if wc.fixed_size:
-                        self.fixed_variables[name] += 1
-                        symbol_type = getattr(wc, 'symbol_type', None)
-                        self._update_var_info(self.fixed_variable_infos, name, wc.min_count, symbol_type)
-                        self.fixed_variable_length += wc.min_count
-                    else:
-                        self.sequence_variables[name] += 1
-                        self._update_var_info(self.sequence_variable_infos, name, wc.min_count)
-                        self.sequence_variable_min_length += wc.min_count
-                else:
-                    self.wildcard_min_length += wc.min_count
+            elif isinstance(expression, Operation):
+                self.fixed_terms[expression] += 1
+            elif isinstance(expression, Wildcard):
+                varname = expression.variable_name
+                symbol_type = getattr(expression, 'symbol_type', None)
+                if expression.variable_name is None:
+                    self.wildcard_min_length += expression.min_count
                     if self.wildcard_fixed is None:
-                        self.wildcard_fixed = wc.fixed_size
+                        self.wildcard_fixed = expression.fixed_size
                     else:
-                        self.wildcard_fixed = self.wildcard_fixed and wc.fixed_size
-            elif expression.is_syntactic:
-                self.syntactic[expression] += 1
+                        self.wildcard_fixed = self.wildcard_fixed and expression.fixed_size
+                elif expression.fixed_size and not (operation and operation.associative and symbol_type is None):
+                    self.fixed_variables[varname] += 1
+                    self.fixed_variables_type[varname] = symbol_type
+                    self.fixed_variable_length += 1
+                else:
+                    self.sequence_variables[varname] += 1
+                    self.sequence_variables_min[varname] = expression.min_count
+                    self.sequence_variables_wrap[varname] = expression.fixed_size
+                    self.sequence_variable_min_length += expression.min_count
             else:
-                self.rest[expression] += 1
-
-    @staticmethod
-    def _update_var_info(infos, name, count, symbol_type=None):
-        if name not in infos:
-            infos[name] = VarInfo(count, symbol_type)
-        else:
-            existing_info = infos[name]
-            assert existing_info.min_count == count
-            assert existing_info.type == symbol_type
+                self.variable_terms[expression] += 1
 
     def __str__(self):
         parts = []
         parts.extend(map(str, self.constant))
-        parts.extend(map(str, self.syntactic))
-        parts.extend(map(str, self.rest))
+        parts.extend(map(str, self.variable_terms))
+        parts.extend(map(str, self.fixed_terms))
 
         for name, count in self.sequence_variables.items():
             parts.extend([name] * count)
