@@ -6,6 +6,7 @@ from multiset import Multiset
 
 from ..expressions.expressions import Expression, Operation, Wildcard
 from ..expressions.substitution import Substitution
+from ..expressions.functions import is_constant, is_syntactic
 
 __all__ = ['CommutativePatternsParts', 'Matcher', 'VarInfo']
 
@@ -106,9 +107,9 @@ class CommutativePatternsParts(object):
 
         for expression in expressions:
             expression = expression
-            if expression.is_constant:
+            if is_constant(expression):
                 self.constant[expression] += 1
-            elif expression.head is None:
+            elif isinstance(expression, Wildcard):
                 wc = cast(Wildcard, expression)
                 if wc.variable_name:
                     name = wc.variable_name
@@ -127,7 +128,7 @@ class CommutativePatternsParts(object):
                         self.wildcard_fixed = wc.fixed_size
                     else:
                         self.wildcard_fixed = self.wildcard_fixed and wc.fixed_size
-            elif expression.is_syntactic:
+            elif is_syntactic(expression):
                 self.syntactic[expression] += 1
             else:
                 self.rest[expression] += 1

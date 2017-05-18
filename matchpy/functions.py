@@ -15,8 +15,9 @@ from typing import Callable, List, NamedTuple, Sequence, Tuple, Union, Iterable
 
 from multiset import Multiset
 
-from .expressions.expressions import Expression, Operation, Pattern
+from .expressions.expressions import (Expression, Operation, Pattern, Wildcard, SymbolWildcard, AssociativeOperation, CommutativeOperation)
 from .expressions.substitution import Substitution
+from .expressions.functions import preorder_iter_with_position, create_operation_expression
 from .matching.one_to_one import match
 
 __all__ = ['substitute', 'replace', 'replace_all', 'replace_many', 'is_match', 'ReplacementRule']
@@ -69,12 +70,12 @@ def substitute(expression: Union[Expression, Pattern], substitution: Substitutio
 
 
 def _substitute(expression: Expression, substitution: Substitution) -> Tuple[Replacement, bool]:
-    if expression.variable_name and expression.variable_name in substitution:
+    if getattr(expression, 'variable_name', False) and expression.variable_name in substitution:
         return substitution[expression.variable_name], True
     elif isinstance(expression, Operation):
         any_replaced = False
         new_operands = []
-        for operand in expression.operands:
+        for operand in expression:
             result, replaced = _substitute(operand, substitution)
             if replaced:
                 any_replaced = True
@@ -85,7 +86,7 @@ def _substitute(expression: Expression, substitution: Substitution) -> Tuple[Rep
             else:
                 new_operands.extend(result)
         if any_replaced:
-            return type(expression)(*new_operands), True
+            return create_operation_expression(expression, new_operands), True
 
     return expression, False
 
@@ -120,17 +121,16 @@ def replace(expression: Expression, position: Sequence[int], replacement: Replac
         return replacement
     if not isinstance(expression, Operation):
         raise IndexError("Invalid position {!r} for expression {!s}".format(position, expression))
-    if position[0] >= len(expression.operands):
+    if position[0] >= len(expression):
         raise IndexError("Position {!r} out of range for expression {!s}".format(position, expression))
-    op_class = type(expression)
     pos = position[0]
-    subexpr = replace(expression.operands[pos], position[1:], replacement)
+    operands = list(expression)
+    subexpr = replace(operands[pos], position[1:], replacement)
     if isinstance(subexpr, Sequence):
-        new_operands = tuple(expression.operands[:pos]) + tuple(subexpr) + tuple(expression.operands[pos + 1:])
-        return op_class(*new_operands)
-    operands = list(expression.operands)
+        new_operands = tuple(operands[:pos]) + tuple(subexpr) + tuple(operands[pos + 1:])
+        return create_operation_expression(expression, new_operands)
     operands[pos] = subexpr
-    return op_class(*operands)
+    return create_operation_expression(expression, operands)
 
 
 def replace_many(expression: Expression, replacements: Sequence[Tuple[Sequence[int], Replacement]]) -> Replacement:
@@ -187,10 +187,9 @@ def replace_many(expression: Expression, replacements: Sequence[Tuple[Sequence[i
         return replace(expression, replacements[0][0], replacements[0][1])
     if not isinstance(expression, Operation):
         raise IndexError("Invalid replacements {!r} for expression {!s}".format(replacements, expression))
-    operands = expression.operands
+    operands = list(expression)
     new_operands = []
     last_index = 0
-    op_class = type(expression)
     for index, group in itertools.groupby(replacements, lambda r: r[0][0]):
         new_operands.extend(operands[last_index:index])
         replacements = [(pos[1:], r) for pos, r in group]
@@ -204,7 +203,7 @@ def replace_many(expression: Expression, replacements: Sequence[Tuple[Sequence[i
             new_operands.extend(replacement)
         last_index = index + 1
     new_operands.extend(operands[last_index:len(operands)])
-    return op_class(*new_operands)
+    return create_operation_expression(expression, new_operands)
 
 
 ReplacementRule = NamedTuple('ReplacementRule', [('pattern', Pattern), ('replacement', Callable[..., Expression])])
@@ -237,26 +236,25 @@ def replace_all(expression: Expression, rules: Iterable[ReplacementRule], max_co
         The resulting expression after the application of the replacement rules. This can also be a sequence of
         expressions, if the root expression is replaced with a sequence of expressions by a rule.
     """
+    # TODO Fix the use of head, does not work for head = None
     rules = [ReplacementRule(pattern, replacement) for pattern, replacement in rules]
     expression = expression
-    grouped = dict((h, list(g)) for h, g in itertools.groupby(rules, lambda r: r.pattern.expression.head))
     replaced = True
     replace_count = 0
     while replaced and replace_count < max_count:
         replaced = False
-        for subexpr, pos in expression.preorder_iter():
-            if subexpr.head in grouped:
-                for pattern, replacement in grouped[subexpr.head]:
-                    try:
-                        subst = next(match(subexpr, pattern))
-                        result = replacement(**subst)
-                        expression = replace(expression, pos, result)
-                        replaced = True
-                        break
-                    except StopIteration:
-                        pass
-                if replaced:
+        for subexpr, pos in preorder_iter_with_position(expression):
+            for pattern, replacement in rules:
+                try:
+                    subst = next(match(subexpr, pattern))
+                    result = replacement(**subst)
+                    expression = replace(expression, pos, result)
+                    replaced = True
                     break
+                except StopIteration:
+                    pass
+            if replaced:
+                break
         replace_count += 1
 
     return expression

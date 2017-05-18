@@ -43,6 +43,7 @@ from multiset import Multiset
 
 from ..expressions.expressions import (Expression, Operation, Symbol, SymbolWildcard, Wildcard, Pattern, AssociativeOperation, CommutativeOperation)
 from ..expressions.substitution import Substitution
+from ..expressions.functions import is_anonymous, contains_variables_from_set, create_operation_expression
 from ..utils import (VariableWithCount, commutative_sequence_variable_partition_iter)
 from .bipartite import BipartiteGraph, enum_maximum_matchings_iter
 from .syntactic import OPERATION_END, is_operation
@@ -122,7 +123,6 @@ class _MatchIter:
                 yield label, new_substitution
 
     def _match(self, state: _State) -> Iterator[_State]:
-        # print(state.number, self.subjects)
         if len(self.subjects) == 0:
             if state.number in self.matcher.finals or OPERATION_END in state.transitions:
                 yield state
@@ -210,11 +210,11 @@ class _MatchIter:
 
     @staticmethod
     def _get_heads(expression: Expression) -> Iterator[HeadType]:
-        yield expression.head
-        if isinstance(expression, Symbol):
-            for base in type(expression).__mro__:
-                if issubclass(base, Symbol):
-                    yield base
+        for base in type(expression).__mro__:
+            if base is not object:
+                yield base
+        if not isinstance(expression, Operation):
+            yield expression
         yield None
 
     def _match_sequence_variable(self, wildcard: Wildcard, transition: _Transition) -> Iterator[_State]:
@@ -243,9 +243,9 @@ class _MatchIter:
         subject = self.subjects.popleft()
         matcher = state.matcher
         substitution = self.substitution
-        for operand in subject.operands:
+        for operand in subject:
             matcher.add_subject(operand)
-        for matched_pattern, new_substitution in matcher.match(subject.operands, substitution):
+        for matched_pattern, new_substitution in matcher.match(subject, substitution):
             restore_constraints = set()
             diff = set(new_substitution.keys()) - set(substitution.keys())
             self.substitution = new_substitution
@@ -270,7 +270,7 @@ class _MatchIter:
     def _match_regular_operation(self, transition: _Transition) -> Iterator[_State]:
         subject = self.subjects.popleft()
         after_subjects = self.subjects
-        operand_subjects = self.subjects = deque(subject.operands)
+        operand_subjects = self.subjects = deque(subject)
         new_associative = transition.label if issubclass(transition.label, AssociativeOperation) else None
         self.associative.append(new_associative)
         for new_state in self._check_transition(transition, subject, False):
@@ -347,18 +347,19 @@ class ManyToOneMatcher:
         constraint_indices = [self._add_constraint(c, pattern_index) for c in renamed_constraints]
         self.patterns.append((pattern, label, constraint_indices))
         self.pattern_vars.append(renaming)
-        pattern = pattern.expression.with_renamed_vars(renaming)
+        pattern = self.rename_variables(pattern.expression, renaming)
         state = self.root
         patterns_stack = [deque([pattern])]
 
         while patterns_stack:
             if patterns_stack[-1]:
                 subpattern = patterns_stack[-1].popleft()
-                if isinstance(subpattern, Operation) and not subpattern.commutative:
-                    patterns_stack.append(deque(subpattern.operands))
-                state = self._create_expression_transition(state, subpattern, subpattern.variable_name, pattern_index)
-                if isinstance(subpattern, Operation) and subpattern.commutative:
-                    subpattern_id = state.matcher.add_pattern(subpattern.operands, renamed_constraints)
+                if isinstance(subpattern, Operation) and not isinstance(subpattern, CommutativeOperation):
+                    patterns_stack.append(deque(subpattern))
+                variable_name = getattr(subpattern, 'variable_name', None)
+                state = self._create_expression_transition(state, subpattern, variable_name, pattern_index)
+                if isinstance(subpattern, CommutativeOperation):
+                    subpattern_id = state.matcher.add_pattern(subpattern, renamed_constraints)
                     state = self._create_simple_transition(state, subpattern_id, pattern_index)
                 index += 1
             else:
@@ -369,6 +370,19 @@ class ManyToOneMatcher:
         self.finals.add(state.number)
 
         return pattern_index
+
+    @classmethod
+    def rename_variables(cls, expression, renaming):
+        if isinstance(expression, Operation):
+            if hasattr(expression, 'variable_name'):
+                variable_name = renaming.get(expression.variable_name, expression.variable_name)
+                return create_operation_expression(expression, [cls.rename_variables(o, renaming) for o in expression], variable_name=variable_name)
+            operands = [cls.rename_variables(o, renaming) for o in expression]
+            return create_operation_expression(expression, operands)
+        elif isinstance(expression, Expression):
+            expression = expression.__copy__()
+            expression.variable_name = renaming.get(expression.variable_name, expression.variable_name)
+        return expression
 
     def _add_constraint(self, constraint, pattern):
         index = None
@@ -456,18 +470,21 @@ class ManyToOneMatcher:
 
     @staticmethod
     def _get_label_and_head(expression: Expression) -> Tuple[LabelType, HeadType]:
-        head = expression.head
         if isinstance(expression, Operation):
-            label = type(expression)
+            head = label = type(expression)
         else:
             label = expression
             if isinstance(label, SymbolWildcard):
                 head = label.symbol_type
                 label = SymbolWildcard(symbol_type=label.symbol_type)
             elif isinstance(label, Wildcard):
+                head = None
                 label = Wildcard(label.min_count, label.fixed_size)
             elif isinstance(label, Symbol):
                 head = type(label)(label.name)
+            else:
+                head = expression
+
         return label, head
 
     def _create_state(self, matcher: 'CommutativeMatcher'=None) -> _State:
@@ -488,18 +505,18 @@ class ManyToOneMatcher:
             position = [0]
         if variables is None:
             variables = {}
-        if expression.variable_name:
+        if getattr(expression, 'variable_name', False):
             if expression.variable_name not in variables:
                 variables[expression.variable_name] = cls._get_name_for_position(position, variables.values())
         position[-1] += 1
         if isinstance(expression, Operation):
-            if expression.commutative:
-                for operand in expression.operands:
+            if isinstance(expression, CommutativeOperation):
+                for operand in expression:
                     position.append(0)
                     cls._collect_variable_renaming(operand, position, variables)
                     position.pop()
             else:
-                for operand in expression.operands:
+                for operand in expression:
                     cls._collect_variable_renaming(operand, position, variables)
 
         return variables
@@ -755,7 +772,7 @@ class CommutativeMatcher(object):
         pattern_vars = dict()
         for operand in operands:
             if not self._is_sequence_wildcard(operand):
-                actual_constraints = [c for c in constraints if not operand.variables.isdisjoint(c.variables)]
+                actual_constraints = [c for c in constraints if contains_variables_from_set(operand, c.variables)]
                 pattern = Pattern(operand, *actual_constraints)
                 index = None
                 for i, (p, _, _) in enumerate(self.automaton.patterns):
@@ -766,7 +783,7 @@ class CommutativeMatcher(object):
                     index = self.automaton._internal_add(pattern, None, {})
                 pattern_set.add(index)
             else:
-                varname = operand.variable_name
+                varname = getattr(operand, 'variable_name', None)
                 if varname is None:
                     if varname in pattern_vars:
                         (_, _, min_count), _ = pattern_vars[varname]
@@ -796,7 +813,7 @@ class CommutativeMatcher(object):
             substitution: Substitution,
     ) -> Iterator[Tuple[Substitution, MultisetOfInt]]:
         bipartite = self._build_bipartite(subject_ids, pattern_set)
-        anonymous = set(i for i, (p, _, _) in enumerate(self.automaton.patterns) if not p.expression.variables)
+        anonymous = set(i for i, (p, _, _) in enumerate(self.automaton.patterns) if is_anonymous(p.expression))
         for matching in enum_maximum_matchings_iter(bipartite):
             if len(matching) < len(pattern_set):
                 break

@@ -241,7 +241,7 @@ class Arity(_ArityBase, Enum, metaclass=_ArityMeta):
         return "{!s}.{!s}".format(type(self).__name__, self._name_)
 
 
-class _OperationMeta(type):
+class _OperationMeta(ABCMeta):
     """Metaclass for `Operation`
 
     This metaclass is mainly used to override :meth:`__call__` to provide simplification when creating a
@@ -510,6 +510,12 @@ class Operation(Expression, metaclass=_OperationMeta):
             self.variable_name == other.variable_name
         )
 
+    def __iter__(self):
+        return iter(self.operands)
+
+    def __len__(self):
+        return len(self.operands)
+
     def __getitem__(self, key: Union[Tuple[int, ...], slice]) -> Expression:
         if isinstance(key, int):
             return self.operands[key]
@@ -574,6 +580,11 @@ class Operation(Expression, metaclass=_OperationMeta):
         return type(self)(*self.operands, variable_name=self.variable_name)
 
 
+Operation.register(list)
+Operation.register(tuple)
+Operation.register(set)
+Operation.register(frozenset)
+
 class AssociativeOperation(metaclass=ABCMeta):
     @classmethod
     def __subclasshook__(cls, C):
@@ -591,10 +602,15 @@ class CommutativeOperation(metaclass=ABCMeta):
                 return C.commutative
         return NotImplemented
 
+CommutativeOperation.register(set)
+CommutativeOperation.register(frozenset)
+
 
 class Atom(Expression):  # pylint: disable=abstract-method
     """Base for all atomic expressions."""
-    pass
+
+    def __iter__(self):
+        raise NotImplementedError()
 
 
 class Symbol(Atom):
