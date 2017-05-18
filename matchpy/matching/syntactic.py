@@ -19,7 +19,9 @@ try:
 except ImportError:
     Digraph = None
 
-from ..expressions.expressions import (Expression, Operation, Symbol, SymbolWildcard, Wildcard, Pattern, AssociativeOperation, CommutativeOperation)
+from ..expressions.expressions import (
+    Expression, Operation, Symbol, SymbolWildcard, Wildcard, Pattern, AssociativeOperation, CommutativeOperation
+)
 from ..expressions.substitution import Substitution
 from ..expressions.functions import is_syntactic
 from ..utils import slot_cached_property

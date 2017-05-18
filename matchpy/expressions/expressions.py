@@ -585,6 +585,7 @@ Operation.register(tuple)
 Operation.register(set)
 Operation.register(frozenset)
 
+
 class AssociativeOperation(metaclass=ABCMeta):
     @classmethod
     def __subclasshook__(cls, C):
@@ -601,6 +602,7 @@ class CommutativeOperation(metaclass=ABCMeta):
             if issubclass(C, Operation) and hasattr(C, 'commutative'):
                 return C.commutative
         return NotImplemented
+
 
 CommutativeOperation.register(set)
 CommutativeOperation.register(frozenset)

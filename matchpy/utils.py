@@ -121,7 +121,8 @@ def weak_composition_iter(n: int, num_parts: int) -> Iterator[Tuple[int, ...]]:
         yield tuple(v - u - 1 for u, v in zip(first + t, t + last))
 
 
-_linear_diop_solution_cache = {} # type: Dict[Tuple[int, ...], List[Tuple[int, ...]]]
+_linear_diop_solution_cache = {}  # type: Dict[Tuple[int, ...], List[Tuple[int, ...]]]
+
 
 def _make_variable_generator_factory(value, total, variables: List[VariableWithCount]):
     var_counts = [v.count for v in variables]

@@ -5,6 +5,7 @@ __all__ = [
     'is_anonymous', 'contains_variables_from_set', 'register_operation_factory', 'create_operation_expression'
 ]
 
+
 def is_constant(expression):
     """Check if the given expression is constant, i.e. it does not contain Wildcards."""
     if isinstance(expression, Operation):
@@ -46,12 +47,14 @@ def match_head(subject, pattern):
     assert subject_head is not None
     return issubclass(subject_head, pattern_head)
 
+
 def preorder_iter(expression):
     """Iterate over the expression in preorder."""
     yield expression
     if isinstance(expression, Operation):
         for operand in expression:
             yield from preorder_iter(operand)
+
 
 def preorder_iter_with_position(expression):
     """Iterate over the expression in preorder.
@@ -64,6 +67,7 @@ def preorder_iter_with_position(expression):
             for child, pos in preorder_iter_with_position(operand):
                 yield child, (i, ) + pos
 
+
 def is_anonymous(expression):
     """Returns True iff the expression does not contain any variables."""
     if hasattr(expression, 'variable_name') and expression.variable_name:
@@ -71,6 +75,7 @@ def is_anonymous(expression):
     if isinstance(expression, Operation):
         return all(is_anonymous(o) for o in expression)
     return True
+
 
 def contains_variables_from_set(expression, variables):
     """Returns True iff the expression contains any of the variables from the given set."""
@@ -92,6 +97,7 @@ _operation_factories = {
     frozenset: simple_operation_factory,
     # TODO: Add support for dicts
 }
+
 
 def register_operation_factory(operation, factory):
     _operation_factories[operation] = factory

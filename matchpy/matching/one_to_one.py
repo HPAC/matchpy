@@ -3,7 +3,9 @@ from typing import Iterable, Iterator, List, Sequence, Tuple, cast, Set
 
 from multiset import Multiset
 
-from ..expressions.expressions import (Expression, Pattern, Operation, Symbol, SymbolWildcard, Wildcard, AssociativeOperation, CommutativeOperation)
+from ..expressions.expressions import (
+    Expression, Pattern, Operation, Symbol, SymbolWildcard, Wildcard, AssociativeOperation, CommutativeOperation
+)
 from ..expressions.constraints import Constraint
 from ..expressions.substitution import Substitution
 from ..expressions.functions import is_constant, preorder_iter_with_position, match_head, create_operation_expression
@@ -186,7 +188,9 @@ def _build_full_partition(sequence_var_partition: Sequence[int], subjects: Seque
 
         if wrap_associative and len(operand_expressions) > wrap_associative:
             fixed = wrap_associative - 1
-            operand_expressions = tuple(operand_expressions[:fixed]) + (create_operation_expression(operation, operand_expressions[fixed:]), )
+            operand_expressions = tuple(operand_expressions[:fixed]) + (
+                create_operation_expression(operation, operand_expressions[fixed:]),
+            )
 
         result.append(operand_expressions)
 

@@ -41,7 +41,9 @@ except ImportError:
     Digraph = None
 from multiset import Multiset
 
-from ..expressions.expressions import (Expression, Operation, Symbol, SymbolWildcard, Wildcard, Pattern, AssociativeOperation, CommutativeOperation)
+from ..expressions.expressions import (
+    Expression, Operation, Symbol, SymbolWildcard, Wildcard, Pattern, AssociativeOperation, CommutativeOperation
+)
 from ..expressions.substitution import Substitution
 from ..expressions.functions import is_anonymous, contains_variables_from_set, create_operation_expression
 from ..utils import (VariableWithCount, commutative_sequence_variable_partition_iter)
@@ -109,10 +111,7 @@ class _MatchIter:
     def _internal_iter(self):
         for pattern_index in self.patterns:
             renaming = self.matcher.pattern_vars[pattern_index]
-            new_substitution = self.substitution.rename({
-                renamed: original
-                for original, renamed in renaming.items()
-            })
+            new_substitution = self.substitution.rename({renamed: original for original, renamed in renaming.items()})
             pattern, label, _ = self.matcher.patterns[pattern_index]
             valid = True
             for constraint in pattern.global_constraints:
@@ -177,9 +176,6 @@ class _MatchIter:
 
         finally:
             if restore_subject and subject is not None:
-                assert isinstance(
-                    subject, Expression
-                ), "Matching for sequence variables restores the subject on its own"
                 self.subjects.appendleft(subject)
             self.constraints |= restore_constraints
             self.patterns |= restore_patterns
@@ -376,7 +372,9 @@ class ManyToOneMatcher:
         if isinstance(expression, Operation):
             if hasattr(expression, 'variable_name'):
                 variable_name = renaming.get(expression.variable_name, expression.variable_name)
-                return create_operation_expression(expression, [cls.rename_variables(o, renaming) for o in expression], variable_name=variable_name)
+                return create_operation_expression(
+                    expression, [cls.rename_variables(o, renaming) for o in expression], variable_name=variable_name
+                )
             operands = [cls.rename_variables(o, renaming) for o in expression]
             return create_operation_expression(expression, operands)
         elif isinstance(expression, Expression):
