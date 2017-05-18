@@ -6,6 +6,7 @@ import math
 import ast
 import os
 import tokenize
+import copy
 from types import LambdaType
 # pylint: disable=unused-import
 from typing import (Callable, Dict, Iterator, List, NamedTuple, Optional, Sequence, Tuple, TypeVar, cast, Union, Any)
@@ -133,9 +134,10 @@ def _make_variable_generator_factory(value, total, variables: List[VariableWithC
             solutions = list(solve_linear_diop(total, *var_counts))
             _linear_diop_solution_cache[cache_key] = solutions
         for solution in solutions:
+            new_subst = copy.copy(subst)
             for var, count in zip(variables, solution):
-                subst[var.name][value] = count
-            yield subst
+                new_subst[var.name][value] = count
+            yield new_subst
 
     return _factory
 

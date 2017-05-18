@@ -426,7 +426,7 @@ class ManyToOneMatcher:
     ) -> _State:
         label, head = self._get_label_and_head(expression)
         transitions = state.transitions.setdefault(head, [])
-        commutative = getattr(expression, 'commutative', False)
+        commutative = isinstance(expression, CommutativeOperation)
         matcher = None
         for transition in transitions:
             if transition.variable_name == variable_name and transition.label == label:

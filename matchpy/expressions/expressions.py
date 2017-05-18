@@ -60,7 +60,7 @@ from ..utils import cached_property
 
 __all__ = [
     'Expression', 'Arity', 'Atom', 'Symbol', 'Wildcard', 'Operation', 'SymbolWildcard', 'Pattern', 'make_dot_variable',
-    'make_plus_variable', 'make_star_variable', 'make_symbol_variable'
+    'make_plus_variable', 'make_star_variable', 'make_symbol_variable', 'AssociativeOperation', 'CommutativeOperation'
 ]
 
 ExprPredicate = Optional[Callable[['Expression'], bool]]
@@ -609,8 +609,7 @@ CommutativeOperation.register(frozenset)
 class Atom(Expression):  # pylint: disable=abstract-method
     """Base for all atomic expressions."""
 
-    def __iter__(self):
-        raise NotImplementedError()
+    __iter__ = None
 
 
 class Symbol(Atom):
