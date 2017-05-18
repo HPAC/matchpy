@@ -3,7 +3,7 @@ from typing import Iterable, Iterator, List, Sequence, Tuple, cast, Set
 
 from multiset import Multiset
 
-from ..expressions.expressions import Expression, Pattern, Operation, Symbol, SymbolWildcard, Wildcard
+from ..expressions.expressions import (Expression, Pattern, Operation, Symbol, SymbolWildcard, Wildcard, AssociativeOperation, CommutativeOperation)
 from ..expressions.constraints import Constraint
 from ..expressions.substitution import Substitution
 from ..utils import (
@@ -152,7 +152,7 @@ def _count_seq_vars(expressions, operation):
     sequence_var_count = 0
     for operand in operation.operands:
         if isinstance(operand, Wildcard):
-            if not operand.fixed_size or operation.associative:
+            if not operand.fixed_size or isinstance(operation, AssociativeOperation):
                 sequence_var_count += 1
             remaining -= operand.min_count
         else:
@@ -176,7 +176,7 @@ def _build_full_partition(sequence_var_partition: Sequence[int], subjects: Seque
         wrap_associative = False
         if isinstance(operand, Wildcard):
             count = operand.min_count
-            if not operand.fixed_size or operation.associative:
+            if not operand.fixed_size or isinstance(operation, AssociativeOperation):
                 count += sequence_var_partition[var_index]
                 var_index += 1
                 wrap_associative = operand.fixed_size and operand.min_count
@@ -244,7 +244,7 @@ def _match_commutative_operation(
     for name, count in pattern.fixed_variables.items():
         if name in substitution:
             replacement = substitution[name]
-            if pattern.operation.associative and isinstance(replacement, pattern.operation):
+            if issubclass(pattern.operation, AssociativeOperation) and isinstance(replacement, pattern.operation):
                 needed_count = Multiset(cast(Operation, substitution[name]).operands)  # type: Multiset
             else:
                 if not isinstance(replacement, Expression):
@@ -259,7 +259,7 @@ def _match_commutative_operation(
 
     factories = [_fixed_expr_factory(e, constraints, matcher) for e in rest_expr]
 
-    if not pattern.operation.associative:
+    if not issubclass(pattern.operation, AssociativeOperation):
         for name, count in fixed_vars.items():
             min_count, symbol_type = pattern.fixed_variable_infos[name]
             factory = _fixed_var_iter_factory(name, count, min_count, symbol_type, constraints)
@@ -279,7 +279,7 @@ def _match_commutative_operation(
 
     for rem_expr, substitution in generator_chain((expr_counter, substitution), *factories):
         sequence_vars = _variables_with_counts(pattern.sequence_variables, pattern.sequence_variable_infos)
-        if pattern.operation.associative:
+        if issubclass(pattern.operation, AssociativeOperation):
             sequence_vars += _variables_with_counts(fixed_vars, pattern.fixed_variable_infos)
             if pattern.wildcard_fixed is True:
                 sequence_vars += (VariableWithCount(None, 1, pattern.wildcard_min_length), )
@@ -287,7 +287,7 @@ def _match_commutative_operation(
             sequence_vars += (VariableWithCount(None, 1, pattern.wildcard_min_length), )
 
         for sequence_subst in commutative_sequence_variable_partition_iter(Multiset(rem_expr), sequence_vars):
-            if pattern.operation.associative:
+            if issubclass(pattern.operation, AssociativeOperation):
                 for v in fixed_vars.distinct_elements():
                     if v not in sequence_subst:
                         continue

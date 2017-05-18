@@ -41,7 +41,7 @@ except ImportError:
     Digraph = None
 from multiset import Multiset
 
-from ..expressions.expressions import Expression, Operation, Symbol, SymbolWildcard, Wildcard, Pattern
+from ..expressions.expressions import (Expression, Operation, Symbol, SymbolWildcard, Wildcard, Pattern, AssociativeOperation, CommutativeOperation)
 from ..expressions.substitution import Substitution
 from ..utils import (VariableWithCount, commutative_sequence_variable_partition_iter)
 from .bipartite import BipartiteGraph, enum_maximum_matchings_iter
@@ -122,13 +122,13 @@ class _MatchIter:
                 yield label, new_substitution
 
     def _match(self, state: _State) -> Iterator[_State]:
+        # print(state.number, self.subjects)
         if len(self.subjects) == 0:
-            if id(state) in self.matcher.finals or OPERATION_END in state.transitions:
+            if state.number in self.matcher.finals or OPERATION_END in state.transitions:
                 yield state
             heads = [None]
         else:
             heads = list(self._get_heads(self.subjects[0]))
-
         for head in heads:
             for transition in state.transitions.get(head, []):
                 yield from self._match_transition(transition)
@@ -271,13 +271,13 @@ class _MatchIter:
         subject = self.subjects.popleft()
         after_subjects = self.subjects
         operand_subjects = self.subjects = deque(subject.operands)
-        new_associative = transition.label if transition.label.associative else None
+        new_associative = transition.label if issubclass(transition.label, AssociativeOperation) else None
         self.associative.append(new_associative)
-        for new_state in self._check_transition(transition, None):
+        for new_state in self._check_transition(transition, subject, False):
             self.subjects = after_subjects
             self.associative.pop()
             for end_transition in new_state.transitions[OPERATION_END]:
-                yield from self._check_transition(end_transition, subject, False)
+                yield from self._check_transition(end_transition, None, False)
             self.subjects = operand_subjects
             self.associative.append(new_associative)
         self.subjects = after_subjects
@@ -366,7 +366,7 @@ class ManyToOneMatcher:
                 if len(patterns_stack) > 0:
                     state = self._create_simple_transition(state, OPERATION_END, pattern_index)
 
-        self.finals.add(id(state))
+        self.finals.add(state.number)
 
         return pattern_index
 
@@ -430,7 +430,7 @@ class ManyToOneMatcher:
                 break
         else:
             if commutative:
-                matcher = CommutativeMatcher(type(expression) if expression.associative else None)
+                matcher = CommutativeMatcher(type(expression) if isinstance(expression, AssociativeOperation) else None)
             state = self._create_state(matcher)
             if variable_name is not None:
                 constraints = set(self.constraint_vars[variable_name] if variable_name in self.constraint_vars else [])
@@ -444,13 +444,13 @@ class ManyToOneMatcher:
             transitions.append(transition)
         return state
 
-    def _create_simple_transition(self, state: _State, label: LabelType, index: int) -> _State:
+    def _create_simple_transition(self, state: _State, label: LabelType, index: int, variable_name=None) -> _State:
         if label in state.transitions:
             transition = state.transitions[label][0]
             transition.patterns.add(index)
             return transition.target
         new_state = self._create_state()
-        transition = _Transition(label, new_state, None, {index}, None)
+        transition = _Transition(label, new_state, variable_name, {index}, None)
         state.transitions[label] = [transition]
         return new_state
 
@@ -466,6 +466,8 @@ class ManyToOneMatcher:
                 label = SymbolWildcard(symbol_type=label.symbol_type)
             elif isinstance(label, Wildcard):
                 label = Wildcard(label.min_count, label.fixed_size)
+            elif isinstance(label, Symbol):
+                head = type(label)(label.name)
         return label, head
 
     def _create_state(self, matcher: 'CommutativeMatcher'=None) -> _State:
@@ -616,7 +618,7 @@ class ManyToOneMatcher:
             for transition in itertools.chain.from_iterable(state.transitions.values()):
                 state_patterns[transition.target.number] |= transition.patterns
         for state in self.states:
-            name = 'n{!s}'.format(id(state))
+            name = 'n{!s}'.format(state.number)
             if state.matcher:
                 graph.node(name, 'Sub Matcher', {'shape': 'box'})
                 subfinals = []
@@ -634,11 +636,11 @@ class ManyToOneMatcher:
                 graph.node(name + '-end', submatch_label, {'shape': 'box'})
                 for f in subfinals:
                     graph.edge(f, name + '-end')
-                graph.edge(name, 'n{}'.format(id(state.matcher.automaton.root)))
+                graph.edge(name, 'n{}'.format(state.matcher.automaton.root.number))
             else:
-                attrs = {'shape': ('doublecircle' if id(state) in self.finals else 'circle')}
+                attrs = {'shape': ('doublecircle' if state.number in self.finals else 'circle')}
                 graph.node(name, str(state.number), attrs)
-                if id(state) in self.finals:
+                if state.number in self.finals:
                     sp = state_patterns[state.number]
                     if finals is not None:
                         finals.append(name + '-out')
@@ -661,7 +663,7 @@ class ManyToOneMatcher:
                     t_label = '<'
                     if transition.variable_name:
                         t_label += '{}: '.format(self._colored_variable(transition.variable_name))
-                    t_label += str(transition.label)
+                    t_label += html.escape(str(transition.label))
                     if is_operation(transition.label):
                         t_label += '('
                     t_label += '<br/>{}'.format(self._format_pattern_set(transition.patterns))
@@ -669,10 +671,10 @@ class ManyToOneMatcher:
                         t_label += '<br/>{}'.format(self._format_constraint_set(transition.check_constraints))
                     t_label += '>'
 
-                    start = 'n{!s}'.format(id(state))
+                    start = 'n{!s}'.format(state.number)
                     if state.matcher:
                         start += '-end'
-                    end = 'n{!s}'.format(id(transition.target))
+                    end = 'n{!s}'.format(transition.target.number)
                     graph.edge(start, end, t_label)
 
 

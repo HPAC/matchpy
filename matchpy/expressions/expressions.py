@@ -47,6 +47,7 @@ True
 >>> print(expr2)
 f(a)
 """
+from abc import ABCMeta
 import keyword
 from enum import Enum, EnumMeta
 # pylint: disable=unused-import
@@ -510,6 +511,8 @@ class Operation(Expression, metaclass=_OperationMeta):
         )
 
     def __getitem__(self, key: Union[Tuple[int, ...], slice]) -> Expression:
+        if isinstance(key, int):
+            return self.operands[key]
         if isinstance(key, slice):
             if len(key.start) != len(key.stop):
                 raise IndexError('Invalid slice: Start and stop must have the same length')
@@ -524,10 +527,12 @@ class Operation(Expression, metaclass=_OperationMeta):
             if start != stop:
                 raise IndexError('Invalid slice: Start and stop must have the same parent')
             return self.operands[start][new_start:new_stop]
-        if len(key) == 0:
-            return self
-        head, *remainder = key
-        return self.operands[head][remainder]
+        if isinstance(key, (list, tuple)):
+            if len(key) == 0:
+                return self
+            head, *remainder = key
+            return self.operands[head][remainder]
+        raise TypeError('Invalid key: {}'.format(key))
 
     __getitem__.__doc__ = Expression.__getitem__.__doc__
 
@@ -567,6 +572,24 @@ class Operation(Expression, metaclass=_OperationMeta):
 
     def __copy__(self) -> 'Operation':
         return type(self)(*self.operands, variable_name=self.variable_name)
+
+
+class AssociativeOperation(metaclass=ABCMeta):
+    @classmethod
+    def __subclasshook__(cls, C):
+        if cls is AssociativeOperation:
+            if issubclass(C, Operation) and hasattr(C, 'associative'):
+                return C.associative
+        return NotImplemented
+
+
+class CommutativeOperation(metaclass=ABCMeta):
+    @classmethod
+    def __subclasshook__(cls, C):
+        if cls is CommutativeOperation:
+            if issubclass(C, Operation) and hasattr(C, 'commutative'):
+                return C.commutative
+        return NotImplemented
 
 
 class Atom(Expression):  # pylint: disable=abstract-method

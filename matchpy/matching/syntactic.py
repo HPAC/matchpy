@@ -19,7 +19,7 @@ try:
 except ImportError:
     Digraph = None
 
-from ..expressions.expressions import Expression, Operation, Symbol, SymbolWildcard, Wildcard, Pattern
+from ..expressions.expressions import (Expression, Operation, Symbol, SymbolWildcard, Wildcard, Pattern, AssociativeOperation, CommutativeOperation)
 from ..expressions.substitution import Substitution
 from ..utils import slot_cached_property
 
@@ -130,7 +130,7 @@ class FlatTerm(Sequence[TermAtom]):
         for term in self._terms:
             if isinstance(term, Wildcard) and not term.fixed_size:
                 return False
-            if is_operation(term) and (term.commutative or term.associative):
+            if is_operation(term) and issubclass(term, (AssociativeOperation, CommutativeOperation)):
                 return False
         return True
 
