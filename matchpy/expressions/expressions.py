@@ -204,6 +204,9 @@ class Expression:
             return self
         raise IndexError("Invalid position")
 
+    def __contains__(self, expression: 'Expression') -> bool:
+        return self == expression
+
     def __hash__(self):
         raise NotImplementedError()
 
@@ -541,6 +544,9 @@ class Operation(Expression, metaclass=_OperationMeta):
         raise TypeError('Invalid key: {}'.format(key))
 
     __getitem__.__doc__ = Expression.__getitem__.__doc__
+
+    def __contains__(self, expression: 'Expression') -> bool:
+        return self == expression or any(expression in o for o in self.operands)
 
     def _is_constant(self) -> bool:
         return all(x.is_constant for x in self.operands)
