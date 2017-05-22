@@ -1,4 +1,5 @@
-from .expressions import Operation, Wildcard, AssociativeOperation, CommutativeOperation, SymbolWildcard, Pattern
+from .expressions import Operation, AssociativeOperation, CommutativeOperation
+from .patterns import Wildcard, SymbolWildcard, Pattern
 
 __all__ = [
     'is_constant', 'is_syntactic', 'get_head', 'match_head', 'preorder_iter', 'preorder_iter_with_position',
@@ -95,6 +96,7 @@ _operation_factories = {
     tuple: simple_operation_factory,
     set: simple_operation_factory,
     frozenset: simple_operation_factory,
+    type: lambda op, args, variable_name: op(*args),
     # TODO: Add support for dicts
 }
 

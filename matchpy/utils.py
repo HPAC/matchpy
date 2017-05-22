@@ -339,11 +339,11 @@ def get_short_lambda_source(lambda_func: LambdaType) -> Optional[str]:
     # In case we have an indentation error, wrap it in a compound statement
     # We need to find the correct starting point of the block though which might be any of the preceeding lines
     for i in range(lnum, -1, -1):
-    try:
+        try:
             try:
                 block = all_source_lines[i:block_end]
                 source_ast = ast.parse(os.linesep.join(block))
-    except IndentationError:
+            except IndentationError:
                 block.insert(0, 'with 0:')
                 source_ast = ast.parse(os.linesep.join(block))
         except (SyntaxError, tokenize.TokenError):

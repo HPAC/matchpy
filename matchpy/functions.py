@@ -15,7 +15,10 @@ from typing import Callable, List, NamedTuple, Sequence, Tuple, Union, Iterable
 
 from multiset import Multiset
 
-from .expressions.expressions import  Expression, Operation, AssociativeOperation, CommutativeOperationfrom .expressions.patterns import Pattern, Wildcard, SymbolWildcardfrom .expressions.functions import preorder_iter_with_position, create_operation_expression
+from .expressions.expressions import  Expression, Operation, AssociativeOperation, CommutativeOperation
+from .expressions.patterns import Pattern, Wildcard, SymbolWildcard
+from .expressions.functions import preorder_iter_with_position, create_operation_expression
+from .expressions.substitution import Substitution
 from .matching.one_to_one import match
 
 __all__ = ['substitute', 'replace', 'replace_all', 'replace_many', 'is_match', 'ReplacementRule']
@@ -243,14 +246,14 @@ def replace_all(expression: Expression, rules: Iterable[ReplacementRule], max_co
         replaced = False
         for subexpr, pos in preorder_iter_with_position(expression):
             for pattern, replacement in rules:
-                    try:
-                        subst = next(match(subexpr, pattern))
-                        result = replacement(**subst)
-                        expression = replace(expression, pos, result)
-                        replaced = True
-                        break
-                    except StopIteration:
-                        pass
+                try:
+                    subst = next(match(subexpr, pattern))
+                    result = replacement(**subst)
+                    expression = replace(expression, pos, result)
+                    replaced = True
+                    break
+                except StopIteration:
+                    pass
                 if replaced:
                     break
         replace_count += 1

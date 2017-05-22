@@ -210,9 +210,9 @@ class _MatchIter:
 
     @staticmethod
     def _get_heads(expression: Expression) -> Iterator[HeadType]:
-            for base in type(expression).__mro__:
+        for base in type(expression).__mro__:
             if base is not object:
-                    yield base
+                yield base
         if not isinstance(expression, Operation):
             yield expression
         yield None

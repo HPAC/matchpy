@@ -14,4 +14,4 @@ from .substitution import *
 from .constraints import *
 from .functions import *
 
-__all__ = expressions.__all__ + patterns.__all__ + substitution.__all__ + constraints.__all__ + functions.__all_
+__all__ = expressions.__all__ + patterns.__all__ + substitution.__all__ + constraints.__all__ + functions.__all__

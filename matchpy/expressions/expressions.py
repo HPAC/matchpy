@@ -538,10 +538,10 @@ class Operation(Expression, metaclass=_OperationMeta):
                 raise IndexError('Invalid slice: Start and stop must have the same parent')
             return self.operands[start][new_start:new_stop]
         if isinstance(key, (list, tuple)):
-        if len(key) == 0:
-            return self
-        head, *remainder = key
-        return self.operands[head][remainder]
+            if len(key) == 0:
+                return self
+            head, *remainder = key
+            return self.operands[head][remainder]
         raise TypeError('Invalid key: {}'.format(key))
 
     __getitem__.__doc__ = Expression.__getitem__.__doc__

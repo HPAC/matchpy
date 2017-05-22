@@ -75,8 +75,8 @@ def match_anywhere(subject: Expression, pattern: Pattern) -> Iterator[Tuple[Subs
         raise ValueError("The subject for matching must be constant.")
     for child, pos in preorder_iter_with_position(subject):
         if match_head(child, pattern):
-        for subst in match(child, pattern):
-            yield subst, pos
+            for subst in match(child, pattern):
+                yield subst, pos
 
 
 def _match(
@@ -254,7 +254,7 @@ def _build_full_partition(
         if wrap_associative and len(operand_expressions) > wrap_associative:
             fixed = wrap_associative - 1
             operand_expressions = tuple(operand_expressions[:fixed]) + (
-                create_operation_expression(operation, operand_expressions[fixed:]),
+                create_operation_expression(associative, operand_expressions[fixed:]),
             )
 
         result.append(operand_expressions)
@@ -278,8 +278,6 @@ def _match_sequence(subjects, patterns, subst, constraints, associative):
 def _match_commutative_sequence(
         subjects: Iterable[Expression], pattern: CommutativePatternsParts, substitution: Substitution, constraints
 ) -> Iterator[Substitution]:
-    print(subjects)
-    print(pattern)
     subjects = Multiset(subjects)  # type: Multiset
     if not pattern.constant <= subjects:
         return
@@ -333,7 +331,7 @@ def _match_commutative_sequence(
 
     for rem_expr, substitution in generator_chain((expr_counter, substitution), *factories):
         sequence_vars = _variables_with_counts(pattern.sequence_variables, pattern.sequence_variables_min)
-        if pattern.wildcard_fixed is False or issubclass(pattern.operation, AssociativeOperation):
+        if pattern.wildcard_fixed is False or (issubclass(pattern.operation, AssociativeOperation) and pattern.wildcard_fixed is True):
             sequence_vars += (VariableWithCount(None, 1, pattern.wildcard_min_length), )
 
         for sequence_subst in commutative_sequence_variable_partition_iter(Multiset(rem_expr), sequence_vars):
