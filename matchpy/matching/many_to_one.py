@@ -27,8 +27,11 @@ f(a, b) matched with {}
 f(a, x_) matched with {x ↦ b}
 f(y_, b) matched with {y ↦ a}
 some label matched with {x ↦ a, y ↦ b}
-"""
 
+Also contains the :class:`ManyToOneReplacer` which can replace a set :class:`ReplacementRule` at one using a
+:class:`ManyToOneMatcher` for finding the matches.
+"""
+import math
 import html
 import itertools
 from collections import deque
@@ -45,12 +48,13 @@ from ..expressions.expressions import (
     Expression, Operation, Symbol, SymbolWildcard, Wildcard, Pattern, AssociativeOperation, CommutativeOperation
 )
 from ..expressions.substitution import Substitution
-from ..expressions.functions import is_anonymous, contains_variables_from_set, create_operation_expression
+from ..expressions.functions import is_anonymous, contains_variables_from_set, create_operation_expression, preorder_iter_with_position
 from ..utils import (VariableWithCount, commutative_sequence_variable_partition_iter)
+from .. import functions
 from .bipartite import BipartiteGraph, enum_maximum_matchings_iter
 from .syntactic import OPERATION_END, is_operation
 
-__all__ = ['ManyToOneMatcher']
+__all__ = ['ManyToOneMatcher', 'ManyToOneReplacer']
 
 LabelType = Union[Expression, Type[Operation]]
 HeadType = Optional[Union[Expression, Type[Operation], Type[Symbol]]]
@@ -693,6 +697,61 @@ class ManyToOneMatcher:
                     graph.edge(start, end, t_label)
 
 
+class ManyToOneReplacer(ManyToOneMatcher):
+    """"""
+
+    def __init__(self, *rules):
+        """
+        A replacement rule consists of a *pattern*, that is matched against any subexpression
+        of the expression. If a match is found, the *replacement* callback of the rule is called with
+        the variables from the match substitution. Whatever the callback returns is used as a replacement for the
+        matched subexpression. This can either be a single expression or a sequence of expressions, which is then
+        integrated into the surrounding operation in place of the subexpression.
+
+        Note that the pattern can therefore not be a single sequence variable/wildcard, because only single expressions
+        will be matched.
+
+        Args:
+            *rules:
+                The replacment rules.
+        """
+        super().__init__()
+        for pattern, replacement in rules:
+            self.add(pattern, replacement)
+
+
+    def replace(self, expression: Expression, max_count: int=math.inf) -> Union[Expression, Sequence[Expression]]:
+        """Replace all occurrences of the patterns according to the replacement rules.
+
+        Args:
+            expression:
+                The expression to which the replacement rules are applied.
+            max_count:
+                If given, at most *max_count* applications of the rules are performed. Otherwise, the rules
+                are applied until there is no more match. If the set of replacement rules is not confluent,
+                the replacement might not terminate without a *max_count* set.
+
+        Returns:
+            The resulting expression after the application of the replacement rules. This can also be a sequence of
+            expressions, if the root expression is replaced with a sequence of expressions by a rule.
+        """
+        replaced = True
+        replace_count = 0
+        while replaced and replace_count < max_count:
+            replaced = False
+            for subexpr, pos in preorder_iter_with_position(expression):
+                try:
+                    replacement, subst = next(iter(self.match(subexpr)))
+                    result = replacement(**subst)
+                    expression = functions.replace(expression, pos, result)
+                    replaced = True
+                    break
+                except StopIteration:
+                    pass
+            replace_count += 1
+        return expression
+
+
 Subgraph = BipartiteGraph[Tuple[int, int], Tuple[int, int], Substitution]
 Matching = Dict[Tuple[int, int], Tuple[int, int]]
 
@@ -709,7 +768,7 @@ class CommutativeMatcher(object):
 
     def add_pattern(self, operands: Iterable[Expression], constraints) -> int:
         pattern_set, pattern_vars = self._extract_sequence_wildcards(operands, constraints)
-        sorted_vars = tuple(sorted(pattern_vars.values()))
+        sorted_vars = tuple(sorted(pattern_vars.values(), key=lambda v: (v[0][0] or '', v[0][1], v[0][2], v[1])))
         sorted_subpatterns = tuple(sorted(pattern_set))
         pattern_key = sorted_subpatterns + sorted_vars
         if pattern_key not in self.patterns:
@@ -831,7 +890,7 @@ class CommutativeMatcher(object):
             substitution: Substitution,
     ) -> Iterator[Substitution]:
         only_counts = [info for info, _ in pattern_vars]
-        wrapped_vars = [name for (name, _, _), wrap in pattern_vars if wrap]
+        wrapped_vars = [name for (name, _, _), wrap in pattern_vars if wrap and name]
         for variable_substitution in commutative_sequence_variable_partition_iter(subjects, only_counts):
             for var in wrapped_vars:
                 operands = variable_substitution[var]
