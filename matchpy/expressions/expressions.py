@@ -59,9 +59,7 @@ from multiset import Multiset
 from ..utils import cached_property
 from . import patterns
 
-__all__ = [
-    'Expression', 'Arity', 'Atom', 'Symbol', 'Operation', 'AssociativeOperation', 'CommutativeOperation'
-]
+__all__ = ['Expression', 'Arity', 'Atom', 'Symbol', 'Operation', 'AssociativeOperation', 'CommutativeOperation']
 
 ExprPredicate = Optional[Callable[['Expression'], bool]]
 ExpressionsWithPos = Iterator[Tuple['Expression', Tuple[int, ...]]]

@@ -719,7 +719,6 @@ class ManyToOneReplacer(ManyToOneMatcher):
         for pattern, replacement in rules:
             self.add(pattern, replacement)
 
-
     def replace(self, expression: Expression, max_count: int=math.inf) -> Union[Expression, Sequence[Expression]]:
         """Replace all occurrences of the patterns according to the replacement rules.
 

@@ -248,8 +248,10 @@ class ExpressionSequence(Expression):
         return all(c.is_syntactic for c in self.children)
 
     def with_renamed_vars(self, renaming) -> 'Wildcard':
-        return type(self)(*(c.with_renamed_vars(renaming) for c in self.children),
-            variable_name=renaming.get(self.variable_name, self.variable_name))
+        return type(self)(
+            *(c.with_renamed_vars(renaming) for c in self.children),
+            variable_name=renaming.get(self.variable_name, self.variable_name)
+        )
 
     def collect_variables(self, variables) -> None:
         super().collect_variables(variables)
@@ -268,7 +270,10 @@ class ExpressionSequence(Expression):
             yield from child._preorder_iter(predicate, position + (i, ))  # pylint: disable=protected-access
 
     def __eq__(self, other):
-        return (isinstance(other, type(self)) and self.children == other.children and self.variable_name == other.variable_name)
+        return (
+            isinstance(other, type(self)) and self.children == other.children and
+            self.variable_name == other.variable_name
+        )
 
     def __lt__(self, other):
         if not isinstance(other, Expression):
@@ -331,8 +336,10 @@ class Alternatives(Expression):
         return False
 
     def with_renamed_vars(self, renaming) -> 'Wildcard':
-        return type(self)(*(c.with_renamed_vars(renaming) for c in self.children),
-            variable_name=renaming.get(self.variable_name, self.variable_name))
+        return type(self)(
+            *(c.with_renamed_vars(renaming) for c in self.children),
+            variable_name=renaming.get(self.variable_name, self.variable_name)
+        )
 
     def collect_variables(self, variables) -> None:
         super().collect_variables(variables)
@@ -355,7 +362,10 @@ class Alternatives(Expression):
             yield from child._preorder_iter(predicate, position + (i, ))  # pylint: disable=protected-access
 
     def __eq__(self, other):
-        return (isinstance(other, type(self)) and self.children == other.children and self.variable_name == other.variable_name)
+        return (
+            isinstance(other, type(self)) and self.children == other.children and
+            self.variable_name == other.variable_name
+        )
 
     def __lt__(self, other):
         if not isinstance(other, Expression):

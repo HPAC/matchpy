@@ -80,10 +80,10 @@ class CommutativePatternsParts(object):
 
         self.constant = Multiset()  # type: Multiset[Expression]
         self.sequence_variables = Multiset()  # type: Multiset[str]
-        self.sequence_variables_min = dict() # type: Dict[str, int]
-        self.sequence_variables_wrap = dict() # type: Dict[str, bool]
+        self.sequence_variables_min = dict()  # type: Dict[str, int]
+        self.sequence_variables_wrap = dict()  # type: Dict[str, bool]
         self.fixed_variables = Multiset()  # type: Multiset[str]
-        self.fixed_variables_type = dict() # type: Dict[str, Optional[Type[Symbol]]]
+        self.fixed_variables_type = dict()  # type: Dict[str, Optional[Type[Symbol]]]
         self.variable_terms = Multiset()  # type: Multiset[Expression]
         self.fixed_terms = Multiset()  # type: Multiset[Expression]
 

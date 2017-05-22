@@ -6,7 +6,8 @@ from itertools import chain
 from multiset import Multiset
 
 from ..expressions import (
-    Expression, Pattern, Operation, Symbol, SymbolWildcard, Wildcard, AssociativeOperation, CommutativeOperation, Alternatives, ExpressionSequence, Repeated
+    Expression, Pattern, Operation, Symbol, SymbolWildcard, Wildcard, AssociativeOperation, CommutativeOperation,
+    Alternatives, ExpressionSequence, Repeated
 )
 from ..expressions.constraints import Constraint
 from ..expressions.substitution import Substitution
@@ -143,8 +144,10 @@ def _match(
         if parent_operation is not None and parent_operation.commutative:
             parts = CommutativePatternsParts(parent_operation, pattern.children)
             match_iter = chain.from_iterable(
-                _match_commutative_sequence(subjects, CommutativePatternsParts(parent_operation, *([pattern.expression] * i)), subst, constraints)
-                for i in range(min_repeats, max_repeats + 1)
+                _match_commutative_sequence(
+                    subjects,
+                    CommutativePatternsParts(parent_operation, *([pattern.expression] * i)), subst, constraints
+                ) for i in range(min_repeats, max_repeats + 1)
             )
         else:
             associative = parent_operation if (parent_operation is not None and parent_operation.associative) else None
@@ -331,7 +334,9 @@ def _match_commutative_sequence(
 
     for rem_expr, substitution in generator_chain((expr_counter, substitution), *factories):
         sequence_vars = _variables_with_counts(pattern.sequence_variables, pattern.sequence_variables_min)
-        if pattern.wildcard_fixed is False or (issubclass(pattern.operation, AssociativeOperation) and pattern.wildcard_fixed is True):
+        if pattern.wildcard_fixed is False or (
+                issubclass(pattern.operation, AssociativeOperation) and pattern.wildcard_fixed is True
+        ):
             sequence_vars += (VariableWithCount(None, 1, pattern.wildcard_min_length), )
 
         for sequence_subst in commutative_sequence_variable_partition_iter(Multiset(rem_expr), sequence_vars):
@@ -358,10 +363,7 @@ def _match_commutative_sequence(
 
 
 def _variables_with_counts(variables, infos):
-    return tuple(
-        VariableWithCount(name, count, infos[name])
-        for name, count in variables.items()
-    )
+    return tuple(VariableWithCount(name, count, infos[name]) for name, count in variables.items())
 
 
 def _fixed_expr_factory(expression, constraints, associative):

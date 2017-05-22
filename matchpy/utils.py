@@ -206,7 +206,7 @@ def weak_composition_iter_second_order(R, s):
                         yield tuple(element)
 
 
-_linear_diop_solution_cache = {} # type: Dict[Tuple[int, ...], List[Tuple[int, ...]]]
+_linear_diop_solution_cache = {}  # type: Dict[Tuple[int, ...], List[Tuple[int, ...]]]
 
 
 def _make_variable_generator_factory(value, total, variables: List[VariableWithCount]):
