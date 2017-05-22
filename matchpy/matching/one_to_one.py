@@ -5,9 +5,12 @@ from itertools import chain
 
 from multiset import Multiset
 
-from ..expressions import Expression, Pattern, Operation, Symbol, SymbolWildcard, Wildcard, Alternatives, ExpressionSequence, Repeated
+from ..expressions import (
+    Expression, Pattern, Operation, Symbol, SymbolWildcard, Wildcard, AssociativeOperation, CommutativeOperation, Alternatives, ExpressionSequence, Repeated
+)
 from ..expressions.constraints import Constraint
 from ..expressions.substitution import Substitution
+from ..expressions.functions import is_constant, preorder_iter_with_position, match_head, create_operation_expression
 from ..utils import (
     VariableWithCount, commutative_sequence_variable_partition_iter, fixed_integer_vector_iter, weak_composition_iter,
     generator_chain
@@ -35,7 +38,7 @@ def match(subject: Expression, pattern: Pattern) -> Iterator[Substitution]:
         ValueError:
             If the subject is not constant.
     """
-    if not subject.is_constant:
+    if not is_constant(subject):
         raise ValueError("The subject for matching must be constant.")
     global_constraints = [c for c in pattern.constraints if not c.variables]
     local_constraints = set(c for c in pattern.constraints if c.variables)
@@ -68,14 +71,10 @@ def match_anywhere(subject: Expression, pattern: Pattern) -> Iterator[Tuple[Subs
         ValueError:
             If the subject is not constant.
     """
-    if not subject.is_constant:
+    if not is_constant(subject):
         raise ValueError("The subject for matching must be constant.")
-    head = pattern.expression.head
-    if head is None:
-        child_iterator = subject.preorder_iter()
-    else:
-        child_iterator = subject.preorder_iter(lambda child: child.head == head)
-    for child, pos in child_iterator:
+    for child, pos in preorder_iter_with_position(subject):
+        if match_head(child, pattern):
         for subst in match(child, pattern):
             yield subst, pos
 
@@ -158,7 +157,7 @@ def _match(
         assert False, "Unexpected pattern of type {!r}".format(type(pattern))
 
     if match_iter is not None:
-        if pattern.variable_name:
+        if getattr(pattern, 'variable_name', False):
             for new_subst in match_iter:
                 try:
                     new_subst = new_subst.union_with_variable(pattern.variable_name, subject)
@@ -249,12 +248,14 @@ def _build_full_partition(
             if isinstance(operand, Wildcard) and (not operand.fixed_size or associative):
                 wrap_associative = operand.fixed_size and operand.min_count
 
-        operand_expressions = subjects[i:i + count]
+        operand_expressions = list(subjects)[i:i + count]
         i += count
 
         if wrap_associative and len(operand_expressions) > wrap_associative:
             fixed = wrap_associative - 1
-            operand_expressions = tuple(operand_expressions[:fixed]) + (associative(*operand_expressions[fixed:]), )
+            operand_expressions = tuple(operand_expressions[:fixed]) + (
+                create_operation_expression(operation, operand_expressions[fixed:]),
+            )
 
         result.append(operand_expressions)
 
@@ -296,8 +297,8 @@ def _match_commutative_sequence(
     for name, count in pattern.fixed_variables.items():
         if name in substitution:
             replacement = substitution[name]
-            if pattern.operation.associative and isinstance(replacement, pattern.operation):
-                needed_count = Multiset(cast(Operation, substitution[name]).operands)  # type: Multiset
+            if issubclass(pattern.operation, AssociativeOperation) and isinstance(replacement, pattern.operation):
+                needed_count = Multiset(substitution[name])  # type: Multiset
             else:
                 if not isinstance(replacement, Expression):
                     return
@@ -312,7 +313,7 @@ def _match_commutative_sequence(
     associative = pattern.operation if pattern.operation.associative else None
     factories = [_fixed_expr_factory(e, constraints, associative) for e in rest_expr]
 
-    if not pattern.operation.associative:
+    if not issubclass(pattern.operation, AssociativeOperation):
         for name, count in fixed_vars.items():
             symbol_type = pattern.fixed_variables_type[name]
             factory = _fixed_var_iter_factory(name, count, 1, symbol_type, constraints)
@@ -332,11 +333,11 @@ def _match_commutative_sequence(
 
     for rem_expr, substitution in generator_chain((expr_counter, substitution), *factories):
         sequence_vars = _variables_with_counts(pattern.sequence_variables, pattern.sequence_variables_min)
-        if pattern.wildcard_fixed is False or (pattern.operation.associative and pattern.wildcard_fixed is True):
+        if pattern.wildcard_fixed is False or issubclass(pattern.operation, AssociativeOperation):
             sequence_vars += (VariableWithCount(None, 1, pattern.wildcard_min_length), )
 
         for sequence_subst in commutative_sequence_variable_partition_iter(Multiset(rem_expr), sequence_vars):
-            if pattern.operation.associative:
+            if issubclass(pattern.operation, AssociativeOperation):
                 for v, w in pattern.sequence_variables_wrap.items():
                     if v not in sequence_subst or not w:
                         continue
@@ -369,7 +370,7 @@ def _fixed_expr_factory(expression, constraints, associative):
     def factory(data):
         expressions, substitution = data
         for expr in expressions.distinct_elements():
-            if expr.head == expression.head:
+            if match_head(expr, expression):
                 for subst in _match([expr], expression, substitution, constraints, associative):
                     yield expressions - Multiset({expr: 1}), subst
 

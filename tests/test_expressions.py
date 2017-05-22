@@ -317,6 +317,27 @@ class TestExpression:
         assert other == expression
         assert other is not expression
 
+    @pytest.mark.parametrize(
+        '   expression,     subexpression,  contains',
+        [
+            (a,             a,              True),
+            (a,             b,              False),
+            (f(a),          a,              True),
+            (f(a),          b,              False),
+            (f(a),          f(a),           True),
+            (f(a, b),       f(a),           False),
+            (f(a),          f(a, b),        False),
+            (f(x_, y_),     x_,             True),
+            (f(x_, y_),     y_,             True),
+            (f(x_, y_),     a,              False),
+        ]
+    )  # yapf: disable
+    def test_contains(self, expression, subexpression, contains):
+        if contains:
+            assert subexpression in expression, "{!s} should be contained in {!s}".format(subexpression, expression)
+        else:
+            assert subexpression not in expression, "{!s} should not be contained in {!s}".format(subexpression, expression)
+
 
 class TestOperation:
     def test_one_identity_error(self):

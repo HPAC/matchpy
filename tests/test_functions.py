@@ -7,6 +7,7 @@ from matchpy.expressions import Arity, Operation, Symbol, Wildcard, Pattern
 from matchpy.functions import ReplacementRule, replace, replace_all, substitute, replace_many, is_match
 from matchpy.matching.one_to_one import match_anywhere
 from matchpy.matching.one_to_one import match as match_one_to_one
+from matchpy.matching.many_to_one import ManyToOneReplacer
 from .common import *
 
 
@@ -174,7 +175,13 @@ def test_match_error():
         next(match_one_to_one(f(x_), f(x_)))
 
 
-def test_logic_simplify():
+def _many_to_one_replace(expression, rules):
+    return ManyToOneReplacer(*rules).replace(expression)
+
+@pytest.mark.parametrize(
+    'replacer', [replace_all, _many_to_one_replace]
+)
+def test_logic_simplify(replacer):
     LAnd = Operation.new('and', Arity.variadic, 'LAnd', associative=True, one_identity=True, commutative=True)
     LOr = Operation.new('or', Arity.variadic, 'LOr', associative=True, one_identity=True, commutative=True)
     LXor = Operation.new('xor', Arity.variadic, 'LXor', associative=True, one_identity=True, commutative=True)
@@ -321,6 +328,6 @@ def test_logic_simplify():
         ),
     ]  # yapf: disable
 
-    result = replace_all(expression, rules)
+    result = replacer(expression, rules)
 
     assert result == LBot

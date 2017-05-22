@@ -147,7 +147,7 @@ class Substitution(Dict[str, VariableReplacement]):
         Returns:
             ``True`` iff the substitution could be extracted successfully.
         """
-        if pattern.variable_name:
+        if getattr(pattern, 'variable_name', False):
             try:
                 self.try_add_variable(pattern.variable_name, subject)
             except ValueError:
@@ -155,9 +155,9 @@ class Substitution(Dict[str, VariableReplacement]):
             return True
         elif isinstance(pattern, expressions.Operation):
             assert isinstance(subject, type(pattern))
-            assert len(subject.operands) == len(pattern.operands)
+            assert len(subject) == len(pattern)
             op_expression = cast(expressions.Operation, subject)
-            for subj, patt in zip(op_expression.operands, pattern.operands):
+            for subj, patt in zip(op_expression, pattern):
                 if not self.extract_substitution(subj, patt):
                     return False
         return True

@@ -47,6 +47,7 @@ True
 >>> print(expr2)
 f(a)
 """
+from abc import ABCMeta
 import keyword
 from enum import Enum, EnumMeta
 # pylint: disable=unused-import
@@ -59,7 +60,7 @@ from ..utils import cached_property
 from . import patterns
 
 __all__ = [
-    'Expression', 'Arity', 'Atom', 'Symbol', 'Operation'
+    'Expression', 'Arity', 'Atom', 'Symbol', 'Operation', 'AssociativeOperation', 'CommutativeOperation'
 ]
 
 ExprPredicate = Optional[Callable[['Expression'], bool]]
@@ -204,6 +205,9 @@ class Expression:
             return self
         raise IndexError("Invalid position")
 
+    def __contains__(self, expression: 'Expression') -> bool:
+        return self == expression
+
     def __hash__(self):
         raise NotImplementedError()
 
@@ -241,7 +245,7 @@ class Arity(_ArityBase, Enum, metaclass=_ArityMeta):
         return "{!s}.{!s}".format(type(self).__name__, self._name_)
 
 
-class _OperationMeta(type):
+class _OperationMeta(ABCMeta):
     """Metaclass for `Operation`
 
     This metaclass is mainly used to override :meth:`__call__` to provide simplification when creating a
@@ -510,7 +514,15 @@ class Operation(Expression, metaclass=_OperationMeta):
             self.variable_name == other.variable_name
         )
 
+    def __iter__(self):
+        return iter(self.operands)
+
+    def __len__(self):
+        return len(self.operands)
+
     def __getitem__(self, key: Union[Tuple[int, ...], slice]) -> Expression:
+        if isinstance(key, int):
+            return self.operands[key]
         if isinstance(key, slice):
             if len(key.start) != len(key.stop):
                 raise IndexError('Invalid slice: Start and stop must have the same length')
@@ -525,12 +537,17 @@ class Operation(Expression, metaclass=_OperationMeta):
             if start != stop:
                 raise IndexError('Invalid slice: Start and stop must have the same parent')
             return self.operands[start][new_start:new_stop]
+        if isinstance(key, (list, tuple)):
         if len(key) == 0:
             return self
         head, *remainder = key
         return self.operands[head][remainder]
+        raise TypeError('Invalid key: {}'.format(key))
 
     __getitem__.__doc__ = Expression.__getitem__.__doc__
+
+    def __contains__(self, expression: 'Expression') -> bool:
+        return self == expression or any(expression in o for o in self.operands)
 
     def _is_constant(self) -> bool:
         return all(x.is_constant for x in self.operands)
@@ -570,9 +587,38 @@ class Operation(Expression, metaclass=_OperationMeta):
         return type(self)(*self.operands, variable_name=self.variable_name)
 
 
+Operation.register(list)
+Operation.register(tuple)
+Operation.register(set)
+Operation.register(frozenset)
+
+
+class AssociativeOperation(metaclass=ABCMeta):
+    @classmethod
+    def __subclasshook__(cls, C):
+        if cls is AssociativeOperation:
+            if issubclass(C, Operation) and hasattr(C, 'associative'):
+                return C.associative
+        return NotImplemented
+
+
+class CommutativeOperation(metaclass=ABCMeta):
+    @classmethod
+    def __subclasshook__(cls, C):
+        if cls is CommutativeOperation:
+            if issubclass(C, Operation) and hasattr(C, 'commutative'):
+                return C.commutative
+        return NotImplemented
+
+
+CommutativeOperation.register(set)
+CommutativeOperation.register(frozenset)
+
+
 class Atom(Expression):  # pylint: disable=abstract-method
     """Base for all atomic expressions."""
-    pass
+
+    __iter__ = None
 
 
 class Symbol(Atom):

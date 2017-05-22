@@ -6,6 +6,8 @@ import math
 import ast
 import os
 from collections import deque
+import tokenize
+import copy
 from types import LambdaType
 # pylint: disable=unused-import
 from typing import (Callable, Dict, Iterator, List, NamedTuple, Optional, Sequence, Tuple, TypeVar, cast, Union, Any)
@@ -218,9 +220,10 @@ def _make_variable_generator_factory(value, total, variables: List[VariableWithC
             solutions = list(solve_linear_diop(total, *var_counts))
             _linear_diop_solution_cache[cache_key] = solutions
         for solution in solutions:
+            new_subst = copy.copy(subst)
             for var, count in zip(variables, solution):
-                subst[var.name][value] = count
-            yield subst
+                new_subst[var.name][value] = count
+            yield new_subst
 
     return _factory
 
@@ -322,20 +325,34 @@ def get_short_lambda_source(lambda_func: LambdaType) -> Optional[str]:
     """
     # Adapted from http://xion.io/post/code/python-get-lambda-code.html
     try:
+        all_source_lines, lnum = inspect.findsource(lambda_func)
         source_lines, _ = inspect.getsourcelines(lambda_func)
     except (IOError, TypeError):
         return None
 
-    # Remove trailing whitespace from lines (including potential lingering \r and \total due to OS mismatch)
-    source_lines = [l.rstrip() for l in source_lines]
+    # Remove trailing whitespace from lines (including potential lingering \r and \n due to OS mismatch)
+    all_source_lines = [l.rstrip() for l in all_source_lines]
+    block_end = lnum + len(source_lines)
+    source_ast = None
 
     # Try to parse the source lines
     # In case we have an indentation error, wrap it in a compound statement
+    # We need to find the correct starting point of the block though which might be any of the preceeding lines
+    for i in range(lnum, -1, -1):
     try:
-        source_ast = ast.parse(os.linesep.join(source_lines))
+            try:
+                block = all_source_lines[i:block_end]
+                source_ast = ast.parse(os.linesep.join(block))
     except IndentationError:
-        source_lines.insert(0, 'with 0:')
-        source_ast = ast.parse(os.linesep.join(source_lines))
+                block.insert(0, 'with 0:')
+                source_ast = ast.parse(os.linesep.join(block))
+        except (SyntaxError, tokenize.TokenError):
+            pass
+        else:
+            break
+
+    if source_ast is None:
+        return None
 
     # Find the first AST node that is a lambda definition
     lambda_node = next((node for node in ast.walk(source_ast) if isinstance(node, ast.Lambda)), None)
@@ -344,7 +361,7 @@ def get_short_lambda_source(lambda_func: LambdaType) -> Optional[str]:
 
     # Remove everything before the first lambda's body
     # Remove indentation from lines
-    lines = source_lines[lambda_node.lineno - 1:]
+    lines = block[lambda_node.lineno - 1:]
     lines[0] = lines[0][lambda_node.body.col_offset:]
     lambda_body_text = os.linesep.join(l.lstrip() for l in lines)
 
