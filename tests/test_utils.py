@@ -11,7 +11,7 @@ from multiset import Multiset
 from matchpy.utils import (
     VariableWithCount, base_solution_linear, cached_property, commutative_sequence_variable_partition_iter,
     extended_euclid, fixed_integer_vector_iter, get_short_lambda_source, weak_composition_iter, slot_cached_property,
-    solve_linear_diop, weak_composition_iter_second_order
+    solve_linear_diop, weak_composition_iter_second_order, commutative_partition_iter
 )
 
 
@@ -162,7 +162,10 @@ class TestSolveLinearDiop:
 
 
 class TestWeakCompositionIter:
-    @given(st.lists(st.sets(st.integers(min_value=1, max_value=10), min_size=1, max_size=10), max_size=5), st.integers(min_value=0, max_value=10))
+    @given(
+        st.lists(st.sets(st.integers(min_value=1, max_value=10), min_size=1, max_size=10), max_size=5),
+        st.integers(min_value=0, max_value=10)
+    )
     def test_second_order(self, restrictions, s):
         n = len(restrictions)
         all_solutions = list(weak_composition_iter(s, n))
@@ -172,7 +175,9 @@ class TestWeakCompositionIter:
             assert len(all_solutions) == 0, "No solutions for n = 0 and s > 0"
         else:
             expected_number = math.factorial(max(s + n - 1, 0)) // math.factorial(max(n - 1, 0)) // math.factorial(s)
-            assert expected_number == len(all_solutions), "Unexpected number of solutions, should be binom(s + n - 1, n - 1)"
+            assert expected_number == len(
+                all_solutions
+            ), "Unexpected number of solutions, should be binom(s + n - 1, n - 1)"
 
         # uniqueness
         unique_all = set(all_solutions)
@@ -189,6 +194,48 @@ class TestWeakCompositionIter:
                 assert solution in unique_restricted, "Solution fulfills restriction, but is not in restricted results"
             else:
                 assert solution not in unique_restricted, "Solution breaks restriction, but is in restricted results"
+
+
+PART_LIMITS = [(0, 1), (1, 1), (0, 2), (1, 2), (2, 2), (0, math.inf), (1, math.inf), (2, math.inf)]
+
+
+class TestCommutativePartitionIter:
+    @given(
+        st.lists(st.integers(min_value=1, max_value=5), max_size=5),
+        st.lists(st.sampled_from(PART_LIMITS), max_size=5),
+    )
+    def test_completeness(self, counts, variables):
+        total = sum(counts)
+        assume(total <= 10)
+        limits = [[t for t in itertools.product(*(range(0, min(e, c) + 1) for _, e in variables)) if sum(t) == c]
+                  for c in counts]
+
+        partitions = list(commutative_partition_iter(counts, variables))
+
+        for dist in itertools.product(*limits):
+            var_counts = [sum(t) for t in zip(*dist)]
+            if all(c >= l and c <= u for (l, u), c in itertools.zip_longest(variables, var_counts, fillvalue=0)):
+                assert list(dist) in partitions, str(var_counts)
+
+    @given(
+        st.lists(st.integers(min_value=1, max_value=5), max_size=5),
+        st.lists(st.sampled_from(PART_LIMITS), max_size=5),
+    )
+    def test_correctness(self, counts, variables):
+        tc = len(counts)
+        var_count = len(variables)
+        total = sum(counts)
+        assume(total <= 10)
+
+        for dist in commutative_partition_iter(counts, variables):
+            assert len(dist) == tc
+            var_counts = [sum(t) for t in zip(*dist)]
+            if len(dist) > 0:
+                assert len(var_counts) == var_count
+            for (l, u), c in zip(variables, var_counts):
+                assert c >= l and c <= u
+            for d, e in zip(dist, counts):
+                assert sum(d) == e
 
 
 @st.composite

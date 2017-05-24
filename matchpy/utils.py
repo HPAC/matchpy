@@ -18,7 +18,7 @@ from multiset import Multiset
 __all__ = [
     'fixed_integer_vector_iter', 'weak_composition_iter', 'commutative_sequence_variable_partition_iter',
     'get_short_lambda_source', 'solve_linear_diop', 'generator_chain', 'cached_property', 'slot_cached_property',
-    'extended_euclid', 'base_solution_linear'
+    'extended_euclid', 'base_solution_linear', 'commutative_partition_iter'
 ]
 
 T = TypeVar('T')
@@ -167,7 +167,7 @@ def weak_composition_iter_second_order(R, s):
                 yield (i, s - i)
     else:
         R_map = [[1 if i in r else 0 for i in range(s + 1)] for r in R]
-        Q = [deque() for _ in range(s)]
+        Q = [deque() for _ in range(s + 1)]
         try:
             carryTill = next(i - 1 for i in range(n - 2, 0, -1) if not R_map[i][0])
         except StopIteration:
@@ -194,7 +194,7 @@ def weak_composition_iter_second_order(R, s):
                             copy[current_round] = e - i
                             Q[e].append(copy)
 
-        for i in range(s - 1, -1, -1):
+        for i in range(s, -1, -1):
             reachable = any(R_map[n - 1][s - e] for e in edges[n - 3][i])
             if not reachable:
                 continue
@@ -302,6 +302,25 @@ def commutative_sequence_variable_partition_iter(values: 'Multiset[T]', variable
             if None in subst:
                 del subst[None]
             yield subst
+
+
+def commutative_partition_iter(counts: List[int], variables: List[Tuple[int, int]]) -> Iterator[List[Tuple[int, ...]]]:
+    if len(counts) == 0:
+        if all(m == 0 for m, _ in variables):
+            yield []
+        return
+    if len(variables) == 0:
+        return
+    total = sum(counts)
+    remaining = total - counts[0]
+    limits = [
+        range(max(x - remaining, 0), y + 1) if y != math.inf else unbounded_range(max(x - remaining, 0))
+        for x, y in variables
+    ]
+    for values in weak_composition_iter_second_order(limits, counts[0]):
+        new_variables = [(max(m1 - v, 0), max(m2 - v, 0)) for (m1, m2), v in zip(variables, values)]
+        for rest in commutative_partition_iter(counts[1:], new_variables):
+            yield [values] + rest
 
 
 def get_short_lambda_source(lambda_func: LambdaType) -> Optional[str]:
