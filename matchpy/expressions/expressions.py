@@ -546,7 +546,17 @@ class Operation(Expression, metaclass=_OperationMeta):
     __getitem__.__doc__ = Expression.__getitem__.__doc__
 
     def __contains__(self, expression: 'Expression') -> bool:
-        return self == expression or any(expression in o for o in self.operands)
+        if self == expression:
+            return True
+        for operand in self.operands:
+            if operand == expression:
+                return True
+            try:
+                if expression in operand:
+                    return True
+            except TypeError:
+                pass
+        return False
 
     def _is_constant(self) -> bool:
         return all(x.is_constant for x in self.operands)
