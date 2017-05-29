@@ -1,8 +1,13 @@
-from .expressions import Operation, Wildcard, AssociativeOperation, CommutativeOperation, SymbolWildcard, Pattern
+from typing import Dict
+
+from .expressions import (
+    Expression, Operation, Wildcard, AssociativeOperation, CommutativeOperation, SymbolWildcard, Pattern
+)
 
 __all__ = [
     'is_constant', 'is_syntactic', 'get_head', 'match_head', 'preorder_iter', 'preorder_iter_with_position',
-    'is_anonymous', 'contains_variables_from_set', 'register_operation_factory', 'create_operation_expression'
+    'is_anonymous', 'contains_variables_from_set', 'register_operation_factory', 'create_operation_expression',
+    'rename_variables'
 ]
 
 
@@ -84,6 +89,33 @@ def contains_variables_from_set(expression, variables):
     if isinstance(expression, Operation):
         return any(contains_variables_from_set(o, variables) for o in expression)
     return False
+
+
+def rename_variables(expression: Expression, renaming: Dict[str, str]) -> Expression:
+    """Rename the variables in the expression according to the given dictionary.
+
+    Args:
+        expression:
+            The expression in which the variables are renamed.
+        renaming:
+            The renaming dictionary. Maps old variable names to new ones.
+            Variable names not occuring in the dictionary are left unchanged.
+
+    Returns:
+        The expression with renamed variables.
+    """
+    if isinstance(expression, Operation):
+        if hasattr(expression, 'variable_name'):
+            variable_name = renaming.get(expression.variable_name, expression.variable_name)
+            return create_operation_expression(
+                expression, [rename_variables(o, renaming) for o in expression], variable_name=variable_name
+            )
+        operands = [rename_variables(o, renaming) for o in expression]
+        return create_operation_expression(expression, operands)
+    elif isinstance(expression, Expression):
+        expression = expression.__copy__()
+        expression.variable_name = renaming.get(expression.variable_name, expression.variable_name)
+    return expression
 
 
 def simple_operation_factory(op, args, variable_name):

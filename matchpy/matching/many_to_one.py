@@ -48,7 +48,10 @@ from ..expressions.expressions import (
     Expression, Operation, Symbol, SymbolWildcard, Wildcard, Pattern, AssociativeOperation, CommutativeOperation
 )
 from ..expressions.substitution import Substitution
-from ..expressions.functions import is_anonymous, contains_variables_from_set, create_operation_expression, preorder_iter_with_position
+from ..expressions.functions import (
+    is_anonymous, contains_variables_from_set, create_operation_expression, preorder_iter_with_position,
+    rename_variables
+)
 from ..utils import (VariableWithCount, commutative_sequence_variable_partition_iter)
 from .. import functions
 from .bipartite import BipartiteGraph, enum_maximum_matchings_iter
@@ -347,7 +350,7 @@ class ManyToOneMatcher:
         constraint_indices = [self._add_constraint(c, pattern_index) for c in renamed_constraints]
         self.patterns.append((pattern, label, constraint_indices))
         self.pattern_vars.append(renaming)
-        pattern = self.rename_variables(pattern.expression, renaming)
+        pattern = rename_variables(pattern.expression, renaming)
         state = self.root
         patterns_stack = [deque([pattern])]
 
@@ -370,21 +373,6 @@ class ManyToOneMatcher:
         self.finals.add(state.number)
 
         return pattern_index
-
-    @classmethod
-    def rename_variables(cls, expression, renaming):
-        if isinstance(expression, Operation):
-            if hasattr(expression, 'variable_name'):
-                variable_name = renaming.get(expression.variable_name, expression.variable_name)
-                return create_operation_expression(
-                    expression, [cls.rename_variables(o, renaming) for o in expression], variable_name=variable_name
-                )
-            operands = [cls.rename_variables(o, renaming) for o in expression]
-            return create_operation_expression(expression, operands)
-        elif isinstance(expression, Expression):
-            expression = expression.__copy__()
-            expression.variable_name = renaming.get(expression.variable_name, expression.variable_name)
-        return expression
 
     def _add_constraint(self, constraint, pattern):
         index = None
@@ -719,7 +707,6 @@ class ManyToOneReplacer:
         for rule in rules:
             self.add(rule)
 
-
     def add(self, rule: 'functions.ReplacementRule') -> None:
         """Add a new rule to the replacer.
 
@@ -728,7 +715,6 @@ class ManyToOneReplacer:
                 The rule to add.
         """
         self.matcher.add(rule.pattern, rule.replacement)
-
 
     def replace(self, expression: Expression, max_count: int=math.inf) -> Union[Expression, Sequence[Expression]]:
         """Replace all occurrences of the patterns according to the replacement rules.
