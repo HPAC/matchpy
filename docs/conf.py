@@ -20,7 +20,7 @@
 import datetime
 import os
 import sys
-import matchpy
+from setuptools_scm import get_version
 sys.path.insert(0, os.path.abspath(os.path.join('..')))
 
 # -- General configuration ------------------------------------------------
@@ -66,7 +66,7 @@ author = 'Manuel Krebber'
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 # The full version, including alpha/beta/rc tags.
-release = matchpy.__version__
+release = get_version(root='..')
 # The short X.Y version.
 version = '.'.join(release.split('.')[:2]) # The short X.Y version.
 
