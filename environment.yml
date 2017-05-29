@@ -16,3 +16,4 @@ dependencies:
   - git+https://github.com/wheerd/sphinx-autodoc-typehints.git@napoleon-master#egg=sphinx-autodoc-napoleon-typehints
   - hopcroftkarp
   - multiset>=2.0,<3.0
+  - setuptools_scm
