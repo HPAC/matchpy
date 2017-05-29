@@ -697,8 +697,8 @@ class ManyToOneMatcher:
                     graph.edge(start, end, t_label)
 
 
-class ManyToOneReplacer(ManyToOneMatcher):
-    """"""
+class ManyToOneReplacer:
+    """Class that contains a set of replacement rules and can apply them efficiently to an expression."""
 
     def __init__(self, *rules):
         """
@@ -713,11 +713,21 @@ class ManyToOneReplacer(ManyToOneMatcher):
 
         Args:
             *rules:
-                The replacment rules.
+                The replacement rules.
         """
-        super().__init__()
-        for pattern, replacement in rules:
-            self.add(pattern, replacement)
+        self.matcher = ManyToOneMatcher()
+        for rule in rules:
+            self.add(rule)
+
+
+    def add(self, rule: 'functions.ReplacementRule') -> None:
+        """Add a new rule to the replacer.
+
+        Args:
+            rule:
+                The rule to add.
+        """
+        self.matcher.add(rule.pattern, rule.replacement)
 
 
     def replace(self, expression: Expression, max_count: int=math.inf) -> Union[Expression, Sequence[Expression]]:
@@ -741,7 +751,7 @@ class ManyToOneReplacer(ManyToOneMatcher):
             replaced = False
             for subexpr, pos in preorder_iter_with_position(expression):
                 try:
-                    replacement, subst = next(iter(self.match(subexpr)))
+                    replacement, subst = next(iter(self.matcher.match(subexpr)))
                     result = replacement(**subst)
                     expression = functions.replace(expression, pos, result)
                     replaced = True
