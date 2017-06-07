@@ -11,9 +11,7 @@ with open(os.path.join(root, 'README.rst')) as f:
 
 setup(
     name="matchpy",
-    use_scm_version={
-        'write_to': 'matchpy/__version__.py'
-    },
+    use_scm_version=True,
     description="A pattern matching library.",
     long_description=readme,
     author="Manuel Krebber",
