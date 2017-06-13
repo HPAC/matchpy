@@ -291,6 +291,8 @@ class _MatchIter:
 class ManyToOneMatcher:
     __slots__ = ('patterns', 'states', 'root', 'pattern_vars', 'constraints', 'constraint_vars', 'finals')
 
+    _state_id = 0
+
     def __init__(self, *patterns: Expression) -> None:
         """
         Args:
@@ -478,8 +480,9 @@ class ManyToOneMatcher:
         return label, head
 
     def _create_state(self, matcher: 'CommutativeMatcher'=None) -> _State:
-        state = _State(len(self.states), dict(), matcher)
+        state = _State(ManyToOneMatcher._state_id, dict(), matcher)
         self.states.append(state)
+        ManyToOneMatcher._state_id += 1
         return state
 
     @classmethod
@@ -620,17 +623,21 @@ class ManyToOneMatcher:
         return graph
 
     def _make_graph_nodes(self, graph: Digraph, finals: Optional[List[str]]) -> None:  # pragma: no cover
-        state_patterns = [set() for i in range(len(self.states))]
+        state_patterns = {}
         for state in self.states:
+            state_patterns.setdefault(state.number, set())
             for transition in itertools.chain.from_iterable(state.transitions.values()):
-                state_patterns[transition.target.number] |= transition.patterns
+                state_patterns.setdefault(transition.target.number, set()).update(transition.patterns)
         for state in self.states:
             name = 'n{!s}'.format(state.number)
             if state.matcher:
-                graph.node(name, 'Sub Matcher', {'shape': 'box'})
+                has_states = len(state.matcher.automaton.states) > 1
+                if has_states:
+                    graph.node(name, 'Sub Matcher', {'shape': 'box'})
                 subfinals = []
-                graph.subgraph(state.matcher.automaton._as_graph(subfinals))
-                submatch_label = '<<b>Sub Matcher End</b>'
+                if has_states:
+                    graph.subgraph(state.matcher.automaton._as_graph(subfinals))
+                submatch_label = '<<b>Sub Matcher End</b>' if has_states else '<<b>Sub Matcher</b>'
                 for pattern_index, subpatterns, variables in state.matcher.patterns.values():
                     var_formatted = ', '.join(
                         '{}[{}]x{}{}'.format(self._colored_variable(n), m, c, 'W' if w else '')
@@ -640,10 +647,12 @@ class ManyToOneMatcher:
                         self._colored_pattern(pattern_index), subpatterns, var_formatted
                     )
                 submatch_label += '>'
-                graph.node(name + '-end', submatch_label, {'shape': 'box'})
+                end_name = (name + '-end') if has_states else name
+                graph.node(end_name, submatch_label, {'shape': 'box'})
                 for f in subfinals:
-                    graph.edge(f, name + '-end')
-                graph.edge(name, 'n{}'.format(state.matcher.automaton.root.number))
+                    graph.edge(f, end_name)
+                if has_states:
+                    graph.edge(name, 'n{}'.format(state.matcher.automaton.root.number))
             else:
                 attrs = {'shape': ('doublecircle' if state.number in self.finals else 'circle')}
                 graph.node(name, str(state.number), attrs)
@@ -679,7 +688,7 @@ class ManyToOneMatcher:
                     t_label += '>'
 
                     start = 'n{!s}'.format(state.number)
-                    if state.matcher:
+                    if state.matcher and len(state.matcher.automaton.states) > 1:
                         start += '-end'
                     end = 'n{!s}'.format(transition.target.number)
                     graph.edge(start, end, t_label)
