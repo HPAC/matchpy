@@ -78,7 +78,6 @@ _Transition = NamedTuple('_Transition', [
     ('check_constraints', Optional[Set[int]]),
 ])  # yapf: disable
 
-
 class _MatchIter:
     def __init__(self, matcher, subject, intial_associative=None):
         self.matcher = matcher
@@ -792,7 +791,7 @@ class CommutativeMatcher(object):
                 for pattern_index in match_iter.patterns:
                     variables = self.automaton.pattern_vars[pattern_index]
                     substitution = Substitution(match_iter.substitution)
-                    self.bipartite[subject_id, pattern_index] = substitution
+                    self.bipartite.setdefault((subject_id, pattern_index), []).append(substitution)
                     pattern_set.add(pattern_index)
         else:
             subject_id, _ = self.subjects[subject]
@@ -881,12 +880,13 @@ class CommutativeMatcher(object):
                 break
             if not self._is_canonical_matching(matching, anonymous):
                 continue
-            try:
-                bipartite_substitution = substitution.union(*(bipartite[edge] for edge in matching.items()))
-            except ValueError:
-                continue
-            matched_subjects = Multiset(subexpression for subexpression, _ in matching)
-            yield bipartite_substitution, matched_subjects
+            for substs in itertools.product(*(bipartite[edge] for edge in matching.items())):
+                try:
+                    bipartite_substitution = substitution.union(*substs)
+                except ValueError:
+                    continue
+                matched_subjects = Multiset(subexpression for subexpression, _ in matching)
+                yield bipartite_substitution, matched_subjects
 
     def _match_sequence_variables(
             self,
