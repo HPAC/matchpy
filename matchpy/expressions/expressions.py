@@ -703,7 +703,7 @@ class Wildcard(Atom):
 
     head = None
 
-    def __init__(self, min_count: int, fixed_size: bool, variable_name=None) -> None:
+    def __init__(self, min_count: int, fixed_size: bool, variable_name=None, optional=None) -> None:
         """
         Args:
             min_count:
@@ -723,6 +723,7 @@ class Wildcard(Atom):
         super().__init__(variable_name)
         self.min_count = min_count
         self.fixed_size = fixed_size
+        self.optional = optional
 
     def _is_constant(self) -> bool:
         return False
@@ -746,6 +747,24 @@ class Wildcard(Atom):
             A dot wildcard.
         """
         return Wildcard(min_count=1, fixed_size=True, variable_name=name)
+
+    @staticmethod
+    def optional(name, default) -> 'Wildcard':
+        """Create a `Wildcard` that matches a single argument with a default value.
+
+        If the wildcard does not match, the substitution will contain the
+        default value instead.
+
+        Args:
+            name:
+                The name for the wildcard.
+            default:
+                The default value of the wildcard.
+
+        Returns:
+            A n optional wildcard.
+        """
+        return Wildcard(min_count=1, fixed_size=True, variable_name=name, optional=default)
 
     @staticmethod
     def symbol(name: str=None, symbol_type: Type[Symbol]=Symbol) -> 'SymbolWildcard':
@@ -804,10 +823,16 @@ class Wildcard(Atom):
             value = '_[{:d}{!s}]'.format(self.min_count, '' if self.fixed_size else '+')
         if self.variable_name:
             value = '{}{}'.format(self.variable_name, value)
+        if self.optional is not None:
+            value += ': {}'.format(self.optional)
         return value
 
     def __repr__(self):
         if self.variable_name:
+            if self.optional is not None:
+                return '{!s}({!r}, {!r}, variable_name={}, optional={})'.format(
+                    type(self).__name__, self.min_count, self.fixed_size, self.variable_name, self.optional
+                )
             return '{!s}({!r}, {!r}, variable_name={})'.format(
                 type(self).__name__, self.min_count, self.fixed_size, self.variable_name
             )
@@ -840,7 +865,7 @@ class Wildcard(Atom):
         return hash((Wildcard, self.min_count, self.fixed_size, self.variable_name))
 
     def __copy__(self) -> 'Wildcard':
-        return type(self)(self.min_count, self.fixed_size, variable_name=self.variable_name)
+        return type(self)(self.min_count, self.fixed_size, variable_name=self.variable_name, optional=self.optional)
 
 
 class SymbolWildcard(Wildcard):

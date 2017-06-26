@@ -11,7 +11,7 @@ from ..expressions.substitution import Substitution
 from ..expressions.functions import is_constant, preorder_iter_with_position, match_head, create_operation_expression
 from ..utils import (
     VariableWithCount, commutative_sequence_variable_partition_iter, fixed_integer_vector_iter, weak_composition_iter,
-    generator_chain
+    generator_chain, optional_iter
 )
 from ._common import CommutativePatternsParts
 
@@ -89,7 +89,9 @@ def _match(subjects: List[Expression], pattern: Expression, subst: Substitution,
         if isinstance(pattern, SymbolWildcard) and not isinstance(subjects[0], pattern.symbol_type):
             return
         match_iter = iter([subst])
-        if not pattern.fixed_size:
+        if pattern.optional is not None and not subjects:
+            expr = pattern.optional
+        elif not pattern.fixed_size:
             expr = tuple(subjects)
 
     elif isinstance(pattern, Symbol):
@@ -112,6 +114,8 @@ def _match(subjects: List[Expression], pattern: Expression, subst: Substitution,
         if getattr(pattern, 'variable_name', False):
             for new_subst in match_iter:
                 try:
+                    if expr is None and getattr(pattern, 'optional', None) is not None:
+                        expr = pattern.optional
                     new_subst = new_subst.union_with_variable(pattern.variable_name, expr)
                 except ValueError:
                     pass
@@ -150,19 +154,25 @@ def _match_factory(expressions, operand, constraints, matcher):
 def _count_seq_vars(expressions, operation):
     remaining = len(expressions)
     sequence_var_count = 0
+    optional_count = 0
     for operand in operation:
         if isinstance(operand, Wildcard):
             if not operand.fixed_size or isinstance(operation, AssociativeOperation):
                 sequence_var_count += 1
-            remaining -= operand.min_count
+                if operand.optional is None:
+                    remaining -= operand.min_count
+            elif operand.optional is not None:
+                optional_count += 1
+            else:
+                remaining -= operand.min_count
         else:
             remaining -= 1
         if remaining < 0:
             raise ValueError
-    return remaining, sequence_var_count
+    return remaining, sequence_var_count, optional_count
 
 
-def _build_full_partition(sequence_var_partition: Sequence[int], subjects: Sequence[Expression],
+def _build_full_partition(optional_parts, sequence_var_partition: Sequence[int], subjects: Sequence[Expression],
                           operation: Operation) -> List[Sequence[Expression]]:
     """Distribute subject operands among pattern operands.
 
@@ -171,15 +181,19 @@ def _build_full_partition(sequence_var_partition: Sequence[int], subjects: Seque
     """
     i = 0
     var_index = 0
+    opt_index = 0
     result = []
     for operand in operation:
         wrap_associative = False
         if isinstance(operand, Wildcard):
-            count = operand.min_count
+            count = operand.min_count if operand.optional is None else 0
             if not operand.fixed_size or isinstance(operation, AssociativeOperation):
                 count += sequence_var_partition[var_index]
                 var_index += 1
                 wrap_associative = operand.fixed_size and operand.min_count
+            elif operand.optional is not None:
+                count = optional_parts[opt_index]
+                opt_index += 1
         else:
             count = 1
 
@@ -199,15 +213,18 @@ def _build_full_partition(sequence_var_partition: Sequence[int], subjects: Seque
 
 def _non_commutative_match(subjects, operation, subst, constraints, matcher):
     try:
-        remaining, sequence_var_count = _count_seq_vars(subjects, operation)
+        remaining, sequence_var_count, optional_count = _count_seq_vars(subjects, operation)
     except ValueError:
         return
-    for part in weak_composition_iter(remaining, sequence_var_count):
-        partition = _build_full_partition(part, subjects, operation)
-        factories = [_match_factory(e, o, constraints, matcher) for e, o in zip(partition, operation)]
+    for new_remaining, optional in optional_iter(remaining, optional_count):
+        if new_remaining < 0:
+            continue
+        for part in weak_composition_iter(new_remaining, sequence_var_count):
+            partition = _build_full_partition(optional, part, subjects, operation)
+            factories = [_match_factory(e, o, constraints, matcher) for e, o in zip(partition, operation)]
 
-        for new_subst in generator_chain(subst, *factories):
-            yield new_subst
+            for new_subst in generator_chain(subst, *factories):
+                yield new_subst
 
 
 def _match_operation(expressions, operation, subst, matcher, constraints):
@@ -263,18 +280,18 @@ def _match_commutative_operation(
 
     if not issubclass(pattern.operation, AssociativeOperation):
         for name, count in fixed_vars.items():
-            min_count, symbol_type = pattern.fixed_variable_infos[name]
-            factory = _fixed_var_iter_factory(name, count, min_count, symbol_type, constraints)
+            min_count, symbol_type, default = pattern.fixed_variable_infos[name]
+            factory = _fixed_var_iter_factory(name, count, min_count, symbol_type, constraints, default)
             factories.append(factory)
 
         if pattern.wildcard_fixed is True:
-            factory = _fixed_var_iter_factory(None, 1, pattern.wildcard_min_length, None, constraints)
+            factory = _fixed_var_iter_factory(None, 1, pattern.wildcard_min_length, None, constraints, None)
             factories.append(factory)
     else:
         for name, count in fixed_vars.items():
-            min_count, symbol_type = pattern.fixed_variable_infos[name]
+            min_count, symbol_type, default = pattern.fixed_variable_infos[name]
             if symbol_type is not None:
-                factory = _fixed_var_iter_factory(name, count, min_count, symbol_type, constraints)
+                factory = _fixed_var_iter_factory(name, count, min_count, symbol_type, constraints, default)
                 factories.append(factory)
 
     expr_counter = Multiset(subjects)  # type: Multiset
@@ -284,9 +301,9 @@ def _match_commutative_operation(
         if issubclass(pattern.operation, AssociativeOperation):
             sequence_vars += _variables_with_counts(fixed_vars, pattern.fixed_variable_infos)
             if pattern.wildcard_fixed is True:
-                sequence_vars += (VariableWithCount(None, 1, pattern.wildcard_min_length), )
+                sequence_vars += (VariableWithCount(None, 1, pattern.wildcard_min_length, None), )
         if pattern.wildcard_fixed is False:
-            sequence_vars += (VariableWithCount(None, 1, pattern.wildcard_min_length), )
+            sequence_vars += (VariableWithCount(None, 1, pattern.wildcard_min_length, None), )
 
         for sequence_subst in commutative_sequence_variable_partition_iter(Multiset(rem_expr), sequence_vars):
             if issubclass(pattern.operation, AssociativeOperation):
@@ -294,15 +311,16 @@ def _match_commutative_operation(
                     if v not in sequence_subst:
                         continue
                     l = pattern.fixed_variable_infos[v].min_count
-                    value = cast(Multiset, sequence_subst[v])
-                    if len(value) > l:
-                        normal = Multiset(list(value)[:l - 1])
-                        wrapped = pattern.operation(*(value - normal))
-                        normal.add(wrapped)
-                        sequence_subst[v] = normal if l > 1 else next(iter(normal))
-                    else:
-                        assert len(value) == 1 and l == 1, "Fixed variables with length != 1 are not supported."
-                        sequence_subst[v] = next(iter(value))
+                    value = cast(Sequence, sequence_subst[v])
+                    if isinstance(value, (list, tuple, Multiset)):
+                        if len(value) > l:
+                            normal = Multiset(list(value)[:l - 1])
+                            wrapped = pattern.operation(*(value - normal))
+                            normal.add(wrapped)
+                            sequence_subst[v] = normal if l > 1 else next(iter(normal))
+                        else:
+                            assert len(value) == 1 and l == 1, "Fixed variables with length != 1 are not supported."
+                            sequence_subst[v] = next(iter(value))
             try:
                 result = substitution.union(sequence_subst)
             except ValueError:
@@ -313,7 +331,7 @@ def _match_commutative_operation(
 
 def _variables_with_counts(variables, infos):
     return tuple(
-        VariableWithCount(name, count, infos[name].min_count)
+        VariableWithCount(name, count, infos[name].min_count, infos[name].default)
         for name, count in variables.items() if infos[name].type is None
     )
 
@@ -329,17 +347,23 @@ def _fixed_expr_factory(expression, constraints, matcher):
     return factory
 
 
-def _fixed_var_iter_factory(variable_name, count, length, symbol_type, constraints):
+def _fixed_var_iter_factory(variable_name, count, length, symbol_type, constraints, optional):
     def factory(data):
         expressions, substitution = data
         if variable_name in substitution:
             value = ([substitution[variable_name]]
                      if isinstance(substitution[variable_name], Expression) else substitution[variable_name])
+            if optional is not None and value == [optional]:
+                yield expressions, substitution
             existing = Multiset(value) * count
             if not existing <= expressions:
                 return
             yield expressions - existing, substitution
         else:
+            if optional is not None:
+                new_substitution = Substitution(substitution)
+                new_substitution[variable_name] = optional
+                yield expressions, new_substitution
             if length == 1:
                 for expr, expr_count in expressions.items():
                     if expr_count >= count and (symbol_type is None or isinstance(expr, symbol_type)):

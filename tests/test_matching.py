@@ -192,6 +192,61 @@ class TestMatch:
                 expression, pattern
             )
 
+
+    @pytest.mark.parametrize(
+        '   expression,             pattern,        expected_matches',
+        [
+            (f(a),                  f(a, oa_),      [{'o': a}]),
+            (f(a),                  f(a, oa__),     [{'o': a}]),
+            (f(a),                  f(a, oa___),    [{'o': a}]),
+            (f_a(a),                f_a(a, oa_),    [{'o': a}]),
+            (f_a(a),                f_a(a, oa__),   [{'o': a}]),
+            (f_a(a),                f_a(a, oa___),  [{'o': a}]),
+            (f(a, b),               f(a, oa_),      [{'o': b}]),
+            (f(a, b),               f(a, oa__),     [{'o': (b, )}]),
+            (f(a, b),               f(a, oa___),    [{'o': (b, )}]),
+            (f_a(a, b),             f_a(a, oa_),    [{'o': b}]),
+            (f_a(a, b),             f_a(a, oa__),   [{'o': (b, )}]),
+            (f_a(a, b),             f_a(a, oa___),  [{'o': (b, )}]),
+            (f(a, b, c),            f(a, oa_),      []),
+            (f(a, b, c),            f(a, oa__),     [{'o': (b, c)}]),
+            (f(a, b, c),            f(a, oa___),    [{'o': (b, c)}]),
+            (f_a(a, b, c),          f_a(a, oa_),    [{'o': f_a(b, c)}]),
+            (f_a(a, b, c),          f_a(a, oa__),   [{'o': (b, c)}]),
+            (f_a(a, b, c),          f_a(a, oa___),  [{'o': (b, c)}]),
+            (f_c(a),                f_c(a, oa_),    [{'o': a}]),
+            (f_c(a),                f_c(a, oa__),   [{'o': a}]),
+            (f_c(a),                f_c(a, oa___),  [{'o': a}]),
+            (f_ac(a),               f_ac(a, oa_),   [{'o': a}]),
+            (f_ac(a),               f_ac(a, oa__),  [{'o': a}]),
+            (f_ac(a),               f_ac(a, oa___), [{'o': a}]),
+            (f_c(a, b),             f_c(a, oa_),    [{'o': b}]),
+            (f_c(a, b),             f_c(a, oa__),   [{'o': Multiset([b])}]),
+            (f_c(a, b),             f_c(a, oa___),  [{'o': Multiset([b])}]),
+            (f_ac(a, b),            f_ac(a, oa_),   [{'o': b}]),
+            (f_ac(a, b),            f_ac(a, oa__),  [{'o': Multiset([b])}]),
+            (f_ac(a, b),            f_ac(a, oa___), [{'o': Multiset([b])}]),
+            (f_c(a, b, c),          f_c(a, oa_),    []),
+            (f_c(a, b, c),          f_c(a, oa__),   [{'o': Multiset([b, c])}]),
+            (f_c(a, b, c),          f_c(a, oa___),  [{'o': Multiset([b, c])}]),
+            (f_ac(a, b, c),         f_ac(a, oa_),   [{'o': f_ac(b, c)}]),
+            (f_ac(a, b, c),         f_ac(a, oa__),  [{'o': Multiset([b, c])}]),
+            (f_ac(a, b, c),         f_ac(a, oa___), [{'o': Multiset([b, c])}]),
+        ]
+    )  # yapf: disable
+    def test_optional_wildcard_match(self, match, expression, pattern, expected_matches):
+        expression = expression
+        pattern = Pattern(pattern)
+        result = list(match(expression, pattern))
+        for expected_match in expected_matches:
+            assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(
+                expression, pattern, expected_match
+            )
+        for result_match in result:
+            assert result_match in expected_matches, "Expression {!s} and {!s} yielded the unexpected match {!s}".format(
+                expression, pattern, result_match
+            )
+
     @pytest.mark.parametrize(
         '   expression,             pattern,        expected_matches',
         [

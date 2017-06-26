@@ -21,7 +21,7 @@ __all__ = [
 ]
 
 T = TypeVar('T')
-VariableWithCount = NamedTuple('VariableWithCount', [('name', str), ('count', int), ('minimum', int)])
+VariableWithCount = NamedTuple('VariableWithCount', [('name', str), ('count', int), ('minimum', int), ('default', Optional[Any])])
 
 
 def fixed_integer_vector_iter(max_vector: Tuple[int, ...], vector_sum: int) -> Iterator[Tuple[int, ...]]:
@@ -121,6 +121,11 @@ def weak_composition_iter(n: int, num_parts: int) -> Iterator[Tuple[int, ...]]:
         yield tuple(v - u - 1 for u, v in zip(first + t, t + last))
 
 
+def optional_iter(remaining, count):
+    for p in itertools.product([0, 1], repeat=count):
+        yield remaining - sum(p), p
+
+
 _linear_diop_solution_cache = {}  # type: Dict[Tuple[int, ...], List[Tuple[int, ...]]]
 
 
@@ -145,7 +150,10 @@ def _make_variable_generator_factory(value, total, variables: List[VariableWithC
 
 def _commutative_single_variable_partiton_iter(values: 'Multiset[T]',
                                                variable: VariableWithCount) -> Iterator[Dict[str, 'Multiset[T]']]:
-    name, count, minimum = variable
+    name, count, minimum, default = variable
+    if len(values) == 0 and default is not None:
+        yield { name: default }
+        return
     if count == 1:
         if len(values) >= minimum:
             yield {name: values} if name is not None else {}
@@ -173,8 +181,8 @@ def commutative_sequence_variable_partition_iter(values: 'Multiset[T]', variable
         For a subject like ``fc(a, a, a, b, b, c)`` and a pattern like ``f(x__, y___, y___)`` one can define the
         following input parameters for the partitioning:
 
-        >>> x = VariableWithCount(name='x', count=1, minimum=1)
-        >>> y = VariableWithCount(name='y', count=2, minimum=0)
+        >>> x = VariableWithCount(name='x', count=1, minimum=1, default=None)
+        >>> y = VariableWithCount(name='y', count=2, minimum=0, default=None)
         >>> values = Multiset('aaabbc')
 
         Then the solutions are found (and sorted to get a unique output):

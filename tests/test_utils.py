@@ -170,7 +170,7 @@ def sequence_vars(draw):
         count = draw(st.integers(min_value=1, max_value=4))
         minimum = draw(st.integers(min_value=0, max_value=2))
 
-        variables.append(VariableWithCount(name, count, minimum))
+        variables.append(VariableWithCount(name, count, minimum, None))
 
     return variables
 
@@ -243,7 +243,7 @@ class TestCommutativeSequenceVariablePartitionIter:
     )  # yapf: disable
     def test_correctness(self, variables, values, expected_iter_count):
         values = Multiset(values)
-        variables = [VariableWithCount('var{:d}'.format(i), c, m) for i, (c, m) in enumerate(variables)]
+        variables = [VariableWithCount('var{:d}'.format(i), c, m, None) for i, (c, m) in enumerate(variables)]
         count = 0
         for subst in commutative_sequence_variable_partition_iter(values, variables):
             assert len(variables) == len(subst), "Wrong number of variables in the substitution"

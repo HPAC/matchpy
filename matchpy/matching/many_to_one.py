@@ -81,7 +81,7 @@ _Transition = NamedTuple('_Transition', [
 class _MatchIter:
     def __init__(self, matcher, subject, intial_associative=None):
         self.matcher = matcher
-        self.subjects = deque([subject])
+        self.subjects = deque([subject]) if subject is not None else deque()
         self.patterns = set(range(len(matcher.patterns)))
         self.substitution = Substitution()
         self.constraints = set(range(len(matcher.constraints)))
@@ -150,6 +150,8 @@ class _MatchIter:
             return
         if isinstance(label, Wildcard) and not isinstance(label, SymbolWildcard):
             min_count = label.min_count
+            if label.optional is not None and min_count > 0:
+                yield from self._check_transition(transition, label.optional, False)
             if label.fixed_size and not self.associative[-1]:
                 assert min_count == 1, "Fixed wildcards with length != 1 are not supported."
                 if not self.subjects:
@@ -234,7 +236,10 @@ class _MatchIter:
                 else:
                     wrapped = matched_subject[0]
             else:
-                wrapped = tuple(matched_subject)
+                if len(matched_subject) == 0 and wildcard.optional is not None:
+                    wrapped = wildcard.optional
+                else:
+                    wrapped = tuple(matched_subject)
             yield from self._check_transition(transition, wrapped, False)
             if not self.subjects:
                 break
@@ -245,6 +250,7 @@ class _MatchIter:
         subject = self.subjects.popleft()
         matcher = state.matcher
         substitution = self.substitution
+        matcher.add_subject(None)
         for operand in subject:
             matcher.add_subject(operand)
         for matched_pattern, new_substitution in matcher.match(subject, substitution):
@@ -470,7 +476,7 @@ class ManyToOneMatcher:
                 label = SymbolWildcard(symbol_type=label.symbol_type)
             elif isinstance(label, Wildcard):
                 head = None
-                label = Wildcard(label.min_count, label.fixed_size)
+                label = Wildcard(label.min_count, label.fixed_size, optional=label.optional)
             elif isinstance(label, Symbol):
                 head = type(label)(label.name)
             else:
@@ -640,7 +646,7 @@ class ManyToOneMatcher:
                 for pattern_index, subpatterns, variables in state.matcher.patterns.values():
                     var_formatted = ', '.join(
                         '{}[{}]x{}{}'.format(self._colored_variable(n), m, c, 'W' if w else '')
-                        for (n, c, m), w in variables
+                        for (n, c, m, d), w in variables
                     )
                     submatch_label += '<br/>\n{}: {} {}'.format(
                         self._colored_pattern(pattern_index), subpatterns, var_formatted
@@ -761,7 +767,7 @@ Matching = Dict[Tuple[int, int], Tuple[int, int]]
 
 
 class CommutativeMatcher(object):
-    __slots__ = ('patterns', 'subjects', 'automaton', 'bipartite', 'associative')
+    __slots__ = ('patterns', 'subjects', 'automaton', 'bipartite', 'associative', 'max_optional_count')
 
     def __init__(self, associative: Optional[type]) -> None:
         self.patterns = {}
@@ -769,6 +775,7 @@ class CommutativeMatcher(object):
         self.automaton = ManyToOneMatcher()
         self.bipartite = BipartiteGraph()
         self.associative = associative
+        self.max_optional_count = 0
 
     def add_pattern(self, operands: Iterable[Expression], constraints) -> int:
         pattern_set, pattern_vars = self._extract_sequence_wildcards(operands, constraints)
@@ -800,6 +807,11 @@ class CommutativeMatcher(object):
     def match(self, subjects: Sequence[Expression], substitution: Substitution) -> Iterator[Tuple[int, Substitution]]:
         subject_ids = Multiset()
         pattern_ids = Multiset()
+        if self.max_optional_count > 0:
+            subject_id, subject_pattern_ids = self.subjects[None]
+            subject_ids.add(subject_id)
+            for _ in range(self.max_optional_count):
+                pattern_ids.update(subject_pattern_ids)
         for subject in subjects:
             subject_id, subject_pattern_ids = self.subjects[subject]
             subject_ids.add(subject_id)
@@ -810,15 +822,15 @@ class CommutativeMatcher(object):
                     continue
                 bipartite_match_iter = self._match_with_bipartite(subject_ids, pattern_set, substitution)
                 for bipartite_substitution, matched_subjects in bipartite_match_iter:
+                    ids = subject_ids - matched_subjects
+                    remaining = Multiset(self.subjects[id] for id in ids if self.subjects[id] is not None)
                     if pattern_vars:
-                        ids = subject_ids - matched_subjects
-                        remaining = Multiset(self.subjects[id] for id in ids)  # pylint: disable=not-an-iterable
                         sequence_var_iter = self._match_sequence_variables(
                             remaining, pattern_vars, bipartite_substitution
                         )
                         for result_substitution in sequence_var_iter:
                             yield pattern_index, result_substitution
-                    elif len(subjects) == len(pattern_set):
+                    elif len(remaining) == 0:
                         yield pattern_index, bipartite_substitution
             elif pattern_vars:
                 sequence_var_iter = self._match_sequence_variables(Multiset(subjects), pattern_vars, substitution)
@@ -831,7 +843,10 @@ class CommutativeMatcher(object):
                                     constraints) -> Tuple[MultisetOfInt, Dict[str, Tuple[VariableWithCount, bool]]]:
         pattern_set = Multiset()
         pattern_vars = dict()
+        opt_count = 0
         for operand in operands:
+            if isinstance(operand, Wildcard) and operand.optional is not None:
+                opt_count += 1
             if not self._is_sequence_wildcard(operand):
                 actual_constraints = [c for c in constraints if contains_variables_from_set(operand, c.variables)]
                 pattern = Pattern(operand, *actual_constraints)
@@ -847,17 +862,19 @@ class CommutativeMatcher(object):
                 varname = getattr(operand, 'variable_name', None)
                 if varname is None:
                     if varname in pattern_vars:
-                        (_, _, min_count), _ = pattern_vars[varname]
+                        (_, _, min_count, _), _ = pattern_vars[varname]
                     else:
                         min_count = 0
-                    pattern_vars[varname] = (VariableWithCount(varname, 1, operand.min_count + min_count), False)
+                    pattern_vars[varname] = (VariableWithCount(varname, 1, operand.min_count + min_count, None), False)
                 else:
                     if varname in pattern_vars:
-                        (_, count, _), wrap = pattern_vars[varname]
+                        (_, count, _, _), wrap = pattern_vars[varname]
                     else:
                         count = 0
                         wrap = operand.fixed_size and self.associative
-                    pattern_vars[varname] = (VariableWithCount(varname, count + 1, operand.min_count), wrap)
+                    pattern_vars[varname] = (VariableWithCount(varname, count + 1, operand.min_count, operand.optional), wrap)
+        if opt_count > self.max_optional_count:
+            self.max_optional_count = opt_count
         return pattern_set, pattern_vars
 
     def _is_sequence_wildcard(self, expression: Expression) -> bool:
@@ -874,6 +891,7 @@ class CommutativeMatcher(object):
             substitution: Substitution,
     ) -> Iterator[Tuple[Substitution, MultisetOfInt]]:
         bipartite = self._build_bipartite(subject_ids, pattern_set)
+        bipartite.as_graph().render('tmp/optional_bp')
         anonymous = set(i for i, (p, _, _) in enumerate(self.automaton.patterns) if is_anonymous(p.expression))
         for matching in enum_maximum_matchings_iter(bipartite):
             if len(matching) < len(pattern_set):
@@ -895,14 +913,15 @@ class CommutativeMatcher(object):
             substitution: Substitution,
     ) -> Iterator[Substitution]:
         only_counts = [info for info, _ in pattern_vars]
-        wrapped_vars = [name for (name, _, _), wrap in pattern_vars if wrap and name]
+        wrapped_vars = [name for (name, _, _, _), wrap in pattern_vars if wrap and name]
         for variable_substitution in commutative_sequence_variable_partition_iter(subjects, only_counts):
             for var in wrapped_vars:
                 operands = variable_substitution[var]
-                if len(operands) > 1:
-                    variable_substitution[var] = self.associative(*operands)
-                else:
-                    variable_substitution[var] = next(iter(operands))
+                if isinstance(operands, (tuple, list, Multiset)):
+                    if len(operands) > 1:
+                        variable_substitution[var] = self.associative(*operands)
+                    else:
+                        variable_substitution[var] = next(iter(operands))
             try:
                 result_substitution = substitution.union(variable_substitution)
             except ValueError:

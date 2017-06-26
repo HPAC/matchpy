@@ -11,7 +11,7 @@ from ..expressions.functions import is_constant, is_syntactic
 __all__ = ['CommutativePatternsParts', 'Matcher', 'VarInfo']
 
 Matcher = Callable[[Sequence[Expression], Expression, Substitution], Iterator[Substitution]]
-VarInfo = NamedTuple('VarInfo', [('min_count', int), ('type', Optional[type])])
+VarInfo = NamedTuple('VarInfo', [('min_count', int), ('type', Optional[type]), ('default', Optional[Expression])])
 
 
 class CommutativePatternsParts(object):
@@ -103,6 +103,7 @@ class CommutativePatternsParts(object):
         self.sequence_variable_min_length = 0
         self.fixed_variable_length = 0
         self.wildcard_min_length = 0
+        self.optional_count = 0
         self.wildcard_fixed = None
 
         for expression in expressions:
@@ -116,12 +117,16 @@ class CommutativePatternsParts(object):
                     if wc.fixed_size:
                         self.fixed_variables[name] += 1
                         symbol_type = getattr(wc, 'symbol_type', None)
-                        self._update_var_info(self.fixed_variable_infos, name, wc.min_count, symbol_type)
-                        self.fixed_variable_length += wc.min_count
+                        self._update_var_info(self.fixed_variable_infos, name, wc.min_count, symbol_type, wc.optional)
+                        if wc.optional is None:
+                            self.fixed_variable_length += wc.min_count
+                        else:
+                            self.optional_count += 1
                     else:
                         self.sequence_variables[name] += 1
-                        self._update_var_info(self.sequence_variable_infos, name, wc.min_count)
-                        self.sequence_variable_min_length += wc.min_count
+                        self._update_var_info(self.sequence_variable_infos, name, wc.min_count, None, wc.optional)
+                        if wc.optional is None:
+                            self.sequence_variable_min_length += wc.min_count
                 else:
                     self.wildcard_min_length += wc.min_count
                     if self.wildcard_fixed is None:
@@ -134,13 +139,14 @@ class CommutativePatternsParts(object):
                 self.rest[expression] += 1
 
     @staticmethod
-    def _update_var_info(infos, name, count, symbol_type=None):
+    def _update_var_info(infos, name, count, symbol_type=None, default=None):
         if name not in infos:
-            infos[name] = VarInfo(count, symbol_type)
+            infos[name] = VarInfo(count, symbol_type, default)
         else:
             existing_info = infos[name]
             assert existing_info.min_count == count
             assert existing_info.type == symbol_type
+            assert existing_info.default == default
 
     def __str__(self):
         parts = []
