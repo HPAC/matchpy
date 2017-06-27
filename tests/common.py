@@ -43,6 +43,7 @@ z___ = make_star_variable('z')
 oa_ = Wildcard.optional('o', a)
 oa__ = Wildcard(1, False, 'o', a)
 oa___ = Wildcard(0, False, 'o', a)
+o2b_ = Wildcard.optional('o2', b)
 
 mock_constraint_false = MockConstraint(False)
 mock_constraint_true = MockConstraint(True)

@@ -891,7 +891,6 @@ class CommutativeMatcher(object):
             substitution: Substitution,
     ) -> Iterator[Tuple[Substitution, MultisetOfInt]]:
         bipartite = self._build_bipartite(subject_ids, pattern_set)
-        bipartite.as_graph().render('tmp/optional_bp')
         anonymous = set(i for i, (p, _, _) in enumerate(self.automaton.patterns) if is_anonymous(p.expression))
         for matching in enum_maximum_matchings_iter(bipartite):
             if len(matching) < len(pattern_set):
