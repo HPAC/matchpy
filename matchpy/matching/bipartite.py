@@ -43,15 +43,30 @@ class BipartiteGraph(Generic[TLeft, TRight, TEdgeValue], MutableMapping[Tuple[TL
     >>> graph[1, 2] = 42
     """
 
-    __slots__ = ('_edges', )
+    __slots__ = ('_edges', '_matching', '_dfs_paths', '_dfs_parent', '_left', '_right', '_graph')
 
     def __init__(self, *args, **kwargs):
         self._edges = dict(*args, **kwargs)
+        self._left = set(l for (l, _) in self._edges.keys())
+        self._right = set(r for (_, r) in self._edges.keys())
+        self._graph = {}
+        for l, r in self._edges:
+            self._graph.setdefault((LEFT, l), set()).add((RIGHT, r))
+            self._graph.setdefault((RIGHT, r), set()).add((LEFT, l))
+
+        self._matching = {}
+        self._dfs_paths = []
+        self._dfs_parent = {}
 
     def __setitem__(self, key: Edge, value: TEdgeValue) -> None:
         if not isinstance(key, tuple) or len(key) != 2:
             raise TypeError("The edge must be a 2-tuple")
         self._edges.__setitem__(key, value)
+        self._left.add(key[0])
+        self._right.add(key[1])
+        self._graph.setdefault((LEFT, key[0]), set()).add((RIGHT, key[1]))
+        self._graph.setdefault((RIGHT, key[1]), set()).add((LEFT, key[0]))
+
 
     def __getitem__(self, key: Edge) -> TEdgeValue:
         if not isinstance(key, tuple) or len(key) != 2:
@@ -61,7 +76,13 @@ class BipartiteGraph(Generic[TLeft, TRight, TEdgeValue], MutableMapping[Tuple[TL
     def __delitem__(self, key: Edge) -> None:
         if not isinstance(key, tuple) or len(key) != 2:
             raise TypeError("The edge must be a 2-tuple")
-        return self._edges.__delitem__(key)
+        self._edges.__delitem__(key)
+        if all(l != key[0] for (l, _) in self._edges):
+            self._left.remove(key[0])
+        if all(r != key[1] for (_, r) in self._edges):
+            self._right.remove(key[1])
+        self._graph[(LEFT, key[0])].remove((RIGHT, key[1]))
+        self._graph[(RIGHT, key[1])].remove((LEFT, key[0]))
 
     def edges_with_labels(self):
         """Returns a view on the edges with labels."""
@@ -73,6 +94,9 @@ class BipartiteGraph(Generic[TLeft, TRight, TEdgeValue], MutableMapping[Tuple[TL
     def __copy__(self):
         new_graph = type(self)()
         new_graph._edges = self._edges.copy()
+        new_graph._left = self._left.copy()
+        new_graph._right = self._right.copy()
+        new_graph._graph = self._graph.copy()
         return new_graph
 
     def __iter__(self):
@@ -155,6 +179,9 @@ class BipartiteGraph(Generic[TLeft, TRight, TEdgeValue], MutableMapping[Tuple[TL
     def limited_to(self, left: Set[TLeft], right: Set[TRight]) -> 'BipartiteGraph[TLeft, TRight, TEdgeValue]':
         """Returns the induced subgraph where only the nodes from the given sets are included."""
         return BipartiteGraph(((n1, n2), v) for (n1, n2), v in self._edges.items() if n1 in left and n2 in right)
+
+    def __repr__(self):
+        return '{}({})'.format(self.__class__.__name__, self._edges)
 
 
 class _DirectedMatchGraph(Dict[Node, NodeSet], Generic[TLeft, TRight]):

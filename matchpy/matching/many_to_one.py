@@ -54,7 +54,7 @@ from ..expressions.functions import (
 )
 from ..utils import (VariableWithCount, commutative_sequence_variable_partition_iter)
 from .. import functions
-from .bipartite import BipartiteGraph, enum_maximum_matchings_iter
+from .bipartite import BipartiteGraph, enum_maximum_matchings_iter, LEFT
 from .syntactic import OPERATION_END, is_operation
 
 __all__ = ['ManyToOneMatcher', 'ManyToOneReplacer']
@@ -933,25 +933,25 @@ class CommutativeMatcher(object):
         bipartite = BipartiteGraph()
         n = 0
         m = 0
-        s_states = {}
         p_states = {}
-        for (subject, pattern), substitution in self.bipartite.edges_with_labels():
-            if subject not in s_states:
-                states = []
-                for _ in range(subjects[subject]):
-                    states.append((subject, n))
-                    n += 1
-                s_states[subject] = states
-            if pattern not in p_states:
-                states = []
-                for _ in range(patterns[pattern]):
-                    states.append((pattern, m))
-                    m += 1
-                p_states[pattern] = states
-
-            for s_state in s_states[subject]:
-                for p_state in p_states[pattern]:
-                    bipartite[s_state, p_state] = substitution
+        for subject, s_count in subjects.items():
+            if (LEFT, subject) in self.bipartite._graph:
+                any_patterns = False
+                for _, pattern in self.bipartite._graph[LEFT, subject]:
+                    if pattern in patterns:
+                        any_patterns = True
+                        subst = self.bipartite[subject, pattern]
+                        p_count = patterns[pattern]
+                        if pattern in p_states:
+                            p_start = p_states[pattern]
+                        else:
+                            p_start = p_states[pattern] = m
+                            m += p_count
+                        for i in range(n, n + s_count):
+                            for j in range(p_start, p_start + p_count):
+                                bipartite[(subject, i), (pattern, j)] = subst
+                if any_patterns:
+                    n += s_count
 
         return bipartite
 
