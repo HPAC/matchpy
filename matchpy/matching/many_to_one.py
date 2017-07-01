@@ -767,7 +767,7 @@ Matching = Dict[Tuple[int, int], Tuple[int, int]]
 
 
 class CommutativeMatcher(object):
-    __slots__ = ('patterns', 'subjects', 'automaton', 'bipartite', 'associative', 'max_optional_count')
+    __slots__ = ('patterns', 'subjects', 'automaton', 'bipartite', 'associative', 'max_optional_count', 'anonymous_patterns')
 
     def __init__(self, associative: Optional[type]) -> None:
         self.patterns = {}
@@ -776,6 +776,7 @@ class CommutativeMatcher(object):
         self.bipartite = BipartiteGraph()
         self.associative = associative
         self.max_optional_count = 0
+        self.anonymous_patterns = set()
 
     def add_pattern(self, operands: Iterable[Expression], constraints) -> int:
         pattern_set, pattern_vars = self._extract_sequence_wildcards(operands, constraints)
@@ -857,6 +858,8 @@ class CommutativeMatcher(object):
                         break
                 else:
                     index = self.automaton._internal_add(pattern, None, {})
+                    if is_anonymous(pattern.expression):
+                        self.anonymous_patterns.add(index)
                 pattern_set.add(index)
             else:
                 varname = getattr(operand, 'variable_name', None)
@@ -891,11 +894,10 @@ class CommutativeMatcher(object):
             substitution: Substitution,
     ) -> Iterator[Tuple[Substitution, MultisetOfInt]]:
         bipartite = self._build_bipartite(subject_ids, pattern_set)
-        anonymous = set(i for i, (p, _, _) in enumerate(self.automaton.patterns) if is_anonymous(p.expression))
         for matching in enum_maximum_matchings_iter(bipartite):
             if len(matching) < len(pattern_set):
                 break
-            if not self._is_canonical_matching(matching, anonymous):
+            if not self._is_canonical_matching(matching):
                 continue
             for substs in itertools.product(*(bipartite[edge] for edge in matching.items())):
                 try:
@@ -953,8 +955,8 @@ class CommutativeMatcher(object):
 
         return bipartite
 
-    @staticmethod
-    def _is_canonical_matching(matching: Matching, anonymous_patterns: MultisetOfInt) -> bool:
+    def _is_canonical_matching(self, matching: Matching) -> bool:
+        anonymous_patterns = self.anonymous_patterns
         for (s1, n1), (p1, m1) in matching.items():
             for (s2, n2), (p2, m2) in matching.items():
                 if p1 in anonymous_patterns and p2 in anonymous_patterns:
