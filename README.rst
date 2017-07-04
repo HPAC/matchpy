@@ -19,6 +19,7 @@ This package implements `pattern matching <https://en.wikipedia.org/wiki/Pattern
 to the implementation in `Mathematica <https://reference.wolfram.com/language/guide/Patterns.html>`_.
 A `detailed example <https://matchpy.readthedocs.io/en/latest/example.html>`_ of how you can use matchpy can be found
 in the `documentation <https://matchpy.readthedocs.io/en/latest/>`_.
+Some of the implemented algorithms have been described in `this Master thesis <https://arxiv.org/abs/1705.00907>`_.
 
 In addition to the basic matching algorithm, there are data structures that can be used for more efficient many-to-one
 matching like the `ManyToOneMatcher <https://matchpy.readthedocs.io/en/latest/api/matchpy.matching.many_to_one.html>`_
