@@ -8,7 +8,7 @@ from ..expressions.expressions import (
 )
 from ..expressions.constraints import Constraint
 from ..expressions.substitution import Substitution
-from ..expressions.functions import is_constant, preorder_iter_with_position, match_head, create_operation_expression, op_iter
+from ..expressions.functions import (is_constant, preorder_iter_with_position, match_head, create_operation_expression, op_iter, op_len)
 from ..utils import (
     VariableWithCount, commutative_sequence_variable_partition_iter, fixed_integer_vector_iter, weak_composition_iter,
     generator_chain, optional_iter
@@ -228,7 +228,7 @@ def _non_commutative_match(subjects, operation, subst, constraints, matcher):
 
 
 def _match_operation(expressions, operation, subst, matcher, constraints):
-    if len(operation) == 0:
+    if op_len(operation) == 0:
         if len(expressions) == 0:
             yield subst
         return

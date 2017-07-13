@@ -133,15 +133,15 @@ _operation_factories = {
 }
 
 _operation_iterators = {
-    dict: lambda d: d.items(),
+    dict: (lambda d: d.items(), len),
 }
 
 
 def register_operation_factory(operation, factory):
     _operation_factories[operation] = factory
 
-def register_operation_iterator(operation, iterator):
-    _operation_iterators[operation] = iterator
+def register_operation_iterator(operation, iterator=iter, length=len):
+    _operation_iterators[operation] = (iterator, length)
 
 
 def create_operation_expression(old_operation, new_operands, variable_name=True):
@@ -160,6 +160,14 @@ def op_iter(operation):
     op_type = type(operation)
     for parent in op_type.__mro__:
         if parent in _operation_iterators:
-            iterator = _operation_iterators[parent]
+            iterator, _ = _operation_iterators[parent]
             return iterator(operation)
     return iter(operation)
+
+def op_len(operation):
+    op_type = type(operation)
+    for parent in op_type.__mro__:
+        if parent in _operation_iterators:
+            _, length = _operation_iterators[parent]
+            return length(operation)
+    return len(operation)
