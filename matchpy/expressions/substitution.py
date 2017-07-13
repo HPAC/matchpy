@@ -16,6 +16,7 @@ from typing import Dict, List, Tuple, Union, cast
 from multiset import Multiset
 
 from . import expressions
+from .functions import op_len, op_iter
 
 __all__ = ['Substitution']
 
@@ -155,9 +156,9 @@ class Substitution(Dict[str, VariableReplacement]):
             return True
         elif isinstance(pattern, expressions.Operation):
             assert isinstance(subject, type(pattern))
-            assert len(subject) == len(pattern)
+            assert op_len(subject) == op_len(pattern)
             op_expression = cast(expressions.Operation, subject)
-            for subj, patt in zip(op_expression, pattern):
+            for subj, patt in zip(op_expression, op_iter(pattern)):
                 if not self.extract_substitution(subj, patt):
                     return False
         return True

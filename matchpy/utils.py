@@ -21,7 +21,9 @@ __all__ = [
 ]
 
 T = TypeVar('T')
-VariableWithCount = NamedTuple('VariableWithCount', [('name', str), ('count', int), ('minimum', int), ('default', Optional[Any])])
+VariableWithCount = NamedTuple(
+    'VariableWithCount', [('name', str), ('count', int), ('minimum', int), ('default', Optional[Any])]
+)
 
 
 def fixed_integer_vector_iter(max_vector: Tuple[int, ...], vector_sum: int) -> Iterator[Tuple[int, ...]]:
@@ -152,7 +154,7 @@ def _commutative_single_variable_partiton_iter(values: 'Multiset[T]',
                                                variable: VariableWithCount) -> Iterator[Dict[str, 'Multiset[T]']]:
     name, count, minimum, default = variable
     if len(values) == 0 and default is not None:
-        yield { name: default }
+        yield {name: default}
         return
     if count == 1:
         if len(values) >= minimum:

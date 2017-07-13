@@ -14,7 +14,7 @@ __all__ = [
 def is_constant(expression):
     """Check if the given expression is constant, i.e. it does not contain Wildcards."""
     if isinstance(expression, Operation):
-        return all(is_constant(o) for o in expression)
+        return all(is_constant(o) for o in op_iter(expression))
     return not isinstance(expression, Wildcard)
 
 
@@ -26,7 +26,7 @@ def is_syntactic(expression):
     if isinstance(expression, (AssociativeOperation, CommutativeOperation)):
         return False
     if isinstance(expression, Operation):
-        return all(is_syntactic(o) for o in expression)
+        return all(is_syntactic(o) for o in op_iter(expression))
     if isinstance(expression, Wildcard):
         return expression.fixed_size
     return True
@@ -57,7 +57,7 @@ def preorder_iter(expression):
     """Iterate over the expression in preorder."""
     yield expression
     if isinstance(expression, Operation):
-        for operand in expression:
+        for operand in op_iter(expression):
             yield from preorder_iter(operand)
 
 
@@ -68,7 +68,7 @@ def preorder_iter_with_position(expression):
     """
     yield expression, ()
     if isinstance(expression, Operation):
-        for i, operand in enumerate(expression):
+        for i, operand in enumerate(op_iter(expression)):
             for child, pos in preorder_iter_with_position(operand):
                 yield child, (i, ) + pos
 
@@ -78,7 +78,7 @@ def is_anonymous(expression):
     if hasattr(expression, 'variable_name') and expression.variable_name:
         return False
     if isinstance(expression, Operation):
-        return all(is_anonymous(o) for o in expression)
+        return all(is_anonymous(o) for o in op_iter(expression))
     return True
 
 
@@ -87,7 +87,7 @@ def contains_variables_from_set(expression, variables):
     if hasattr(expression, 'variable_name') and expression.variable_name in variables:
         return True
     if isinstance(expression, Operation):
-        return any(contains_variables_from_set(o, variables) for o in expression)
+        return any(contains_variables_from_set(o, variables) for o in op_iter(expression))
     return False
 
 
@@ -108,9 +108,9 @@ def rename_variables(expression: Expression, renaming: Dict[str, str]) -> Expres
         if hasattr(expression, 'variable_name'):
             variable_name = renaming.get(expression.variable_name, expression.variable_name)
             return create_operation_expression(
-                expression, [rename_variables(o, renaming) for o in expression], variable_name=variable_name
+                expression, [rename_variables(o, renaming) for o in op_iter(expression)], variable_name=variable_name
             )
-        operands = [rename_variables(o, renaming) for o in expression]
+        operands = [rename_variables(o, renaming) for o in op_iter(expression)]
         return create_operation_expression(expression, operands)
     elif isinstance(expression, Expression):
         expression = expression.__copy__()
@@ -119,6 +119,8 @@ def rename_variables(expression: Expression, renaming: Dict[str, str]) -> Expres
 
 
 def simple_operation_factory(op, args, variable_name):
+    if variable_name not in (True, False, None):
+        raise NotImplementedError('Expressions of type {} cannot have a variable name.'.format(type(op)))
     return type(op)(args)
 
 
@@ -127,12 +129,20 @@ _operation_factories = {
     tuple: simple_operation_factory,
     set: simple_operation_factory,
     frozenset: simple_operation_factory,
-    # TODO: Add support for dicts
+    dict: simple_operation_factory,
+}
+
+_operation_iterators = {
+    dict: (lambda d: d.items(), len),
 }
 
 
 def register_operation_factory(operation, factory):
     _operation_factories[operation] = factory
+
+
+def register_operation_iterator(operation, iterator=iter, length=len):
+    _operation_iterators[operation] = (iterator, length)
 
 
 def create_operation_expression(old_operation, new_operands, variable_name=True):
@@ -145,3 +155,21 @@ def create_operation_expression(old_operation, new_operands, variable_name=True)
     if variable_name is False:
         return operation(*new_operands)
     return operation(*new_operands, variable_name=variable_name)
+
+
+def op_iter(operation):
+    op_type = type(operation)
+    for parent in op_type.__mro__:
+        if parent in _operation_iterators:
+            iterator, _ = _operation_iterators[parent]
+            return iterator(operation)
+    return iter(operation)
+
+
+def op_len(operation):
+    op_type = type(operation)
+    for parent in op_type.__mro__:
+        if parent in _operation_iterators:
+            _, length = _operation_iterators[parent]
+            return length(operation)
+    return len(operation)
