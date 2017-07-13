@@ -19,7 +19,7 @@ from .expressions.expressions import (
     Expression, Operation, Pattern, Wildcard, SymbolWildcard, AssociativeOperation, CommutativeOperation
 )
 from .expressions.substitution import Substitution
-from .expressions.functions import preorder_iter_with_position, create_operation_expression
+from .expressions.functions import preorder_iter_with_position, create_operation_expression, op_iter
 from .matching.one_to_one import match
 
 __all__ = ['substitute', 'replace', 'replace_all', 'replace_many', 'is_match', 'ReplacementRule']
@@ -77,7 +77,7 @@ def _substitute(expression: Expression, substitution: Substitution) -> Tuple[Rep
     elif isinstance(expression, Operation):
         any_replaced = False
         new_operands = []
-        for operand in expression:
+        for operand in op_iter(expression):
             result, replaced = _substitute(operand, substitution)
             if replaced:
                 any_replaced = True
@@ -126,7 +126,7 @@ def replace(expression: Expression, position: Sequence[int], replacement: Replac
     if position[0] >= len(expression):
         raise IndexError("Position {!r} out of range for expression {!s}".format(position, expression))
     pos = position[0]
-    operands = list(expression)
+    operands = list(op_iter(expression))
     subexpr = replace(operands[pos], position[1:], replacement)
     if isinstance(subexpr, Sequence):
         new_operands = tuple(operands[:pos]) + tuple(subexpr) + tuple(operands[pos + 1:])
@@ -189,7 +189,7 @@ def replace_many(expression: Expression, replacements: Sequence[Tuple[Sequence[i
         return replace(expression, replacements[0][0], replacements[0][1])
     if not isinstance(expression, Operation):
         raise IndexError("Invalid replacements {!r} for expression {!s}".format(replacements, expression))
-    operands = list(expression)
+    operands = list(op_iter(expression))
     new_operands = []
     last_index = 0
     for index, group in itertools.groupby(replacements, lambda r: r[0][0]):

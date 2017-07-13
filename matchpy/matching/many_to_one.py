@@ -50,7 +50,7 @@ from ..expressions.expressions import (
 from ..expressions.substitution import Substitution
 from ..expressions.functions import (
     is_anonymous, contains_variables_from_set, create_operation_expression, preorder_iter_with_position,
-    rename_variables
+    rename_variables, op_iter
 )
 from ..utils import (VariableWithCount, commutative_sequence_variable_partition_iter)
 from .. import functions
@@ -251,7 +251,7 @@ class _MatchIter:
         matcher = state.matcher
         substitution = self.substitution
         matcher.add_subject(None)
-        for operand in subject:
+        for operand in op_iter(subject):
             matcher.add_subject(operand)
         for matched_pattern, new_substitution in matcher.match(subject, substitution):
             restore_constraints = set()
@@ -278,7 +278,7 @@ class _MatchIter:
     def _match_regular_operation(self, transition: _Transition) -> Iterator[_State]:
         subject = self.subjects.popleft()
         after_subjects = self.subjects
-        operand_subjects = self.subjects = deque(subject)
+        operand_subjects = self.subjects = deque(op_iter(subject))
         new_associative = transition.label if issubclass(transition.label, AssociativeOperation) else None
         self.associative.append(new_associative)
         for new_state in self._check_transition(transition, subject, False):
@@ -365,7 +365,7 @@ class ManyToOneMatcher:
             if patterns_stack[-1]:
                 subpattern = patterns_stack[-1].popleft()
                 if isinstance(subpattern, Operation) and not isinstance(subpattern, CommutativeOperation):
-                    patterns_stack.append(deque(subpattern))
+                    patterns_stack.append(deque(op_iter(subpattern)))
                 variable_name = getattr(subpattern, 'variable_name', None)
                 state = self._create_expression_transition(state, subpattern, variable_name, pattern_index)
                 if isinstance(subpattern, CommutativeOperation):
@@ -813,7 +813,7 @@ class CommutativeMatcher(object):
             subject_ids.add(subject_id)
             for _ in range(self.max_optional_count):
                 pattern_ids.update(subject_pattern_ids)
-        for subject in subjects:
+        for subject in op_iter(subjects):
             subject_id, subject_pattern_ids = self.subjects[subject]
             subject_ids.add(subject_id)
             pattern_ids.update(subject_pattern_ids)
@@ -845,7 +845,7 @@ class CommutativeMatcher(object):
         pattern_set = Multiset()
         pattern_vars = dict()
         opt_count = 0
-        for operand in operands:
+        for operand in op_iter(operands):
             if isinstance(operand, Wildcard) and operand.optional is not None:
                 opt_count += 1
             if not self._is_sequence_wildcard(operand):

@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 import pytest
 
-from matchpy.expressions.expressions import Operation, Wildcard
+from matchpy.expressions.expressions import Wildcard, CommutativeOperation
 from matchpy.matching.one_to_one import match as match_one_to_one
 from matchpy.matching.many_to_one import ManyToOneMatcher
 from matchpy.matching.syntactic import DiscriminationNet
+from matchpy.expressions.functions import preorder_iter
 
 
 def pytest_generate_tests(metafunc):
@@ -16,10 +17,10 @@ def pytest_generate_tests(metafunc):
 
 def match_many_to_one(expression, pattern):
     try:
-        commutative, _ = next(
-            p for p in pattern.expression.preorder_iter(lambda e: isinstance(e, Operation) and e.commutative)
+        commutative = next(
+            p for p in preorder_iter(pattern.expression) if isinstance(p, CommutativeOperation)
         )
-        next(wc for wc in commutative.preorder_iter(lambda e: isinstance(e, Wildcard) and e.min_count > 1))
+        next(wc for wc in preorder_iter(commutative) if isinstance(wc, Wildcard) and wc.min_count > 1)
     except StopIteration:
         pass
     else:

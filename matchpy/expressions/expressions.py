@@ -600,6 +600,7 @@ Operation.register(list)
 Operation.register(tuple)
 Operation.register(set)
 Operation.register(frozenset)
+Operation.register(dict)
 
 
 class AssociativeOperation(metaclass=ABCMeta):
@@ -622,6 +623,7 @@ class CommutativeOperation(metaclass=ABCMeta):
 
 CommutativeOperation.register(set)
 CommutativeOperation.register(frozenset)
+CommutativeOperation.register(dict)
 
 
 class Atom(Expression):  # pylint: disable=abstract-method

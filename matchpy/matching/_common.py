@@ -160,4 +160,4 @@ class CommutativePatternsParts(object):
         for name, count in self.fixed_variables.items():
             parts.extend([name] * count)
 
-        return '{}({})'.format(self.operation.name, ', '.join(parts))
+        return '{}({})'.format(getattr(self.operation, 'name', self.operation.__name__), ', '.join(parts))

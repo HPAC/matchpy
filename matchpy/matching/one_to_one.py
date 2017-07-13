@@ -8,7 +8,7 @@ from ..expressions.expressions import (
 )
 from ..expressions.constraints import Constraint
 from ..expressions.substitution import Substitution
-from ..expressions.functions import is_constant, preorder_iter_with_position, match_head, create_operation_expression
+from ..expressions.functions import is_constant, preorder_iter_with_position, match_head, create_operation_expression, op_iter
 from ..utils import (
     VariableWithCount, commutative_sequence_variable_partition_iter, fixed_integer_vector_iter, weak_composition_iter,
     generator_chain, optional_iter
@@ -155,7 +155,7 @@ def _count_seq_vars(expressions, operation):
     remaining = len(expressions)
     sequence_var_count = 0
     optional_count = 0
-    for operand in operation:
+    for operand in op_iter(operation):
         if isinstance(operand, Wildcard):
             if not operand.fixed_size or isinstance(operation, AssociativeOperation):
                 sequence_var_count += 1
@@ -183,7 +183,7 @@ def _build_full_partition(optional_parts, sequence_var_partition: Sequence[int],
     var_index = 0
     opt_index = 0
     result = []
-    for operand in operation:
+    for operand in op_iter(operation):
         wrap_associative = False
         if isinstance(operand, Wildcard):
             count = operand.min_count if operand.optional is None else 0
@@ -221,7 +221,7 @@ def _non_commutative_match(subjects, operation, subst, constraints, matcher):
             continue
         for part in weak_composition_iter(new_remaining, sequence_var_count):
             partition = _build_full_partition(optional, part, subjects, operation)
-            factories = [_match_factory(e, o, constraints, matcher) for e, o in zip(partition, operation)]
+            factories = [_match_factory(e, o, constraints, matcher) for e, o in zip(partition, op_iter(operation))]
 
             for new_subst in generator_chain(subst, *factories):
                 yield new_subst
@@ -235,7 +235,9 @@ def _match_operation(expressions, operation, subst, matcher, constraints):
     if not isinstance(operation, CommutativeOperation):
         yield from _non_commutative_match(expressions, operation, subst, constraints, matcher)
     else:
-        parts = CommutativePatternsParts(type(operation), *operation)
+        parts = CommutativePatternsParts(type(operation), *op_iter(operation))
+        print(expressions)
+        print(parts)
         yield from _match_commutative_operation(expressions, parts, subst, constraints, matcher)
 
 
@@ -246,7 +248,7 @@ def _match_commutative_operation(
         constraints,
         matcher
 ) -> Iterator[Substitution]:
-    subjects = Multiset(subject_operands)  # type: Multiset
+    subjects = Multiset(op_iter(subject_operands))  # type: Multiset
     if not pattern.constant <= subjects:
         return
     subjects -= pattern.constant
