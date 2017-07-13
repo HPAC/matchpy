@@ -8,7 +8,9 @@ from ..expressions.expressions import (
 )
 from ..expressions.constraints import Constraint
 from ..expressions.substitution import Substitution
-from ..expressions.functions import (is_constant, preorder_iter_with_position, match_head, create_operation_expression, op_iter, op_len)
+from ..expressions.functions import (
+    is_constant, preorder_iter_with_position, match_head, create_operation_expression, op_iter, op_len
+)
 from ..utils import (
     VariableWithCount, commutative_sequence_variable_partition_iter, fixed_integer_vector_iter, weak_composition_iter,
     generator_chain, optional_iter
@@ -172,8 +174,9 @@ def _count_seq_vars(expressions, operation):
     return remaining, sequence_var_count, optional_count
 
 
-def _build_full_partition(optional_parts, sequence_var_partition: Sequence[int], subjects: Sequence[Expression],
-                          operation: Operation) -> List[Sequence[Expression]]:
+def _build_full_partition(
+        optional_parts, sequence_var_partition: Sequence[int], subjects: Sequence[Expression], operation: Operation
+) -> List[Sequence[Expression]]:
     """Distribute subject operands among pattern operands.
 
     Given a partitoning for the variable part of the operands (i.e. a list of how many extra operands each sequence

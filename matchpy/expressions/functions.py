@@ -140,6 +140,7 @@ _operation_iterators = {
 def register_operation_factory(operation, factory):
     _operation_factories[operation] = factory
 
+
 def register_operation_iterator(operation, iterator=iter, length=len):
     _operation_iterators[operation] = (iterator, length)
 
@@ -163,6 +164,7 @@ def op_iter(operation):
             iterator, _ = _operation_iterators[parent]
             return iterator(operation)
     return iter(operation)
+
 
 def op_len(operation):
     op_type = type(operation)

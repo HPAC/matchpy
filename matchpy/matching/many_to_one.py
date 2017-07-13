@@ -767,7 +767,9 @@ Matching = Dict[Tuple[int, int], Tuple[int, int]]
 
 
 class CommutativeMatcher(object):
-    __slots__ = ('patterns', 'subjects', 'automaton', 'bipartite', 'associative', 'max_optional_count', 'anonymous_patterns')
+    __slots__ = (
+        'patterns', 'subjects', 'automaton', 'bipartite', 'associative', 'max_optional_count', 'anonymous_patterns'
+    )
 
     def __init__(self, associative: Optional[type]) -> None:
         self.patterns = {}
@@ -875,7 +877,9 @@ class CommutativeMatcher(object):
                     else:
                         count = 0
                         wrap = operand.fixed_size and self.associative
-                    pattern_vars[varname] = (VariableWithCount(varname, count + 1, operand.min_count, operand.optional), wrap)
+                    pattern_vars[varname] = (
+                        VariableWithCount(varname, count + 1, operand.min_count, operand.optional), wrap
+                    )
         if opt_count > self.max_optional_count:
             self.max_optional_count = opt_count
         return pattern_set, pattern_vars

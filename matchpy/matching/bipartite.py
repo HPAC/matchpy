@@ -67,7 +67,6 @@ class BipartiteGraph(Generic[TLeft, TRight, TEdgeValue], MutableMapping[Tuple[TL
         self._graph.setdefault((LEFT, key[0]), set()).add((RIGHT, key[1]))
         self._graph.setdefault((RIGHT, key[1]), set()).add((LEFT, key[0]))
 
-
     def __getitem__(self, key: Edge) -> TEdgeValue:
         if not isinstance(key, tuple) or len(key) != 2:
             raise TypeError("The edge must be a 2-tuple")
