@@ -509,12 +509,12 @@ class ManyToOneMatcher:
         position[-1] += 1
         if isinstance(expression, Operation):
             if isinstance(expression, CommutativeOperation):
-                for operand in expression:
+                for operand in op_iter(expression):
                     position.append(0)
                     cls._collect_variable_renaming(operand, position, variables)
                     position.pop()
             else:
-                for operand in expression:
+                for operand in op_iter(expression):
                     cls._collect_variable_renaming(operand, position, variables)
 
         return variables
