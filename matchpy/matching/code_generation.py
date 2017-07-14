@@ -49,9 +49,9 @@ class CodeGenerator:
             self.add_line('# State {}'.format(state.number))
             if state.number in self._matcher.finals:
                 for pattern_index in self._patterns:
-                    self.add_line('yield {}, Substitution(subst{})'.format(
-                        self.final_label(pattern_index), self._substs
-                    ))
+                    self.add_line(
+                        'yield {}, Substitution(subst{})'.format(self.final_label(pattern_index), self._substs)
+                    )
             else:
                 for transitions in state.transitions.values():
                     for transition in transitions:
@@ -92,22 +92,21 @@ class CodeGenerator:
         return 'list(op_iter({}))'.format(operation)
 
     def push_subjects(self, index=0):
-        self.add_line('subjects{} = {}'.format(
-            self._subjects + 1, self.get_args('subjects{}[{}]'.format(self._subjects, index))
-        ))
+        self.add_line(
+            'subjects{} = {}'.format(self._subjects + 1, self.get_args('subjects{}[{}]'.format(self._subjects, index)))
+        )
         self._subjects += 1
 
     def push_subst(self):
         new_subst = self.get_var_name('subst')
-        self.add_line('subst{} = Substitution(subst{})'.format(
-            self._substs + 1, self._substs
-        ))
+        self.add_line('subst{} = Substitution(subst{})'.format(self._substs + 1, self._substs))
         self._substs += 1
 
     def enter_operation(self, operation):
-        self.add_line('if len(subjects{0}) >= 1 and isinstance(subjects{0}[0], {1}):'.format(
-            self._subjects, self.operation_symbol(operation)
-        ))
+        self.add_line(
+            'if len(subjects{0}) >= 1 and isinstance(subjects{0}[0], {1}):'.
+            format(self._subjects, self.operation_symbol(operation))
+        )
         self.indent()
         atype = operation if issubclass(operation, AssociativeOperation) else None
         self._associative_stack.append(atype)
@@ -127,9 +126,10 @@ class CodeGenerator:
         self.dedent()
 
     def enter_symbol_wildcard(self, symbol_type):
-        self.add_line('if len(subjects{0}) >= 1 and isinstance(subjects{0}[0], {1}):'.format(
-            self._subjects, self.symbol_type(symbol_type)
-        ))
+        self.add_line(
+            'if len(subjects{0}) >= 1 and isinstance(subjects{0}[0], {1}):'.
+            format(self._subjects, self.symbol_type(symbol_type))
+        )
         self.indent()
         tmp = self.get_var_name('tmp')
         self.add_line('{} = subjects{}.pop(0)'.format(tmp, self._subjects))
@@ -149,8 +149,7 @@ class CodeGenerator:
         self.add_line('{} = subjects{}.pop(0)'.format(tmp, self._subjects))
         if variable_name is not None:
             self.push_subst()
-            self.add_line('subst{}.try_add_variable({!r}, {})'.format(
-                self._substs, variable_name, tmp))
+            self.add_line('subst{}.try_add_variable({!r}, {})'.format(self._substs, variable_name, tmp))
         return (tmp, variable_name)
 
     def exit_fixed_wildcard(self, state):
@@ -161,15 +160,15 @@ class CodeGenerator:
         self.dedent()
 
     def enter_symbol(self, symbol, variable_name):
-        self.add_line('if len(subjects{0}) >= 1 and subjects{0}[0] == {1}:'.format(
-            self._subjects, self.symbol_repr(symbol)))
+        self.add_line(
+            'if len(subjects{0}) >= 1 and subjects{0}[0] == {1}:'.format(self._subjects, self.symbol_repr(symbol))
+        )
         self.indent()
         tmp = self.get_var_name('tmp')
         self.add_line('{} = subjects{}.pop(0)'.format(tmp, self._subjects))
         if variable_name is not None:
             self.push_subst()
-            self.add_line('subst{}.try_add_variable({!r}, {})'.format(
-                self._substs, variable_name, tmp))
+            self.add_line('subst{}.try_add_variable({!r}, {})'.format(self._substs, variable_name, tmp))
         return (tmp, variable_name)
 
     def symbol_repr(self, symbol):
@@ -191,28 +190,24 @@ class CodeGenerator:
 
     def enter_sequence_wildcard(self, wildcard, variable_name):
         i = self.get_var_name('i')
-        self.add_line('for {} in range({}, len(subjects{}) + 1):'.format(
-            i, wildcard.min_count, self._subjects))
+        self.add_line('for {} in range({}, len(subjects{}) + 1):'.format(i, wildcard.min_count, self._subjects))
         self.indent()
         tmp = self.get_var_name('tmp')
         self.add_line('{} = subjects{}[:{}]'.format(tmp, self._subjects, i))
         if self._associative_stack[-1] is not None:
             self.add_line('if len({}) > {}:'.format(tmp, wildcard.min_count))
             self.indent()
-            self.add_line('{} = {}'.format(
-                tmp, self.create_operation('associative{}'.format(self._associative), tmp)))
+            self.add_line('{} = {}'.format(tmp, self.create_operation('associative{}'.format(self._associative), tmp)))
             self.dedent()
             self.add_line('elif len({}) == 1:'.format(tmp))
             self.indent()
             self.add_line('{0} = {0}[0]'.format(tmp))
             self.dedent()
-        self.add_line('subjects{} = subjects{}[{}:]'.format(
-            self._subjects + 1, self._subjects, i))
+        self.add_line('subjects{} = subjects{}[{}:]'.format(self._subjects + 1, self._subjects, i))
         self._subjects += 1
         if variable_name is not None:
             self.push_subst()
-            self.add_line('subst{}.try_add_variable({!r}, {})'.format(
-                self._substs, variable_name, tmp))
+            self.add_line('subst{}.try_add_variable({!r}, {})'.format(self._substs, variable_name, tmp))
         return variable_name
 
     def create_operation(self, operation, args):
@@ -223,4 +218,3 @@ class CodeGenerator:
             self._substs -= 1
         self._subjects -= 1
         self.dedent()
-
