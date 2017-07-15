@@ -7,7 +7,7 @@ from .expressions import (
 __all__ = [
     'is_constant', 'is_syntactic', 'get_head', 'match_head', 'preorder_iter', 'preorder_iter_with_position',
     'is_anonymous', 'contains_variables_from_set', 'register_operation_factory', 'create_operation_expression',
-    'rename_variables'
+    'rename_variables', 'op_iter', 'op_len', 'register_operation_iterator'
 ]
 
 
