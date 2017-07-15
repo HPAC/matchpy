@@ -45,7 +45,7 @@ except ImportError:
 from multiset import Multiset
 
 from ..expressions.expressions import (
-    Expression, Operation, Symbol, SymbolWildcard, Wildcard, Pattern, AssociativeOperation, CommutativeOperation
+    Expression, Operation, Symbol, SymbolWildcard, Wildcard, Pattern, AssociativeOperation, CommutativeOperation, OneIdentityOperation
 )
 from ..expressions.substitution import Substitution
 from ..expressions.functions import (
@@ -391,7 +391,7 @@ class ManyToOneMatcher:
                 subpattern = patterns_stack[-1].popleft()
                 variable_name = getattr(subpattern, 'variable_name', None)
                 if isinstance(subpattern, Operation):
-                    if subpattern.one_identity:
+                    if isinstance(subpattern, OneIdentityOperation):
                         non_optional, added_subst = check_one_identity(subpattern)
                         if non_optional is not None:
                             stack = [q.copy() for q in patterns_stack]
