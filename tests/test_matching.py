@@ -648,6 +648,33 @@ class TestMatch:
             assert len(result) == 0
 
     @pytest.mark.parametrize(
+        '   expression,         pattern,                    expected_matches',
+        [
+            (f(a),              f_i(oa_, f(a)),             [{'o': a}]),
+            (f(a),              f_i(x___, f(a)),            [{'x': ()}]),
+            (a,                 f_i(oa_, f_i(o2b_, a)),     [{'o': a, 'o2': b}]),
+            (f_i(c, a),         f_i(oa_, f_i(o2b_, a)),     [{'o': c, 'o2': b}, {'o': a, 'o2': c}]),
+            (f_i(c, f_i(c, a)), f_i(oa_, f_i(o2b_, a)),     [{'o': c, 'o2': c}]),
+            (a,                 f_i(oa_, o2b_, a),          [{'o': a, 'o2': b}]),
+            (a,                 f_i(oa_, x___, a),          [{'o': a, 'x': ()}]),
+            (f_i(b, a),         f_i(oa_, x___, a),          [{'o': b, 'x': ()}, {'o': a, 'x': (b, )}]),
+        ]
+    )  # yapf: disable
+    def test_one_identity_match(self, match, expression, pattern, expected_matches):
+        expression = expression
+        pattern = Pattern(pattern)
+        result = list(match(expression, pattern))
+        for expected_match in expected_matches:
+            _convert_match_list_to_tuple(expected_match)
+            assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(
+                expression, pattern, expected_match
+            )
+        for result_match in result:
+            assert result_match in expected_matches, "Expression {!s} and {!s} yielded the unexpected match {!s}".format(
+                expression, pattern, result_match
+            )
+
+    @pytest.mark.parametrize(
         'expression,    pattern,        constraint_values,  match_count',
         [
             (a,         _,              [False],            0),

@@ -4,7 +4,7 @@ from typing import Iterable, Iterator, List, Sequence, Tuple, cast, Set
 from multiset import Multiset
 
 from ..expressions.expressions import (
-    Expression, Pattern, Operation, Symbol, SymbolWildcard, Wildcard, AssociativeOperation, CommutativeOperation
+    Expression, Pattern, Operation, Symbol, SymbolWildcard, Wildcard, AssociativeOperation, CommutativeOperation, OneIdentityOperation
 )
 from ..expressions.constraints import Constraint
 from ..expressions.substitution import Substitution
@@ -15,7 +15,7 @@ from ..utils import (
     VariableWithCount, commutative_sequence_variable_partition_iter, fixed_integer_vector_iter, weak_composition_iter,
     generator_chain, optional_iter
 )
-from ._common import CommutativePatternsParts
+from ._common import CommutativePatternsParts, check_one_identity
 
 __all__ = ['match', 'match_anywhere']
 
@@ -101,12 +101,14 @@ def _match(subjects: List[Expression], pattern: Expression, subst: Substitution,
             match_iter = iter([subst])
 
     elif isinstance(pattern, Operation):
+        if isinstance(pattern, OneIdentityOperation):
+            yield from _match_one_identity(subjects, pattern, subst, constraints)
         if len(subjects) != 1 or not isinstance(subjects[0], pattern.__class__):
             return
         op_expr = cast(Operation, subjects[0])
         # if not op_expr.symbols >= pattern.symbols:
         #     return
-        match_iter = _match_operation(op_expr, pattern, subst, _match, constraints)
+        match_iter = _match_operation(op_expr, pattern, subst, constraints)
 
     else:
         if len(subjects) == 1 and subjects[0] == pattern:
@@ -146,15 +148,15 @@ def _check_constraints(substitution, constraints):
             constraints.add(constraint)
 
 
-def _match_factory(expressions, operand, constraints, matcher):
+def _match_factory(subjects, operand, constraints):
     def factory(subst):
-        yield from matcher(expressions, operand, subst, constraints)
+        yield from _match(subjects, operand, subst, constraints)
 
     return factory
 
 
-def _count_seq_vars(expressions, operation):
-    remaining = len(expressions)
+def _count_seq_vars(subjects, operation):
+    remaining = len(subjects)
     sequence_var_count = 0
     optional_count = 0
     for operand in op_iter(operation):
@@ -214,7 +216,7 @@ def _build_full_partition(
     return result
 
 
-def _non_commutative_match(subjects, operation, subst, constraints, matcher):
+def _non_commutative_match(subjects, operation, subst, constraints):
     try:
         remaining, sequence_var_count, optional_count = _count_seq_vars(subjects, operation)
     except ValueError:
@@ -224,32 +226,39 @@ def _non_commutative_match(subjects, operation, subst, constraints, matcher):
             continue
         for part in weak_composition_iter(new_remaining, sequence_var_count):
             partition = _build_full_partition(optional, part, subjects, operation)
-            factories = [_match_factory(e, o, constraints, matcher) for e, o in zip(partition, op_iter(operation))]
+            factories = [_match_factory(e, o, constraints) for e, o in zip(partition, op_iter(operation))]
 
             for new_subst in generator_chain(subst, *factories):
                 yield new_subst
 
 
-def _match_operation(expressions, operation, subst, matcher, constraints):
+def _match_one_identity(subjects, operation, subst, constraints):
+    non_optional, added_subst = check_one_identity(operation)
+    if non_optional is not None:
+        try:
+            new_subst = subst.union(added_subst)
+        except ValueError:
+            return
+        yield from _match(subjects, non_optional, new_subst, constraints)
+
+
+def _match_operation(subjects, operation, subst, constraints):
     if op_len(operation) == 0:
-        if len(expressions) == 0:
+        if len(subjects) == 0:
             yield subst
         return
     if not isinstance(operation, CommutativeOperation):
-        yield from _non_commutative_match(expressions, operation, subst, constraints, matcher)
+        yield from _non_commutative_match(subjects, operation, subst, constraints)
     else:
         parts = CommutativePatternsParts(type(operation), *op_iter(operation))
-        print(expressions)
-        print(parts)
-        yield from _match_commutative_operation(expressions, parts, subst, constraints, matcher)
+        yield from _match_commutative_operation(subjects, parts, subst, constraints)
 
 
 def _match_commutative_operation(
         subject_operands: Iterable[Expression],
         pattern: CommutativePatternsParts,
         substitution: Substitution,
-        constraints,
-        matcher
+        constraints
 ) -> Iterator[Substitution]:
     subjects = Multiset(op_iter(subject_operands))  # type: Multiset
     if not pattern.constant <= subjects:
@@ -281,7 +290,7 @@ def _match_commutative_operation(
             subjects -= needed_count
             del fixed_vars[name]
 
-    factories = [_fixed_expr_factory(e, constraints, matcher) for e in rest_expr]
+    factories = [_fixed_expr_factory(e, constraints) for e in rest_expr]
 
     if not issubclass(pattern.operation, AssociativeOperation):
         for name, count in fixed_vars.items():
@@ -341,50 +350,50 @@ def _variables_with_counts(variables, infos):
     )
 
 
-def _fixed_expr_factory(expression, constraints, matcher):
+def _fixed_expr_factory(expression, constraints):
     def factory(data):
-        expressions, substitution = data
-        for expr in expressions.distinct_elements():
+        subjects, substitution = data
+        for expr in subjects.distinct_elements():
             if match_head(expr, expression):
-                for subst in matcher([expr], expression, substitution, constraints):
-                    yield expressions - Multiset({expr: 1}), subst
+                for subst in _match([expr], expression, substitution, constraints):
+                    yield subjects - Multiset({expr: 1}), subst
 
     return factory
 
 
 def _fixed_var_iter_factory(variable_name, count, length, symbol_type, constraints, optional):
     def factory(data):
-        expressions, substitution = data
+        subjects, substitution = data
         if variable_name in substitution:
             value = ([substitution[variable_name]]
                      if isinstance(substitution[variable_name], Expression) else substitution[variable_name])
             if optional is not None and value == [optional]:
-                yield expressions, substitution
+                yield subjects, substitution
             existing = Multiset(value) * count
-            if not existing <= expressions:
+            if not existing <= subjects:
                 return
-            yield expressions - existing, substitution
+            yield subjects - existing, substitution
         else:
             if optional is not None:
                 new_substitution = Substitution(substitution)
                 new_substitution[variable_name] = optional
-                yield expressions, new_substitution
+                yield subjects, new_substitution
             if length == 1:
-                for expr, expr_count in expressions.items():
+                for expr, expr_count in subjects.items():
                     if expr_count >= count and (symbol_type is None or isinstance(expr, symbol_type)):
                         if variable_name is not None:
                             new_substitution = Substitution(substitution)
                             new_substitution[variable_name] = expr
                             for new_substitution in _check_constraints(new_substitution, constraints):
-                                yield expressions - Multiset({expr: count}), new_substitution
+                                yield subjects - Multiset({expr: count}), new_substitution
                         else:
-                            yield expressions - Multiset({expr: count}), substitution
+                            yield subjects - Multiset({expr: count}), substitution
             else:
                 assert variable_name is None, "Fixed variables with length != 1 are not supported."
-                exprs_with_counts = list(expressions.items())
+                exprs_with_counts = list(subjects.items())
                 counts = tuple(c // count for _, c in exprs_with_counts)
                 for subset in fixed_integer_vector_iter(counts, length):
                     sub_counter = Multiset(dict((exprs_with_counts[i][0], c * count) for i, c in enumerate(subset)))
-                    yield expressions - sub_counter, substitution
+                    yield subjects - sub_counter, substitution
 
     return factory

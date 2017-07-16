@@ -293,7 +293,7 @@ def test_logic_simplify(replacer):
         ),
         # and(x,⊥) → ⊥
         ReplacementRule(
-            Pattern(LAnd(___, LBot)),
+            Pattern(LAnd(__, LBot)),
             lambda: LBot
         ),
         # and(x, x) → x

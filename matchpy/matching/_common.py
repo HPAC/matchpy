@@ -6,7 +6,7 @@ from multiset import Multiset
 
 from ..expressions.expressions import Expression, Operation, Wildcard
 from ..expressions.substitution import Substitution
-from ..expressions.functions import is_constant, is_syntactic
+from ..expressions.functions import is_constant, is_syntactic, op_iter
 
 __all__ = ['CommutativePatternsParts', 'Matcher', 'VarInfo']
 
@@ -161,3 +161,23 @@ class CommutativePatternsParts(object):
             parts.extend([name] * count)
 
         return '{}({})'.format(getattr(self.operation, 'name', self.operation.__name__), ', '.join(parts))
+
+def check_one_identity(operation):
+    added_subst = Substitution()
+    non_optional = None
+    for operand in op_iter(operation):
+        if isinstance(operand, Wildcard):
+            try:
+                if operand.optional is not None:
+                    added_subst.try_add_variable(operand.variable_name, operand.optional)
+                    continue
+                elif operand.min_count == 0:
+                    added_subst.try_add_variable(operand.variable_name, ())
+                    continue
+            except ValueError:
+                return None, None
+        if non_optional is None:
+            non_optional = operand
+        else:
+            return None, None
+    return non_optional, added_subst
