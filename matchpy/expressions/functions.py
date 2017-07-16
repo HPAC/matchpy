@@ -1,7 +1,7 @@
 from typing import Dict
 
 from .expressions import (
-    Expression, Operation, Wildcard, AssociativeOperation, CommutativeOperation, SymbolWildcard, Pattern
+    Expression, Operation, Wildcard, AssociativeOperation, CommutativeOperation, SymbolWildcard, Pattern, OneIdentityOperation
 )
 
 __all__ = [
@@ -47,6 +47,8 @@ def match_head(subject, pattern):
         pattern = pattern.expression
     pattern_head = get_head(pattern)
     if pattern_head is None:
+        return True
+    if issubclass(pattern_head, OneIdentityOperation):
         return True
     subject_head = get_head(subject)
     assert subject_head is not None

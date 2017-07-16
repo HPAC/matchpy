@@ -626,6 +626,15 @@ CommutativeOperation.register(frozenset)
 CommutativeOperation.register(dict)
 
 
+class OneIdentityOperation(metaclass=ABCMeta):
+    @classmethod
+    def __subclasshook__(cls, C):
+        if cls is OneIdentityOperation:
+            if issubclass(C, Operation) and hasattr(C, 'one_identity'):
+                return C.one_identity
+        return NotImplemented
+
+
 class Atom(Expression):  # pylint: disable=abstract-method
     """Base for all atomic expressions."""
 
