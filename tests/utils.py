@@ -21,7 +21,10 @@ class MockConstraint(Constraint):
         return hash(id(self))
 
     def __repr__(self):
-        return 'MockConstraint(%r, %r)' % (self.return_value, self.variables)
+        if self.variables:
+            return 'MockConstraint({!r}, {}, renaming={!r})'.format(
+                self.return_value, ', '.join(map(repr, self.variables)), self.renaming)
+        return 'MockConstraint({!r}, renaming={!r})'.format(self.return_value, self.renaming)
 
     def with_renamed_vars(self, renaming):
         self.renaming.update(renaming)

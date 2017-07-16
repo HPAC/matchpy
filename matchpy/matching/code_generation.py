@@ -1,7 +1,11 @@
+import re
+
 from ..expressions.expressions import Wildcard, AssociativeOperation, SymbolWildcard
+from ..expressions.constraints import CustomConstraint
 from ..expressions.functions import op_iter
 from .syntactic import OPERATION_END, is_operation
 from .many_to_one import _EPS
+from ..utils import get_short_lambda_source
 
 
 class CodeGenerator:
@@ -50,11 +54,16 @@ class CodeGenerator:
         else:
             self.add_line('# State {}'.format(state.number))
             if state.number in self._matcher.finals:
+                self.add_line('if len(subjects{}) == 0:'.format(self._subjects))
+                self.indent()
                 for pattern_index in self._patterns:
-                    self.add_line('if len(subjects{}) == 0:'.format(self._subjects))
-                    self.indent()
+                    constraints = self._matcher.patterns[pattern_index][0].global_constraints
+                    for constraint in constraints:
+                        self.enter_constraint(constraint)
                     self.yield_final_substitution(pattern_index)
-                    self.dedent()
+                    for constraint in constraints:
+                        self.exit_constraint(constraint)
+                self.dedent()
             else:
                 for transitions in state.transitions.values():
                     for transition in transitions:
@@ -68,9 +77,6 @@ class CodeGenerator:
         if is_operation(transition.label):
             enter_func = self.enter_operation
             exit_func = self.exit_operation
-        # elif isinstance(transition.label, type):
-        #     enter_func = self.enter_symbol_wildcard
-        #     exit_func = self.exit_symbol_wildcard
         elif transition.label == _EPS:
             enter_func = self.enter_eps
             exit_func = self.exit_eps
@@ -103,7 +109,14 @@ class CodeGenerator:
             self.enter_variable_assignment(transition.variable_name, var_value)
         if transition.subst is not None:
             self.enter_subst(transition.subst)
+        constraints = sorted(transition.check_constraints) if transition.check_constraints is not None else []
+        for constraint_index in constraints:
+            constraint, _ = self._matcher.constraints[constraint_index]
+            self.enter_constraint(constraint)
         self.generate_state_code(transition.target)
+        for constraint_index in reversed(constraints):
+            constraint, _ = self._matcher.constraints[constraint_index]
+            self.exit_constraint(constraint)
         if transition.subst is not None:
             self.exit_subst(transition.subst)
         if transition.variable_name is not None:
@@ -326,3 +339,24 @@ class CodeGenerator:
             self.add_line('tmp_subst[{!r}] = subst{}[{!r}]'.format(original, self._substs, renamed))
         self.add_line('# {}'.format(self._matcher.patterns[pattern_index][0]))
         self.add_line('yield {}, tmp_subst'.format(self.final_label(pattern_index)))
+
+    def enter_constraint(self, constraint):
+        cexpr, call = self.constraint_repr(constraint)
+        if call:
+            self.add_line('if {}(subst{}):'.format(cexpr, self._substs))
+        else:
+            self.add_line('if {}:'.format(cexpr))
+        self.indent()
+
+    def constraint_repr(self, constraint):
+        if isinstance(constraint, CustomConstraint) and isinstance(constraint.constraint, type(lambda: 0)):
+            src = get_short_lambda_source(constraint.constraint)
+            mapping = {k: v for v, k in constraint._variables.items() }
+            params = constraint._variables.keys()
+            pstr = r'\b({})\b'.format('|'.join(map(re.escape, params)))
+            new_src = re.sub(pstr, lambda m: 'subst{}[{!r}]'.format(self._substs, constraint._variables[m[0]]), src)
+            return new_src, False
+        return repr(constraint), True
+
+    def exit_constraint(self, constraint):
+        self.dedent()

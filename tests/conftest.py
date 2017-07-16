@@ -9,6 +9,8 @@ from matchpy.matching.syntactic import DiscriminationNet
 from matchpy.expressions.functions import preorder_iter
 from matchpy.matching.code_generation import CodeGenerator
 
+def pytest_namespace():
+    return { 'matcher': None }
 
 def pytest_generate_tests(metafunc):
     if 'match' in metafunc.fixturenames:
@@ -36,6 +38,7 @@ GENERATED_TEMPLATE = '''
 # -*- coding: utf-8 -*-
 from matchpy import *
 from tests.common import *
+from tests.utils import *
 
 {}
 '''.strip()
@@ -50,8 +53,8 @@ def match_generated(expression, pattern):
         pass
     else:
         pytest.xfail('Code generation does not support commutativity yet.')
-    if pattern.constraints:
-        pytest.xfail('Code generation does not support constraints yet.')
+    # if pattern.constraints:
+    #     pytest.xfail('Code generation does not support constraints yet.')
     matcher = ManyToOneMatcher(pattern)
     generator = CodeGenerator(matcher)
     code = generator.generate_code()
@@ -75,6 +78,7 @@ def syntactic_matcher(expression, pattern):
 
 @pytest.fixture
 def match(request):
+    pytest.matcher = request.param
     if request.param == 'one-to-one':
         return match_one_to_one
     elif request.param == 'many-to-one':
@@ -87,6 +91,7 @@ def match(request):
 
 @pytest.fixture
 def match_syntactic(request):
+    pytest.matcher = request.param
     if request.param == 'one-to-one':
         return match_one_to_one
     elif request.param == 'many-to-one':
