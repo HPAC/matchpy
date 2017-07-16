@@ -1,6 +1,7 @@
 from ..expressions.expressions import Wildcard, AssociativeOperation, SymbolWildcard
 from ..expressions.functions import op_iter
 from .syntactic import OPERATION_END, is_operation
+from .many_to_one import _EPS
 
 
 class CodeGenerator:
@@ -70,6 +71,9 @@ class CodeGenerator:
         # elif isinstance(transition.label, type):
         #     enter_func = self.enter_symbol_wildcard
         #     exit_func = self.exit_symbol_wildcard
+        elif transition.label == _EPS:
+            enter_func = self.enter_eps
+            exit_func = self.exit_eps
         elif isinstance(transition.label, Wildcard):
             wc = transition.label
             if wc.optional is not None:
@@ -97,7 +101,11 @@ class CodeGenerator:
         if transition.variable_name is not None:
             # var_value = 'tuple({})'.format(value) if isinstance(transition.label, Wildcard) and not transition.label.fixed_size else value
             self.enter_variable_assignment(transition.variable_name, var_value)
+        if transition.subst is not None:
+            self.enter_subst(transition.subst)
         self.generate_state_code(transition.target)
+        if transition.subst is not None:
+            self.exit_subst(transition.subst)
         if transition.variable_name is not None:
             self.exit_variable_assignment()
         exit_func(value)
@@ -114,6 +122,12 @@ class CodeGenerator:
         new_subst = self.get_var_name('subst')
         self.add_line('subst{} = Substitution(subst{})'.format(self._substs + 1, self._substs))
         self._substs += 1
+
+    def enter_eps(self, _):
+        return 'subjects{0}'.format(self._subjects)
+
+    def exit_eps(self, _):
+        pass
 
     def enter_operation(self, operation):
         self.add_line(
@@ -184,6 +198,27 @@ class CodeGenerator:
         self.dedent()
         self.add_line('else:')
         self.indent()
+
+    def enter_subst(self, subst):
+        self.push_subst()
+        self.add_line('try:')
+        self.indent()
+        for name, value in subst.items():
+            self.add_line('subst{}.try_add_variable({!r}, {})'.format(self._substs, name, self.expr(value)))
+        self.dedent()
+        self.add_line('except ValueError:')
+        self.indent()
+        self.add_line('pass')
+        self.dedent()
+        self.add_line('else:')
+        self.indent()
+
+    def expr(self, expr):
+        return repr(expr)
+
+    def exit_subst(self, subst):
+        self._substs -= 1
+        self.dedent()
 
     def exit_variable_assignment(self):
         self._substs -= 1
