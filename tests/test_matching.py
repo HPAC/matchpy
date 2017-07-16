@@ -648,16 +648,25 @@ class TestMatch:
             assert len(result) == 0
 
     @pytest.mark.parametrize(
-        '   expression,         pattern,                    expected_matches',
+        '   expression,         pattern,                        expected_matches',
         [
-            (f(a),              f_i(oa_, f(a)),             [{'o': a}]),
-            (f(a),              f_i(x___, f(a)),            [{'x': ()}]),
-            (a,                 f_i(oa_, f_i(o2b_, a)),     [{'o': a, 'o2': b}]),
-            (f_i(c, a),         f_i(oa_, f_i(o2b_, a)),     [{'o': c, 'o2': b}, {'o': a, 'o2': c}]),
-            (f_i(c, f_i(c, a)), f_i(oa_, f_i(o2b_, a)),     [{'o': c, 'o2': c}]),
-            (a,                 f_i(oa_, o2b_, a),          [{'o': a, 'o2': b}]),
-            (a,                 f_i(oa_, x___, a),          [{'o': a, 'x': ()}]),
-            (f_i(b, a),         f_i(oa_, x___, a),          [{'o': b, 'x': ()}, {'o': a, 'x': (b, )}]),
+            (f(a),                  f_i(oa_, f(a)),             [{'o': a}]),
+            (f(a),                  f_i(x___, f(a)),            [{'x': ()}]),
+            (a,                     f_i(oa_, f_i(o2b_, a)),     [{'o': a, 'o2': b}]),
+            (f_i(c, a),             f_i(oa_, f_i(o2b_, a)),     [{'o': c, 'o2': b}, {'o': a, 'o2': c}]),
+            (f_i(c, f_i(c, a)),     f_i(oa_, f_i(o2b_, a)),     [{'o': c, 'o2': c}]),
+            (a,                     f_i(oa_, o2b_, a),          [{'o': a, 'o2': b}]),
+            (a,                     f_i(oa_, x___, a),          [{'o': a, 'x': ()}]),
+            (f_i(b, a),             f_i(oa_, x___, a),          [{'o': b, 'x': ()}, {'o': a, 'x': (b, )}]),
+            (f(a),                  f_ci(oa_, f(a)),            [{'o': a}]),
+            (f(a),                  f_ci(x___, f(a)),           [{'x': Multiset()}]),
+            (a,                     f_ci(oa_, f_i(o2b_, a)),    [{'o': a, 'o2': b}]),
+            (f_ci(c, a),            f_ci(oa_, f_i(o2b_, a)),    [{'o': c, 'o2': b}]),
+            (f_ci(c, a),            f_ci(oa_, f_ci(o2b_, a)),   [{'o': c, 'o2': b}, {'o': a, 'o2': c}]),
+            (f_ci(c, f_i(c, a)),    f_ci(oa_, f_i(o2b_, a)),    [{'o': c, 'o2': c}]),
+            (a,                     f_ci(oa_, o2b_, a),         [{'o': a, 'o2': b}]),
+            (a,                     f_ci(oa_, x___, a),         [{'o': a, 'x': Multiset()}]),
+            (f_ci(b, a),            f_ci(oa_, x___, a),         [{'o': b, 'x': Multiset()}, {'o': a, 'x': Multiset([b])}]),
         ]
     )  # yapf: disable
     def test_one_identity_match(self, match, expression, pattern, expected_matches):

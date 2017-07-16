@@ -4,7 +4,7 @@ from typing import Callable, Dict, Iterator, NamedTuple, Optional, Sequence, Typ
 
 from multiset import Multiset
 
-from ..expressions.expressions import Expression, Operation, Wildcard
+from ..expressions.expressions import Expression, Operation, Wildcard, CommutativeOperation
 from ..expressions.substitution import Substitution
 from ..expressions.functions import is_constant, is_syntactic, op_iter
 
@@ -172,7 +172,8 @@ def check_one_identity(operation):
                     added_subst.try_add_variable(operand.variable_name, operand.optional)
                     continue
                 elif operand.min_count == 0:
-                    added_subst.try_add_variable(operand.variable_name, ())
+                    value = Multiset() if isinstance(operation, CommutativeOperation) else ()
+                    added_subst.try_add_variable(operand.variable_name, value)
                     continue
             except ValueError:
                 return None, None
