@@ -869,7 +869,8 @@ class Wildcard(Atom):
             return NotImplemented
         return (
             other.min_count == self.min_count and other.fixed_size == self.fixed_size and
-            self.variable_name == other.variable_name
+            self.variable_name == other.variable_name and
+            self.optional == other.optional
         )
 
     def __hash__(self):

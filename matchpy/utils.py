@@ -220,7 +220,9 @@ def commutative_sequence_variable_partition_iter(values: 'Multiset[T]', variable
     for subst in generator_chain(initial, *generators):
         valid = True
         for var in variables:
-            if len(subst[var.name]) < var.minimum:
+            if var.default is not None and len(subst[var.name]) == 0:
+                subst[var.name] = var.default
+            elif len(subst[var.name]) < var.minimum:
                 valid = False
                 break
         if valid:
