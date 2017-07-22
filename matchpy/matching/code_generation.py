@@ -15,11 +15,13 @@ class CodeGenerator:
         self._indentation = '\t'
         self._level = 0
         self._code = ''
-        self._subjects = 0
+        self._subjects = ['subjects']
         self._substs = 0
         self._patterns = set(range(len(matcher.patterns)))
         self._associative = 0
         self._associative_stack = [None]
+        self._global_code = []
+        self._imports = set()
 
     def indent(self):
         self._level += 1
@@ -35,26 +37,84 @@ class CodeGenerator:
         self._var_number += 1
         return prefix + str(self._var_number)
 
-    def generate_code(self):
-        self.add_line('from collections import deque')
-        self.add_line('def match_root(subject):')
+    def generate_code(self, func_name='match_root', add_imports=True):
+        self._imports.add('from collections import deque')
+        self.add_line('def {}(subject):'.format(func_name))
         self.indent()
-        self.add_line('subjects{} = deque([subject])'.format(self._subjects))
+        self.add_line('{} = deque([subject]) if subject is not None else deque()'.format(self._subjects[-1]))
         self.add_line('subst{} = Substitution()'.format(self._substs))
         self.generate_state_code(self._matcher.root)
+        self.add_line('return')
+        self.add_line('yield')
         self.dedent()
-        return self._code
+
+        if add_imports:
+            self._global_code.insert(0, '\n'.join(self._imports))
+
+        return '\n\n'.join(p for p in self._global_code if p), self._code
 
     def final_label(self, index):
         return str(index)
 
     def generate_state_code(self, state):
         if state.matcher is not None:
-            raise NotImplementedError()
+            self._imports.add('from matchpy.matching.many_to_one import CommutativeMatcher')
+            self._imports.add('from multiset import Multiset')
+            self._imports.add('from matchpy.utils import VariableWithCount')
+            generator = type(self)(state.matcher.automaton)
+            generator.indent()
+            global_code, code = generator.generate_code(func_name='get_match_iter', add_imports=False)
+            self._global_code.append(global_code)
+            patterns = self.commutative_patterns(state.matcher.patterns)
+            subjects = repr(state.matcher.subjects)
+            associative = self.operation_symbol(state.matcher.associative)
+            max_optional_count = repr(state.matcher.max_optional_count)
+            anonymous_patterns = repr(state.matcher.anonymous_patterns)
+            self._global_code.append('''
+class CommutativeMatcher{0}(CommutativeMatcher):
+\t_instance = None
+\tpatterns = {1}
+\tsubjects = {2}
+\tbipartite = BipartiteGraph()
+\tassociative = {3}
+\tmax_optional_count = {4}
+\tanonymous_patterns = {5}
+
+\tdef __init__(self):
+\t\tself.add_subject(None)
+
+\t@staticmethod
+\tdef get():
+\t\tif CommutativeMatcher{0}._instance is None:
+\t\t\tCommutativeMatcher{0}._instance = CommutativeMatcher{0}()
+\t\treturn CommutativeMatcher{0}._instance
+
+\t@staticmethod
+{6}'''.strip().format(state.number, patterns, subjects, associative, max_optional_count, anonymous_patterns, code))
+            self.add_line('matcher = CommutativeMatcher{}.get()'.format(state.number))
+            tmp = self.get_var_name('tmp')
+            self.add_line('{} = {}'.format(tmp, self._subjects[-1]))
+            self.add_line('{} = []'.format(self._subjects[-1]))
+            self.add_line('for s in {}:'.format(tmp))
+            self.indent()
+            self.add_line('matcher.add_subject(s)')
+            subjects = self._subjects.pop()
+            self.dedent()
+            self.add_line('for pattern_index, subst{} in matcher.match({}, subst{}):'.format(self._substs + 1, tmp, self._substs))
+            self._substs += 1
+            self.indent()
+            for pattern_index, transitions in state.transitions.items():
+                self.add_line('if pattern_index == {}:'.format(pattern_index))
+                self.indent()
+                for transition in transitions:
+                    self.generate_state_code(transition.target)
+                self.dedent()
+            self.dedent()
+            self._subjects.append(subjects)
         else:
             self.add_line('# State {}'.format(state.number))
             if state.number in self._matcher.finals:
-                self.add_line('if len(subjects{}) == 0:'.format(self._subjects))
+                self.add_line('if len({}) == 0:'.format(self._subjects[-1]))
                 self.indent()
                 for pattern_index in self._patterns:
                     constraints = self._matcher.patterns[pattern_index][0].global_constraints
@@ -68,6 +128,19 @@ class CodeGenerator:
                 for transitions in state.transitions.values():
                     for transition in transitions:
                         self.generate_transition_code(transition)
+
+    def commutative_var_entry(self, entry):
+        return '(VariableWithCount({!r}, {}, {}, {}), {})'.format(
+            entry[0][0], entry[0][1], entry[0][2], self.expr(entry[0][3]),
+            self.operation_symbol(entry[1]) if isinstance(entry[1], type) else repr(entry[1])
+        )
+
+
+    def commutative_patterns(self, patterns):
+        patterns = sorted(patterns.values(), key=lambda x: x[0])
+        return '{{\n    {}\n}}'.format(
+    ',\n    '.join('{0}: ({0}, {1!r}, [\n      {2}\n])'.format(i, s, ',\n      '.join(map(self.commutative_var_entry, v))) for i, s, v in patterns))
+
 
     def generate_transition_code(self, transition):
         removed = self._patterns - transition.patterns
@@ -105,7 +178,6 @@ class CodeGenerator:
         value = enter_func(transition.label)
         value, var_value = value if isinstance(value, tuple) else (value, value)
         if transition.variable_name is not None:
-            # var_value = 'tuple({})'.format(value) if isinstance(transition.label, Wildcard) and not transition.label.fixed_size else value
             self.enter_variable_assignment(transition.variable_name, var_value)
         if transition.subst is not None:
             self.enter_subst(transition.subst)
@@ -128,8 +200,8 @@ class CodeGenerator:
         return 'deque(op_iter({}))'.format(operation)
 
     def push_subjects(self, value):
-        self.add_line('subjects{} = {}'.format(self._subjects + 1, self.get_args(value)))
-        self._subjects += 1
+        self._subjects.append(self.get_var_name('subjects'))
+        self.add_line('{} = {}'.format(self._subjects[-1], self.get_args(value)))
 
     def push_subst(self):
         new_subst = self.get_var_name('subst')
@@ -137,19 +209,19 @@ class CodeGenerator:
         self._substs += 1
 
     def enter_eps(self, _):
-        return 'subjects{0}'.format(self._subjects)
+        return '{0}'.format(self._subjects[-1])
 
     def exit_eps(self, _):
         pass
 
     def enter_operation(self, operation):
         self.add_line(
-            'if len(subjects{0}) >= 1 and isinstance(subjects{0}[0], {1}):'.
-            format(self._subjects, self.operation_symbol(operation))
+            'if len({0}) >= 1 and isinstance({0}[0], {1}):'.
+            format(self._subjects[-1], self.operation_symbol(operation))
         )
         self.indent()
         tmp = self.get_var_name('tmp')
-        self.add_line('{} = subjects{}.popleft()'.format(tmp, self._subjects))
+        self.add_line('{} = {}.popleft()'.format(tmp, self._subjects[-1]))
         atype = operation if issubclass(operation, AssociativeOperation) else None
         self._associative_stack.append(atype)
         if atype is not None:
@@ -160,11 +232,13 @@ class CodeGenerator:
         return tmp
 
     def operation_symbol(self, operation):
+        if operation is None:
+            return 'None'
         return operation.__name__
 
     def exit_operation(self, value):
-        self._subjects -= 1
-        self.add_line('subjects{}.insert(0, {})'.format(self._subjects, value))
+        self._subjects.pop()
+        self.add_line('{}.appendleft({})'.format(self._subjects[-1], value))
         self.dedent()
         atype = self._associative_stack.pop()
         if atype is not None:
@@ -172,31 +246,30 @@ class CodeGenerator:
 
     def enter_symbol_wildcard(self, wildcard):
         self.add_line(
-            'if len(subjects{0}) >= 1 and isinstance(subjects{0}[0], {1}):'.
-            format(self._subjects, self.symbol_type(wildcard.symbol_type))
+            'if len({0}) >= 1 and isinstance({0}[0], {1}):'.
+            format(self._subjects[-1], self.symbol_type(wildcard.symbol_type))
         )
         self.indent()
         tmp = self.get_var_name('tmp')
-        self.add_line('{} = subjects{}.popleft()'.format(tmp, self._subjects))
+        self.add_line('{} = {}.popleft()'.format(tmp, self._subjects[-1]))
         return tmp
 
     def symbol_type(self, symbol):
         return symbol.__name__
 
     def exit_symbol_wildcard(self, value):
-        self.add_line('subjects{}.insert(0, {})'.format(self._subjects, value))
+        self.add_line('{}.appendleft({})'.format(self._subjects[-1], value))
         self.dedent()
 
     def enter_fixed_wildcard(self, wildcard):
-        print(wildcard)
-        self.add_line('if len(subjects{}) >= 1:'.format(self._subjects))
+        self.add_line('if len({}) >= 1:'.format(self._subjects[-1]))
         self.indent()
         tmp = self.get_var_name('tmp')
-        self.add_line('{} = subjects{}.popleft()'.format(tmp, self._subjects))
+        self.add_line('{} = {}.popleft()'.format(tmp, self._subjects[-1]))
         return tmp
 
     def exit_fixed_wildcard(self, value):
-        self.add_line('subjects{}.insert(0, {})'.format(self._subjects, value))
+        self.add_line('{}.appendleft({})'.format(self._subjects[-1], value))
         self.dedent()
 
     def enter_variable_assignment(self, variable_name, value):
@@ -248,49 +321,48 @@ class CodeGenerator:
 
     def enter_symbol(self, symbol):
         self.add_line(
-            'if len(subjects{0}) >= 1 and subjects{0}[0] == {1}:'.format(self._subjects, self.symbol_repr(symbol))
+            'if len({0}) >= 1 and {0}[0] == {1}:'.format(self._subjects[-1], self.symbol_repr(symbol))
         )
         self.indent()
         tmp = self.get_var_name('tmp')
-        self.add_line('{} = subjects{}.popleft()'.format(tmp, self._subjects))
+        self.add_line('{} = {}.popleft()'.format(tmp, self._subjects[-1]))
         return tmp
 
     def symbol_repr(self, symbol):
         return repr(symbol)
 
     def exit_symbol(self, value):
-        self.add_line('subjects{}.insert(0, {})'.format(self._subjects, value))
+        self.add_line('{}.appendleft({})'.format(self._subjects[-1], value))
         self.dedent()
 
     def enter_operation_end(self, _):
-        self.add_line('if len(subjects{0}) == 0:'.format(self._subjects))
+        self.add_line('if len({0}) == 0:'.format(self._subjects[-1]))
         self.indent()
-        self._subjects -= 1
+        subjects = self._subjects.pop()
         atype = self._associative_stack.pop()
         if atype is not None:
             self._associative -= 1
-        return atype
+        return [subjects, atype]
 
-    def exit_operation_end(self, atype):
-        self._subjects += 1
+    def exit_operation_end(self, value):
+        subjects, atype = value
+        self._subjects.append(subjects)
         self.dedent()
         self._associative_stack.append(atype)
         if atype is not None:
             self._associative += 1
 
     def enter_sequence_wildcard(self, wildcard):
-        # i = self.get_var_name('i')
         tmp = self.get_var_name('tmp')
         tmp2 = self.get_var_name('tmp')
         mc = wildcard.min_count if wildcard.optional is None or wildcard.min_count > 0 else 1
-        self.add_line('if len(subjects{}) >= {}:'.format(self._subjects, mc))
+        self.add_line('if len({}) >= {}:'.format(self._subjects[-1], mc))
         self.indent()
         self.add_line('{} = []'.format(tmp))
         for _ in range(mc):
-            self.add_line('{}.append(subjects{}.popleft())'.format(tmp, self._subjects))
+            self.add_line('{}.append({}.popleft())'.format(tmp, self._subjects[-1]))
         self.add_line('while True:')
         self.indent()
-        # self.add_line('{} = tuple(subjects{}[:{}])'.format(tmp, self._subjects, i))
         if self._associative_stack[-1] is not None and wildcard.fixed_size:
             self.add_line('if len({}) > {}:'.format(tmp, wildcard.min_count))
             self.indent()
@@ -313,23 +385,19 @@ class CodeGenerator:
             self.dedent()
         else:
             self.add_line('{} = tuple({})'.format(tmp2, tmp))
-
-        # self.add_line('subjects{} = subjects{}[{}:]'.format(self._subjects + 1, self._subjects, i))
-        # self._subjects += 1
         return tmp, tmp2
 
     def create_operation(self, operation, operation_type, args):
         return 'create_operation_expression({}, {})'.format(operation, args)
 
     def exit_sequence_wildcard(self, value):
-        # self._subjects -= 1
-        self.add_line('if len(subjects{}) == 0:'.format(self._subjects))
+        self.add_line('if len({}) == 0:'.format(self._subjects[-1]))
         self.indent()
         self.add_line('break')
         self.dedent()
-        self.add_line('{}.append(subjects{}.popleft())'.format(value, self._subjects))
+        self.add_line('{}.append({}.popleft())'.format(value, self._subjects[-1]))
         self.dedent()
-        self.add_line('subjects{}.extendleft(reversed({}))'.format(self._subjects, value))
+        self.add_line('{}.extendleft(reversed({}))'.format(self._subjects[-1], value))
         self.dedent()
 
     def yield_final_substitution(self, pattern_index):
