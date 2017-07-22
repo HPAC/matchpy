@@ -2,7 +2,7 @@
 import pytest
 
 from matchpy.expressions.constraints import CustomConstraint
-from matchpy.expressions.expressions import Symbol, Pattern
+from matchpy.expressions.expressions import Symbol, Pattern, Operation, Arity, Wildcard
 from matchpy.matching.many_to_one import ManyToOneMatcher
 from .common import *
 from .utils import MockConstraint
@@ -197,3 +197,44 @@ def test_different_pattern_different_label():
     result = sorted((l, sorted(map(tuple, s.items()))) for l, s in matcher.match(a))
 
     assert result == [(23, [('x', a)]), (42, [])]
+
+
+def test_one_identity_optional_commutativity():
+    Int = Operation.new('Int', Arity.binary)
+    Add = Operation.new('+', Arity.variadic, 'Add', infix=True, associative=True, commutative=True, one_identity=True)
+    Mul = Operation.new('*', Arity.variadic, 'Mul', infix=True, associative=True, commutative=True, one_identity=True)
+    Pow = Operation.new('^', Arity.binary, 'Pow', infix=True)
+
+    class Integer(Symbol):
+        def __init__(self, value):
+            super().__init__(str(value))
+
+    i0 = Integer(0)
+    i1 = Integer(1)
+    i2 = Integer(2)
+
+    x_, m_, a_ = map(Wildcard.dot, 'xma')
+    x, m = map(Symbol, 'xm')
+    a0_ = Wildcard.optional('a', i0)
+    b1_ = Wildcard.optional('b', i1)
+    c0_ = Wildcard.optional('c', i0)
+    d1_ = Wildcard.optional('d', i1)
+    m1_ = Wildcard.optional('m', i1)
+    n1_ = Wildcard.optional('n', i1)
+
+    pattern22 = Pattern(Int(Mul(Pow(Add(a0_, Mul(b1_, x_)), m1_), Pow(Add(c0_, Mul(d1_, x_)), n1_)), x_))
+    pattern23 = Pattern(Int(Mul(Pow(Add(a_, Mul(b1_, x_)), m1_), Pow(Add(c0_, Mul(d1_, x_)), n1_)), x_))
+
+    matcher = ManyToOneMatcher()
+    matcher.add(pattern22, 22)
+    matcher.add(pattern23, 23)
+
+    subject = Int(Mul(Pow(Add(Mul(b, x), a), i2), Pow(x, i2)), x)
+
+    result = sorted((l, sorted(map(tuple, s.items()))) for l, s in matcher.match(subject))
+
+    assert result == [
+        (22, [('a', i0), ('b', i1), ('c', a), ('d', b), ('m', i2), ('n', i2), ('x', x)]),
+        (22, [('a', a), ('b', b), ('c', i0), ('d', i1), ('m', i2), ('n', i2), ('x', x)]),
+        (23, [('a', a), ('b', b), ('c', i0), ('d', i1), ('m', i2), ('n', i2), ('x', x)]),
+    ]
