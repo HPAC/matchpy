@@ -110,6 +110,7 @@ class CommutativeMatcher{0}(CommutativeMatcher):
                     self.generate_state_code(transition.target)
                 self.dedent()
             self.dedent()
+            self._substs -= 1
             self._subjects.append(subjects)
         else:
             self.add_line('# State {}'.format(state.number))

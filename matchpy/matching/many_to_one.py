@@ -39,9 +39,10 @@ from operator import itemgetter
 from typing import Container, Dict, Iterable, Iterator, List, NamedTuple, Optional, Sequence, Set, Tuple, Type, Union
 
 try:
-    from graphviz import Digraph
+    from graphviz import Digraph, Graph
 except ImportError:
     Digraph = None
+    Graph = None
 from multiset import Multiset
 
 from ..expressions.expressions import (
@@ -1016,6 +1017,59 @@ class CommutativeMatcher(object):
                 elif s1 == s2 and n1 < n2 and m1 > m2:
                     return False
         return True
+
+    def bipartite_as_graph(self) -> Graph:  # pragma: no cover
+        """Returns a :class:`graphviz.Graph` representation of this bipartite graph."""
+        if Graph is None:
+            raise ImportError('The graphviz package is required to draw the graph.')
+        graph = Graph()
+        nodes_left = {}  # type: Dict[TLeft, str]
+        nodes_right = {}  # type: Dict[TRight, str]
+        node_id = 0
+        for (left, right), value in self.bipartite._edges.items():
+            if left not in nodes_left:
+                name = 'node{:d}'.format(node_id)
+                nodes_left[left] = name
+                label = str(self.subjects[left])
+                graph.node(name, label=label)
+                node_id += 1
+            if right not in nodes_right:
+                name = 'node{:d}'.format(node_id)
+                nodes_right[right] = name
+                label = str(self.automaton.patterns[right][0])
+                graph.node(name, label=label)
+                node_id += 1
+            edge_label = value is not True and str(value) or ''
+            graph.edge(nodes_left[left], nodes_right[right], edge_label)
+        return graph
+
+    def concrete_bipartite_as_graph(self, subjects, patterns) -> Graph:  # pragma: no cover
+        """Returns a :class:`graphviz.Graph` representation of this bipartite graph."""
+        if Graph is None:
+            raise ImportError('The graphviz package is required to draw the graph.')
+        bipartite = self._build_bipartite(subjects, patterns)
+        graph = Graph()
+        nodes_left = {}  # type: Dict[TLeft, str]
+        nodes_right = {}  # type: Dict[TRight, str]
+        node_id = 0
+        for (left, right), value in bipartite._edges.items():
+            if left not in nodes_left:
+                subject, i = left
+                name = 'node{:d}'.format(node_id)
+                nodes_left[left] = name
+                label = '{}, {}'.format(i, self.subjects[subject])
+                graph.node(name, label=label)
+                node_id += 1
+            if right not in nodes_right:
+                pattern, i = right
+                name = 'node{:d}'.format(node_id)
+                nodes_right[right] = name
+                label = '{}, {}'.format(i, self.automaton.patterns[pattern][0])
+                graph.node(name, label=label)
+                node_id += 1
+            edge_label = value is not True and str(value) or ''
+            graph.edge(nodes_left[left], nodes_right[right], edge_label)
+        return graph
 
 
 class SecondaryAutomaton():  # pragma: no cover

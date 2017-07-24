@@ -41,29 +41,22 @@ from tests.common import *
 from tests.utils import *
 
 {}
+
+{}
 '''.strip()
 
 
 def match_generated(expression, pattern):
-    try:
-        next(
-            p for p in preorder_iter(pattern.expression) if isinstance(p, CommutativeOperation)
-        )
-    except StopIteration:
-        pass
-    else:
-        pytest.xfail('Code generation does not support commutativity yet.')
-    # if pattern.constraints:
-    #     pytest.xfail('Code generation does not support constraints yet.')
+    if pattern.constraints:
+        pytest.xfail('Code generation does not support constraints yet.')
     matcher = ManyToOneMatcher(pattern)
     generator = CodeGenerator(matcher)
-    code = generator.generate_code()
-    # code += '\nreturn match_root'
-    code = GENERATED_TEMPLATE.format(code)
+    gc, code = generator.generate_code()
+    code = GENERATED_TEMPLATE.format(gc, code)
     compiled = compile(code, '', 'exec')
     module = ModuleType("generated_code")
-    exec(compiled, module.__dict__)
     print(code)
+    exec(compiled, module.__dict__)
     for _, substitution in module.match_root(expression):
         yield substitution
 
