@@ -7,7 +7,7 @@ from .expressions import (
 __all__ = [
     'is_constant', 'is_syntactic', 'get_head', 'match_head', 'preorder_iter', 'preorder_iter_with_position',
     'is_anonymous', 'contains_variables_from_set', 'register_operation_factory', 'create_operation_expression',
-    'rename_variables', 'op_iter', 'op_len', 'register_operation_iterator'
+    'rename_variables', 'op_iter', 'op_len', 'register_operation_iterator', 'get_variables'
 ]
 
 
@@ -91,6 +91,18 @@ def contains_variables_from_set(expression, variables):
     if isinstance(expression, Operation):
         return any(contains_variables_from_set(o, variables) for o in op_iter(expression))
     return False
+
+
+def get_variables(expression, variables=None):
+    """Returns the set of variable names in the given expression."""
+    if variables is None:
+        variables = set()
+    if hasattr(expression, 'variable_name') and expression.variable_name is not None:
+        variables.add(expression.variable_name)
+    if isinstance(expression, Operation):
+        for operand in op_iter(expression):
+            get_variables(operand, variables)
+    return variables
 
 
 def rename_variables(expression: Expression, renaming: Dict[str, str]) -> Expression:

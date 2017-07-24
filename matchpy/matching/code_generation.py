@@ -2,7 +2,7 @@ import re
 
 from ..expressions.expressions import Wildcard, AssociativeOperation, SymbolWildcard
 from ..expressions.constraints import CustomConstraint
-from ..expressions.functions import op_iter
+from ..expressions.functions import op_iter, get_variables
 from .syntactic import OPERATION_END, is_operation
 from .many_to_one import _EPS
 from ..utils import get_short_lambda_source
@@ -106,8 +106,14 @@ class CommutativeMatcher{0}(CommutativeMatcher):
             for pattern_index, transitions in state.transitions.items():
                 self.add_line('if pattern_index == {}:'.format(pattern_index))
                 self.indent()
-                for transition in transitions:
-                    self.generate_state_code(transition.target)
+                patterns, variables = next((p, v) for i, p, v in state.matcher.patterns.values() if i == pattern_index)
+                variables = set(v[0][0] for v in variables)
+                pvars = iter(get_variables(state.matcher.automaton.patterns[i][0].expression) for i in patterns)
+                variables.update(*pvars)
+                constraints = []
+                if variables:
+                    constraints = sorted(set.union(*iter(self._matcher.constraint_vars.get(v, set()) for v in variables)))
+                self.generate_constraints(constraints, transitions)
                 self.dedent()
             self.dedent()
             self._substs -= 1
@@ -120,10 +126,10 @@ class CommutativeMatcher{0}(CommutativeMatcher):
                 for pattern_index in self._patterns:
                     constraints = self._matcher.patterns[pattern_index][0].global_constraints
                     for constraint in constraints:
-                        self.enter_constraint(constraint)
+                        self.enter_global_constraint(constraint)
                     self.yield_final_substitution(pattern_index)
                     for constraint in constraints:
-                        self.exit_constraint(constraint)
+                        self.exit_global_constraint(constraint)
                 self.dedent()
             else:
                 for transitions in state.transitions.values():
@@ -183,13 +189,8 @@ class CommutativeMatcher{0}(CommutativeMatcher):
         if transition.subst is not None:
             self.enter_subst(transition.subst)
         constraints = sorted(transition.check_constraints) if transition.check_constraints is not None else []
-        for constraint_index in constraints:
-            constraint, _ = self._matcher.constraints[constraint_index]
-            self.enter_constraint(constraint)
-        self.generate_state_code(transition.target)
-        for constraint_index in reversed(constraints):
-            constraint, _ = self._matcher.constraints[constraint_index]
-            self.exit_constraint(constraint)
+        self.generate_constraints(constraints, [transition])
+
         if transition.subst is not None:
             self.exit_subst(transition.subst)
         if transition.variable_name is not None:
@@ -409,7 +410,34 @@ class CommutativeMatcher{0}(CommutativeMatcher):
         self.add_line('# {}'.format(self._matcher.patterns[pattern_index][0]))
         self.add_line('yield {}, tmp_subst'.format(self.final_label(pattern_index)))
 
-    def enter_constraint(self, constraint):
+    def generate_constraints(self, constraints, transitions):
+        if len(constraints) == 0:
+            for transition in transitions:
+                self.generate_state_code(transition.target)
+        else:
+            constraint_index, *remaining = constraints
+            constraint, patterns = self._matcher.constraints[constraint_index]
+            remaining_patterns = self._patterns - patterns
+            remaining_transitions = [t for t in transitions if t.patterns & remaining_patterns]
+            checked_patterns = self._patterns & patterns
+            checked_transitions = [t for t in transitions if t.patterns & checked_patterns]
+            if checked_patterns and checked_transitions:
+                cexpr, call = self.constraint_repr(constraint)
+                if call:
+                    self.add_line('if {}(subst{}):'.format(cexpr, self._substs))
+                else:
+                    self.add_line('if {}:'.format(cexpr))
+                self.indent()
+                self._patterns = checked_patterns
+                self.generate_constraints(remaining, checked_transitions)
+                self.dedent()
+            if remaining_patterns and remaining_transitions:
+                self._patterns = remaining_patterns
+                self.generate_constraints(remaining, remaining_transitions)
+            self._patterns = remaining_patterns | checked_patterns
+
+    def enter_global_constraint(self, constraint):
+        print('gc', constraint)
         cexpr, call = self.constraint_repr(constraint)
         if call:
             self.add_line('if {}(subst{}):'.format(cexpr, self._substs))
@@ -427,5 +455,5 @@ class CommutativeMatcher{0}(CommutativeMatcher):
             return new_src, False
         return repr(constraint), True
 
-    def exit_constraint(self, constraint):
+    def exit_global_constraint(self, constraint_index):
         self.dedent()

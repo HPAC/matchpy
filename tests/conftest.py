@@ -47,8 +47,6 @@ from tests.utils import *
 
 
 def match_generated(expression, pattern):
-    if pattern.constraints:
-        pytest.xfail('Code generation does not support constraints yet.')
     matcher = ManyToOneMatcher(pattern)
     generator = CodeGenerator(matcher)
     gc, code = generator.generate_code()
