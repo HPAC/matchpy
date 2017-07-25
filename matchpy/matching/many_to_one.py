@@ -884,7 +884,7 @@ class CommutativeMatcher(object):
                 sequence_var_iter = self._match_sequence_variables(Multiset(subjects), pattern_vars, substitution)
                 for variable_substitution in sequence_var_iter:
                     yield pattern_index, variable_substitution
-            elif len(subjects) == 0:
+            elif op_len(subjects) == 0:
                 yield pattern_index, substitution
 
     def _extract_sequence_wildcards(self, operands: Iterable[Expression],
