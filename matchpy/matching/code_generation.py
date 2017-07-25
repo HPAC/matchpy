@@ -150,8 +150,6 @@ class CommutativeMatcher{0}(CommutativeMatcher):
 
 
     def generate_transition_code(self, transition):
-        removed = self._patterns - transition.patterns
-        self._patterns.intersection_update(transition.patterns)
         enter_func = None
         exit_func = None
         if is_operation(transition.label):
@@ -164,7 +162,8 @@ class CommutativeMatcher{0}(CommutativeMatcher):
             wc = transition.label
             if wc.optional is not None:
                 self.enter_variable_assignment(transition.variable_name, self.optional_expr(wc.optional))
-                self.generate_state_code(transition.target)
+                constraints = sorted(transition.check_constraints) if transition.check_constraints is not None else []
+                self.generate_constraints(constraints, [transition])
                 self.exit_variable_assignment()
             if isinstance(wc, SymbolWildcard):
                 enter_func = self.enter_symbol_wildcard
@@ -196,7 +195,6 @@ class CommutativeMatcher{0}(CommutativeMatcher):
         if transition.variable_name is not None:
             self.exit_variable_assignment()
         exit_func(value)
-        self._patterns.update(removed)
 
     def get_args(self, operation):
         return 'deque(op_iter({}))'.format(operation)
@@ -413,7 +411,10 @@ class CommutativeMatcher{0}(CommutativeMatcher):
     def generate_constraints(self, constraints, transitions):
         if len(constraints) == 0:
             for transition in transitions:
+                removed = self._patterns - transition.patterns
+                self._patterns.intersection_update(transition.patterns)
                 self.generate_state_code(transition.target)
+                self._patterns.update(removed)
         else:
             constraint_index, *remaining = constraints
             constraint, patterns = self._matcher.constraints[constraint_index]
@@ -437,7 +438,6 @@ class CommutativeMatcher{0}(CommutativeMatcher):
             self._patterns = remaining_patterns | checked_patterns
 
     def enter_global_constraint(self, constraint):
-        print('gc', constraint)
         cexpr, call = self.constraint_repr(constraint)
         if call:
             self.add_line('if {}(subst{}):'.format(cexpr, self._substs))
