@@ -787,6 +787,7 @@ class TestMatch:
         result = list(match(expression, pattern))
         assert len(result) == match_count, "Wrong number of matched for {!r} and {!r}".format(expression, pattern)
 
+    @pytest.mark.skipif('pytest.matcher == "generated"')
     def test_constraint_call_values(self, match):
         constraint1 = MockConstraint(True, 'x')
         constraint2 = MockConstraint(True, 'y')
