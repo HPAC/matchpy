@@ -156,7 +156,7 @@ def _match_factory(subjects, operand, constraints):
 
 
 def _count_seq_vars(subjects, operation):
-    remaining = len(subjects)
+    remaining = op_len(subjects)
     sequence_var_count = 0
     optional_count = 0
     for operand in op_iter(operation):
@@ -202,7 +202,7 @@ def _build_full_partition(
         else:
             count = 1
 
-        operand_expressions = list(subjects)[i:i + count]
+        operand_expressions = list(op_iter(subjects))[i:i + count]
         i += count
 
         if wrap_associative and len(operand_expressions) > wrap_associative:
@@ -244,7 +244,7 @@ def _match_one_identity(subjects, operation, subst, constraints):
 
 def _match_operation(subjects, operation, subst, constraints):
     if op_len(operation) == 0:
-        if len(subjects) == 0:
+        if op_len(subjects) == 0:
             yield subst
         return
     if not isinstance(operation, CommutativeOperation):
