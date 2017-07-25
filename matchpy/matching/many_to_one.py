@@ -51,7 +51,7 @@ from ..expressions.expressions import (
 from ..expressions.substitution import Substitution
 from ..expressions.functions import (
     is_anonymous, contains_variables_from_set, create_operation_expression, preorder_iter_with_position,
-    rename_variables, op_iter, preorder_iter
+    rename_variables, op_iter, preorder_iter, op_len
 )
 from ..utils import (VariableWithCount, commutative_sequence_variable_partition_iter)
 from .. import functions
