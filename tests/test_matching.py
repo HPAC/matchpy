@@ -6,9 +6,10 @@ from multiset import Multiset
 
 from matchpy.expressions.constraints import CustomConstraint
 from matchpy.expressions.expressions import Symbol, Wildcard, Pattern
+from matchpy.expressions.functions import get_variables
 from matchpy.matching.many_to_one import ManyToOneMatcher
 from matchpy.functions import substitute
-from .utils import MockConstraint
+from .utils import MockConstraint, assert_match_as_expected
 from .common import *
 
 
@@ -543,18 +544,7 @@ class TestMatch:
         ]
     )  # yapf: disable
     def test_commutative_multiple_fixed_vars(self, match, expression, pattern, expected_matches):
-        expression = expression
-        pattern = Pattern(pattern)
-        result = list(match(expression, pattern))
-        assert len(result) == len(expected_matches), 'Unexpected number of matches'
-        for expected_match in expected_matches:
-            assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(
-                expression, pattern, expected_match
-            )
-        for result_match in result:
-            assert result_match in expected_matches, "Expression {!s} and {!s} yielded the unexpected match {!s}".format(
-                expression, pattern, result_match
-            )
+        assert_match_as_expected(match, expression, pattern, expected_matches)
 
     @pytest.mark.parametrize(
         '   expression,             pattern,                 expected_matches',
@@ -865,3 +855,24 @@ def test_randomized_match(match, expression, pattern):
         if isinstance(reverse, list) and len(reverse) == 1:
             reverse = reverse[0]
         assert expression == reverse
+
+
+PARAM_PATTERNS = {}
+PARAM_MATCHES = {}
+
+for name, obj in TestMatch.__dict__.items():
+    if name.startswith('test_') and hasattr(obj, 'parametrize'):
+        names, values = obj.parametrize.args
+        names = [n.strip() for n in names.split(',')]
+        if names == ['expression', 'pattern', 'expected_matches']:
+            for expression, pattern, expected_matches in values:
+                PARAM_PATTERNS.setdefault(expression, set()).add(pattern)
+                PARAM_MATCHES[expression, pattern] = expected_matches
+                for m in expected_matches:
+                    _convert_match_list_to_tuple(m)
+        elif names == ['expression', 'pattern', 'is_match']:
+            for expression, pattern, is_match in values:
+                if get_variables(pattern) and is_match:
+                    continue
+                PARAM_PATTERNS.setdefault(expression, set()).add(pattern)
+                PARAM_MATCHES[expression, pattern] = [{}] if is_match else []

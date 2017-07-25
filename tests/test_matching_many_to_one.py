@@ -238,3 +238,25 @@ def test_one_identity_optional_commutativity():
         (22, [('a', a), ('b', b), ('c', i0), ('d', i1), ('m', i2), ('n', i2), ('x', x)]),
         (23, [('a', a), ('b', b), ('c', i0), ('d', i1), ('m', i2), ('n', i2), ('x', x)]),
     ]
+
+
+from .test_matching import PARAM_MATCHES, PARAM_PATTERNS
+
+@pytest.mark.parametrize('subject, patterns', PARAM_PATTERNS.items())
+def test_many_to_one(subject, patterns):
+    patterns = [Pattern(p) for p in patterns]
+    matcher = ManyToOneMatcher(*patterns)
+    matches = list(matcher.match(subject))
+
+    for pattern in patterns:
+        expected_matches = PARAM_MATCHES[subject, pattern.expression]
+        for expected_match in expected_matches:
+            assert (pattern, expected_match) in matches, "Subject {!s} and pattern {!s} did not yield the match {!s} but were supposed to".format(
+                subject, pattern, expected_match
+            )
+            while (pattern, expected_match) in matches:
+                matches.remove((pattern, expected_match))
+
+    assert matches == [], "Subject {!s} and pattern {!s} yielded unexpected matches".format(
+        subject, pattern
+    )

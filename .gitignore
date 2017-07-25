@@ -93,3 +93,4 @@ ENV/
 .ropeproject
 
 .DS_Store
+/matchpy/__version__.py
