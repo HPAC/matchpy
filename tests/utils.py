@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from matchpy.expressions.constraints import Constraint
 from matchpy.expressions.substitution import Substitution
+from matchpy.expressions.expressions import Pattern
 
 
 class MockConstraint(Constraint):
@@ -39,4 +40,18 @@ class MockConstraint(Constraint):
         args = dict((self.renaming.get(n, n), v) for n, v in args.items())
         assert args in self.called_with, "Constraint was not called with {}. List of calls: {}".format(
             args, self.called_with
+        )
+
+
+def assert_match_as_expected(match, subject, pattern, expected_matches):
+    pattern = Pattern(pattern)
+    matches = list(match(subject, pattern))
+    assert len(matches) == len(expected_matches), 'Unexpected number of matches'
+    for expected_match in expected_matches:
+        assert expected_match in matches, "Subject {!s} and pattern {!s} did not yield the match {!s} but were supposed to".format(
+            subject, pattern, expected_match
+        )
+    for match in matches:
+        assert match in expected_matches, "Subject {!s} and pattern {!s} yielded the unexpected match {!s}".format(
+            subject, pattern, match
         )
