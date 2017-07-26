@@ -60,7 +60,8 @@ from ..utils import cached_property
 
 __all__ = [
     'Expression', 'Arity', 'Atom', 'Symbol', 'Wildcard', 'Operation', 'SymbolWildcard', 'Pattern', 'make_dot_variable',
-    'make_plus_variable', 'make_star_variable', 'make_symbol_variable', 'AssociativeOperation', 'CommutativeOperation'
+    'make_plus_variable', 'make_star_variable', 'make_symbol_variable', 'AssociativeOperation', 'CommutativeOperation',
+    'OneIdentityOperation'
 ]
 
 ExprPredicate = Optional[Callable[['Expression'], bool]]

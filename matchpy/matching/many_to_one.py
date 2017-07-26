@@ -882,7 +882,7 @@ class CommutativeMatcher(object):
                     elif len(remaining) == 0:
                         yield pattern_index, bipartite_substitution
             elif pattern_vars:
-                sequence_var_iter = self._match_sequence_variables(Multiset(subjects), pattern_vars, substitution)
+                sequence_var_iter = self._match_sequence_variables(Multiset(op_iter(subjects)), pattern_vars, substitution)
                 for variable_substitution in sequence_var_iter:
                     yield pattern_index, variable_substitution
             elif op_len(subjects) == 0:
