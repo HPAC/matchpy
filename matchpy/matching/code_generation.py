@@ -51,7 +51,7 @@ class CodeGenerator:
         if add_imports:
             self._global_code.insert(0, '\n'.join(self._imports))
 
-        return '\n\n'.join(p for p in self._global_code if p), self._code
+        return self.clean_code('\n\n'.join(p for p in self._global_code if p)), self.clean_code(self._code)
 
     def final_label(self, index):
         return str(index)
@@ -103,9 +103,11 @@ class CommutativeMatcher{0}(CommutativeMatcher):
             self.add_line('for pattern_index, subst{} in matcher.match({}, subst{}):'.format(self._substs + 1, tmp, self._substs))
             self._substs += 1
             self.indent()
+            self.add_line('pass')
             for pattern_index, transitions in state.transitions.items():
                 self.add_line('if pattern_index == {}:'.format(pattern_index))
                 self.indent()
+                self.add_line('pass')
                 patterns, variables = next((p, v) for i, p, v in state.matcher.patterns.values() if i == pattern_index)
                 variables = set(v[0][0] for v in variables)
                 pvars = iter(get_variables(state.matcher.automaton.patterns[i][0].expression) for i in patterns)
@@ -123,6 +125,7 @@ class CommutativeMatcher{0}(CommutativeMatcher):
             if state.number in self._matcher.finals:
                 self.add_line('if len({}) == 0:'.format(self._subjects[-1]))
                 self.indent()
+                self.add_line('pass')
                 for pattern_index in self._patterns:
                     constraints = self._matcher.patterns[pattern_index][0].global_constraints
                     for constraint in constraints:
@@ -284,6 +287,7 @@ class CommutativeMatcher{0}(CommutativeMatcher):
         self.dedent()
         self.add_line('else:')
         self.indent()
+        self.add_line('pass')
 
     def enter_subst(self, subst):
         self.push_subst()
@@ -298,6 +302,7 @@ class CommutativeMatcher{0}(CommutativeMatcher):
         self.dedent()
         self.add_line('else:')
         self.indent()
+        self.add_line('pass')
 
     def expr(self, expr):
         return repr(expr)
@@ -338,6 +343,7 @@ class CommutativeMatcher{0}(CommutativeMatcher):
     def enter_operation_end(self, _):
         self.add_line('if len({0}) == 0:'.format(self._subjects[-1]))
         self.indent()
+        self.add_line('pass')
         subjects = self._subjects.pop()
         atype = self._associative_stack.pop()
         if atype is not None:
@@ -381,7 +387,7 @@ class CommutativeMatcher{0}(CommutativeMatcher):
             self.dedent()
             self.add_line('else:')
             self.indent()
-            self.add_line('raise NotImplementedError()')
+            self.add_line('assert False, "Unreachable"')
             self.dedent()
         else:
             self.add_line('{} = tuple({})'.format(tmp2, tmp))
@@ -405,7 +411,7 @@ class CommutativeMatcher{0}(CommutativeMatcher):
         self.add_line('tmp_subst = Substitution()')
         for original, renamed in renaming.items():
             self.add_line('tmp_subst[{!r}] = subst{}[{!r}]'.format(original, self._substs, renamed))
-        self.add_line('# {}'.format(self._matcher.patterns[pattern_index][0]))
+        self.add_line('# {}: {}'.format(pattern_index, self._matcher.patterns[pattern_index][0]))
         self.add_line('yield {}, tmp_subst'.format(self.final_label(pattern_index)))
 
     def generate_constraints(self, constraints, transitions):
@@ -429,6 +435,7 @@ class CommutativeMatcher{0}(CommutativeMatcher):
                 else:
                     self.add_line('if {}:'.format(cexpr))
                 self.indent()
+                self.add_line('pass')
                 self._patterns = checked_patterns
                 self.generate_constraints(remaining, checked_transitions)
                 self.dedent()
@@ -444,6 +451,7 @@ class CommutativeMatcher{0}(CommutativeMatcher):
         else:
             self.add_line('if {}:'.format(cexpr))
         self.indent()
+        self.add_line('pass')
 
     def constraint_repr(self, constraint):
         if isinstance(constraint, CustomConstraint) and isinstance(constraint.constraint, type(lambda: 0)):
@@ -457,3 +465,6 @@ class CommutativeMatcher{0}(CommutativeMatcher):
 
     def exit_global_constraint(self, constraint_index):
         self.dedent()
+
+    def clean_code(self, code):
+        return re.sub(r'\n(\s+)pass((?:\n\1#[^\n]*)*\n\1+\w)', r'\2', code)
