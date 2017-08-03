@@ -23,7 +23,7 @@ __all__ = ['Substitution']
 VariableReplacement = Union[Tuple['expressions.Expression', ...], Multiset, 'expressions.Expression']
 
 
-class Substitution(Dict[str, VariableReplacement]):
+class Substitution(dict):
     """Special :class:`dict` for substitutions with nicer formatting.
 
     The key is a variable's name and the value the replacement for it.
