@@ -810,12 +810,13 @@ Matching = Dict[Tuple[int, int], Tuple[int, int]]
 
 class CommutativeMatcher(object):
     __slots__ = (
-        'patterns', 'subjects', 'automaton', 'bipartite', 'associative', 'max_optional_count', 'anonymous_patterns'
+        'patterns', 'subjects', 'subjects_by_id', 'automaton', 'bipartite', 'associative', 'max_optional_count', 'anonymous_patterns'
     )
 
     def __init__(self, associative: Optional[type]) -> None:
         self.patterns = {}
         self.subjects = {}
+        self.subjects_by_id = {}
         self.automaton = ManyToOneMatcher()
         self.bipartite = BipartiteGraph()
         self.associative = associative
@@ -845,7 +846,7 @@ class CommutativeMatcher(object):
     def add_subject(self, subject: Expression) -> None:
         if subject not in self.subjects:
             subject_id, pattern_set = self.subjects[subject] = (len(self.subjects), set())
-            self.subjects[subject_id] = subject
+            self.subjects_by_id[subject_id] = subject
             for pattern_index, substitution in self.get_match_iter(subject):
                 self.bipartite.setdefault((subject_id, pattern_index), []).append(Substitution(substitution))
                 pattern_set.add(pattern_index)
@@ -872,7 +873,7 @@ class CommutativeMatcher(object):
                 bipartite_match_iter = self._match_with_bipartite(subject_ids, pattern_set, substitution)
                 for bipartite_substitution, matched_subjects in bipartite_match_iter:
                     ids = subject_ids - matched_subjects
-                    remaining = Multiset(self.subjects[id] for id in ids if self.subjects[id] is not None)
+                    remaining = Multiset(self.subjects_by_id[id] for id in ids if self.subjects_by_id[id] is not None)
                     if pattern_vars:
                         sequence_var_iter = self._match_sequence_variables(
                             remaining, pattern_vars, bipartite_substitution
@@ -1030,7 +1031,7 @@ class CommutativeMatcher(object):
             if left not in nodes_left:
                 name = 'node{:d}'.format(node_id)
                 nodes_left[left] = name
-                label = str(self.subjects[left])
+                label = str(self.subjects_by_id[left])
                 graph.node(name, label=label)
                 node_id += 1
             if right not in nodes_right:
@@ -1054,10 +1055,10 @@ class CommutativeMatcher(object):
         node_id = 0
         for (left, right), value in bipartite._edges.items():
             if left not in nodes_left:
-                subject, i = left
+                subject_id, i = left
                 name = 'node{:d}'.format(node_id)
                 nodes_left[left] = name
-                label = '{}, {}'.format(i, self.subjects[subject])
+                label = '{}, {}'.format(i, self.subjects_by_id[subject_id])
                 graph.node(name, label=label)
                 node_id += 1
             if right not in nodes_right:

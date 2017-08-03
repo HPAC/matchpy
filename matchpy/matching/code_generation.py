@@ -67,6 +67,7 @@ class CodeGenerator:
             self._global_code.append(global_code)
             patterns = self.commutative_patterns(state.matcher.patterns)
             subjects = repr(state.matcher.subjects)
+            subjects_by_id = repr(state.matcher.subjects_by_id)
             associative = self.operation_symbol(state.matcher.associative)
             max_optional_count = repr(state.matcher.max_optional_count)
             anonymous_patterns = repr(state.matcher.anonymous_patterns)
@@ -75,6 +76,7 @@ class CommutativeMatcher{0}(CommutativeMatcher):
 \t_instance = None
 \tpatterns = {1}
 \tsubjects = {2}
+\tsubjects_by_id = {7}
 \tbipartite = BipartiteGraph()
 \tassociative = {3}
 \tmax_optional_count = {4}
@@ -90,7 +92,7 @@ class CommutativeMatcher{0}(CommutativeMatcher):
 \t\treturn CommutativeMatcher{0}._instance
 
 \t@staticmethod
-{6}'''.strip().format(state.number, patterns, subjects, associative, max_optional_count, anonymous_patterns, code))
+{6}'''.strip().format(state.number, patterns, subjects, associative, max_optional_count, anonymous_patterns, code, subjects_by_id))
             self.add_line('matcher = CommutativeMatcher{}.get()'.format(state.number))
             tmp = self.get_var_name('tmp')
             self.add_line('{} = {}'.format(tmp, self._subjects[-1]))
