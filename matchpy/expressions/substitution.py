@@ -65,7 +65,7 @@ class Substitution(dict):
                 elif replacement != existing_value:
                     raise ValueError
             elif isinstance(existing_value, Multiset):
-                if isinstance(replacement, expressions.Expression):
+                if not isinstance(replacement, (tuple, list, Multiset)):
                     raise ValueError
                 compare_value = Multiset(replacement)
                 if existing_value == compare_value:

@@ -278,9 +278,9 @@ def _match_commutative_operation(
         if name in substitution:
             replacement = substitution[name]
             if issubclass(pattern.operation, AssociativeOperation) and isinstance(replacement, pattern.operation):
-                needed_count = Multiset(substitution[name])  # type: Multiset
+                needed_count = Multiset(op_iter(substitution[name]))  # type: Multiset
             else:
-                if not isinstance(replacement, Expression):
+                if isinstance(replacement, (tuple, list, Multiset)):
                     return
                 needed_count = Multiset({replacement: 1})
             if count > 1:
@@ -308,9 +308,7 @@ def _match_commutative_operation(
                 factory = _fixed_var_iter_factory(name, count, min_count, symbol_type, constraints, default)
                 factories.append(factory)
 
-    expr_counter = Multiset(subjects)  # type: Multiset
-
-    for rem_expr, substitution in generator_chain((expr_counter, substitution), *factories):
+    for rem_expr, substitution in generator_chain((subjects, substitution), *factories):
         sequence_vars = _variables_with_counts(pattern.sequence_variables, pattern.sequence_variable_infos)
         if issubclass(pattern.operation, AssociativeOperation):
             sequence_vars += _variables_with_counts(fixed_vars, pattern.fixed_variable_infos)
@@ -366,7 +364,7 @@ def _fixed_var_iter_factory(variable_name, count, length, symbol_type, constrain
         subjects, substitution = data
         if variable_name in substitution:
             value = ([substitution[variable_name]]
-                     if isinstance(substitution[variable_name], Expression) else substitution[variable_name])
+                     if not isinstance(substitution[variable_name], (tuple, list, Multiset)) else substitution[variable_name])
             if optional is not None and value == [optional]:
                 yield subjects, substitution
             existing = Multiset(value) * count
