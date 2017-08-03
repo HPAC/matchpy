@@ -23,7 +23,7 @@ from ..expressions.expressions import (
     Expression, Operation, Symbol, SymbolWildcard, Wildcard, Pattern, AssociativeOperation, CommutativeOperation
 )
 from ..expressions.substitution import Substitution
-from ..expressions.functions import is_syntactic
+from ..expressions.functions import is_syntactic, op_iter, op_len
 from ..utils import slot_cached_property
 
 __all__ = ['FlatTerm', 'is_operation', 'is_symbol_wildcard', 'DiscriminationNet', 'SequenceMatcher']
@@ -160,7 +160,7 @@ class FlatTerm(Sequence[TermAtom]):
         """Generator that yields the atoms of the expressions in prefix notation with operation end markers."""
         if isinstance(expression, Operation):
             yield type(expression)
-            for operand in expression:
+            for operand in op_iter(expression):
                 yield from cls._flatterm_iter(operand)
             yield OPERATION_END
         elif isinstance(expression, SymbolWildcard):
@@ -773,10 +773,10 @@ class SequenceMatcher:
                 "All patterns must be the same operation, expected {} but got {}".format(self.operation, type(inner))
             )
 
-        if len(inner) < 3:
+        if op_len(inner) < 3:
             raise ValueError("Pattern has not enough operands.")
 
-        operands = list(inner)
+        operands = list(op_iter(inner))
 
         first_name = self._check_wildcard_and_get_name(operands[0])
         last_name = self._check_wildcard_and_get_name(operands[-1])
@@ -810,12 +810,14 @@ class SequenceMatcher:
         if not isinstance(pattern.expression, Operation) or isinstance(pattern.expression, CommutativeOperation):
             return False
 
-        if len(pattern.expression) < 3:
+        if op_len(pattern.expression) < 3:
             return False
 
+        first, *_, last = op_iter(pattern.expression)
+
         try:
-            cls._check_wildcard_and_get_name(pattern.expression[0])
-            cls._check_wildcard_and_get_name(pattern.expression[-1])
+            cls._check_wildcard_and_get_name(first)
+            cls._check_wildcard_and_get_name(last)
         except ValueError:
             return False
 
@@ -834,7 +836,8 @@ class SequenceMatcher:
         if not isinstance(subject, self.operation):
             return
 
-        flatterms = [FlatTerm(o) for o in subject]
+        subjects = list(op_iter(subject))
+        flatterms = [FlatTerm(o) for o in subjects]
 
         for i in range(len(flatterms)):
             flatterm = FlatTerm.merged(*flatterms[i:])
@@ -842,9 +845,9 @@ class SequenceMatcher:
             for index in self._net._match(flatterm, collect=True):
                 match_index = self._net._patterns[index][1]
                 pattern, first_name, last_name = self._patterns[match_index]
-                operand_count = len(pattern.expression) - 2
-                expr_operands = list(subject)[i:i + operand_count]
-                patt_operands = list(pattern.expression)[1:-1]
+                operand_count = op_len(pattern.expression) - 2
+                expr_operands = subjects[i:i + operand_count]
+                patt_operands = list(op_iter(pattern.expression))[1:-1]
 
                 substitution = Substitution()
                 if not all(itertools.starmap(substitution.extract_substitution, zip(expr_operands, patt_operands))):
@@ -852,9 +855,9 @@ class SequenceMatcher:
 
                 try:
                     if first_name is not None:
-                        substitution.try_add_variable(first_name, tuple(subject)[:i])
+                        substitution.try_add_variable(first_name, tuple(subjects[:i]))
                     if last_name is not None:
-                        substitution.try_add_variable(last_name, tuple(subject)[i + operand_count:])
+                        substitution.try_add_variable(last_name, tuple(subjects[i + operand_count:]))
                 except ValueError:
                     continue
 

@@ -158,7 +158,7 @@ class Substitution(dict):
             assert isinstance(subject, type(pattern))
             assert op_len(subject) == op_len(pattern)
             op_expression = cast(expressions.Operation, subject)
-            for subj, patt in zip(op_expression, op_iter(pattern)):
+            for subj, patt in zip(op_iter(op_expression), op_iter(pattern)):
                 if not self.extract_substitution(subj, patt):
                     return False
         return True

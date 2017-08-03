@@ -19,7 +19,7 @@ from .expressions.expressions import (
     Expression, Operation, Pattern, Wildcard, SymbolWildcard, AssociativeOperation, CommutativeOperation
 )
 from .expressions.substitution import Substitution
-from .expressions.functions import preorder_iter_with_position, create_operation_expression, op_iter
+from .expressions.functions import preorder_iter_with_position, create_operation_expression, op_iter, op_len
 from .matching.one_to_one import match
 
 __all__ = ['substitute', 'replace', 'replace_all', 'replace_many', 'is_match', 'ReplacementRule']
@@ -123,7 +123,7 @@ def replace(expression: Expression, position: Sequence[int], replacement: Replac
         return replacement
     if not isinstance(expression, Operation):
         raise IndexError("Invalid position {!r} for expression {!s}".format(position, expression))
-    if position[0] >= len(expression):
+    if position[0] >= op_len(expression):
         raise IndexError("Position {!r} out of range for expression {!s}".format(position, expression))
     pos = position[0]
     operands = list(op_iter(expression))
