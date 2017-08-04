@@ -90,6 +90,12 @@ class BipartiteGraph(Generic[TLeft, TRight, TEdgeValue], MutableMapping[Tuple[TL
     def edges(self):
         return self._edges.keys()
 
+    def clear(self):
+        self._edges.clear()
+        self._left.clear()
+        self._right.clear()
+        self._graph.clear()
+
     def __copy__(self):
         new_graph = type(self)()
         new_graph._edges = self._edges.copy()

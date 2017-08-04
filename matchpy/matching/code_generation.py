@@ -7,6 +7,12 @@ from .syntactic import OPERATION_END, is_operation
 from .many_to_one import _EPS
 from ..utils import get_short_lambda_source
 
+COLLAPSE_IF_RE = re.compile(r'\n(?P<indent1>\s*)if (?P<cond1>[^\n]+):\n+\1(?P<indent2>\s+)'
+                           r'(?P<comment>(?:\#[^\n]*\n+\1\3)*)'
+                           r'if (?P<cond2>[^\n]+):\n+'
+                           r'(?P<block>\1\3(?P<indent3>\s+)[^\n]*\n+(?:\1\3\7[^\n]*\n+)*)'
+                           r'(?!\1(?:\3|elif|else))')
+
 
 class CodeGenerator:
     def __init__(self, matcher):
@@ -53,7 +59,7 @@ class CodeGenerator:
 
         return self.clean_code('\n\n'.join(p for p in self._global_code if p)), self.clean_code(self._code)
 
-    def final_label(self, index):
+    def final_label(self, index, subst_name):
         return str(index)
 
     def generate_state_code(self, state):
@@ -410,11 +416,14 @@ class CommutativeMatcher{0}(CommutativeMatcher):
 
     def yield_final_substitution(self, pattern_index):
         renaming = self._matcher.pattern_vars[pattern_index]
-        self.add_line('tmp_subst = Substitution()')
-        for original, renamed in renaming.items():
-            self.add_line('tmp_subst[{!r}] = subst{}[{!r}]'.format(original, self._substs, renamed))
+        subst_name = 'subst{}'.format(self._substs)
+        if any(k != v for k, v in renaming.items()):
+            self.add_line('tmp_subst = Substitution()')
+            for original, renamed in renaming.items():
+                self.add_line('tmp_subst[{!r}] = subst{}[{!r}]'.format(original, self._substs, renamed))
+            subst_name = 'tmp_subst'
         self.add_line('# {}: {}'.format(pattern_index, self._matcher.patterns[pattern_index][0]))
-        self.add_line('yield {}, tmp_subst'.format(self.final_label(pattern_index)))
+        self.add_line('yield {}, {}'.format(self.final_label(pattern_index, subst_name), subst_name))
 
     def generate_constraints(self, constraints, transitions):
         if len(constraints) == 0:
@@ -470,3 +479,20 @@ class CommutativeMatcher{0}(CommutativeMatcher):
 
     def clean_code(self, code):
         return re.sub(r'\n(\s+)pass((?:\n\1#[^\n]*)*\n\1+\w)', r'\2', code)
+
+    @staticmethod
+    def _collapse_ifs(code):
+        def sub_cb(m):
+            indent = m['indent1']
+            indent2 = indent + m['indent2']
+            indent3 = indent2 + m['indent3']
+            offset = len(indent3)
+            inner = ('\n' + indent2).join(line[offset:] for line in m['block'].rstrip().split('\n'))
+            result = '\n{}if {} and {}:\n{}{}\n'.format(indent, m['cond1'], m['cond2'], indent2, inner)
+            if m['comment']:
+                result = '\n{}{}{}'.format(indent, m['comment'].strip(), result)
+            return result
+        count = 1
+        while count > 0:
+            code, count = COLLAPSE_IF_RE.subn(sub_cb, code)
+        return code
