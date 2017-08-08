@@ -13,8 +13,6 @@ __all__ = [
 
 def is_constant(expression):
     """Check if the given expression is constant, i.e. it does not contain Wildcards."""
-    if isinstance(expression, Expression):
-        return expression.is_constant
     if isinstance(expression, Operation):
         return all(is_constant(o) for o in op_iter(expression))
     return not isinstance(expression, Wildcard)
