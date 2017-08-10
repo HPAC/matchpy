@@ -13,11 +13,13 @@ __all__ = [
 
 def is_constant(expression):
     """Check if the given expression is constant, i.e. it does not contain Wildcards."""
+    if isinstance(expression, Wildcard):
+        return False
     if isinstance(expression, Expression):
         return expression.is_constant
     if isinstance(expression, Operation):
         return all(is_constant(o) for o in op_iter(expression))
-    return not isinstance(expression, Wildcard)
+    return True
 
 
 def is_syntactic(expression):
@@ -25,14 +27,14 @@ def is_syntactic(expression):
     Check if the given expression is syntactic, i.e. it does not contain sequence wildcards or
     associative/commutative operations.
     """
+    if isinstance(expression, Wildcard):
+        return expression.fixed_size
     if isinstance(expression, Expression):
         return expression.is_syntactic
     if isinstance(expression, (AssociativeOperation, CommutativeOperation)):
         return False
     if isinstance(expression, Operation):
         return all(is_syntactic(o) for o in op_iter(expression))
-    if isinstance(expression, Wildcard):
-        return expression.fixed_size
     return True
 
 
