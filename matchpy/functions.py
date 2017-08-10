@@ -81,12 +81,12 @@ def _substitute(expression: Expression, substitution: Substitution) -> Tuple[Rep
             result, replaced = _substitute(operand, substitution)
             if replaced:
                 any_replaced = True
-            if isinstance(result, Expression):
-                new_operands.append(result)
+            if isinstance(result, (list, tuple)):
+                new_operands.extend(result)
             elif isinstance(result, Multiset):
                 new_operands.extend(sorted(result))
             else:
-                new_operands.extend(result)
+                new_operands.append(result)
         if any_replaced:
             return create_operation_expression(expression, new_operands), True
 
@@ -199,10 +199,10 @@ def replace_many(expression: Expression, replacements: Sequence[Tuple[Sequence[i
             replacement = replace(operands[index], replacements[0][0], replacements[0][1])
         else:
             replacement = replace_many(operands[index], replacements)
-        if isinstance(replacement, Expression):
-            new_operands.append(replacement)
-        else:
+        if isinstance(replacement, (list, tuple, Multiset)):
             new_operands.extend(replacement)
+        else:
+            new_operands.append(replacement)
         last_index = index + 1
     new_operands.extend(operands[last_index:len(operands)])
     return create_operation_expression(expression, new_operands)
