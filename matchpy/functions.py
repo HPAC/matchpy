@@ -22,7 +22,7 @@ from .expressions.substitution import Substitution
 from .expressions.functions import preorder_iter_with_position, create_operation_expression, op_iter, op_len
 from .matching.one_to_one import match
 
-__all__ = ['substitute', 'replace', 'replace_all', 'replace_many', 'is_match', 'ReplacementRule']
+__all__ = ['substitute', 'replace', 'replace_all', 'replace_many', 'is_match', 'ReplacementRule', 'replace_all_post_order']
 
 Replacement = Union[Expression, List[Expression]]
 
@@ -238,7 +238,6 @@ def replace_all(expression: Expression, rules: Iterable[ReplacementRule], max_co
         The resulting expression after the application of the replacement rules. This can also be a sequence of
         expressions, if the root expression is replaced with a sequence of expressions by a rule.
     """
-    # TODO Fix the use of head, does not work for head = None
     rules = [ReplacementRule(pattern, replacement) for pattern, replacement in rules]
     expression = expression
     replaced = True
@@ -260,6 +259,57 @@ def replace_all(expression: Expression, rules: Iterable[ReplacementRule], max_co
         replace_count += 1
 
     return expression
+
+
+def replace_all_post_order(expression: Expression, rules: Iterable[ReplacementRule]) \
+        -> Union[Expression, Sequence[Expression]]:
+    """Replace all occurrences of the patterns according to the replacement rules.
+
+    A replacement rule consists of a *pattern*, that is matched against any subexpression
+    of the expression. If a match is found, the *replacement* callback of the rule is called with
+    the variables from the match substitution. Whatever the callback returns is used as a replacement for the
+    matched subexpression. This can either be a single expression or a sequence of expressions, which is then
+    integrated into the surrounding operation in place of the subexpression.
+
+    Note that the pattern can therefore not be a single sequence variable/wildcard, because only single expressions
+    will be matched.
+
+    Args:
+        expression:
+            The expression to which the replacement rules are applied.
+        rules:
+            A collection of replacement rules that are applied to the expression.
+        max_count:
+            If given, at most *max_count* applications of the rules are performed. Otherwise, the rules
+            are applied until there is no more match. If the set of replacement rules is not confluent,
+            the replacement might not terminate without a *max_count* set.
+
+    Returns:
+        The resulting expression after the application of the replacement rules. This can also be a sequence of
+        expressions, if the root expression is replaced with a sequence of expressions by a rule.
+    """
+    return _replace_all_post_order(expression, rules)[0]
+
+def _replace_all_post_order(expression, rules):
+    replaced = True
+    any_replaced = False
+    while replaced:
+        replaced = False
+        if isinstance(expression, Operation):
+            new_operands = [_replace_all_post_order(o, rules) for o in op_iter(expression)]
+            if any(r for _, r in new_operands):
+                new_operands = [o for o, _ in new_operands]
+                expression = create_operation_expression(expression, new_operands)
+                any_replaced = True
+        for pattern, replacement in rules:
+            try:
+                subst = next(iter(match(expression, pattern)))
+                expression = replacement(**subst)
+                replaced = any_replaced = True
+                break
+            except StopIteration:
+                pass
+    return expression, any_replaced
 
 
 def is_match(subject: Expression, pattern: Expression) -> bool:

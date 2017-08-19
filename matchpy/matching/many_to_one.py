@@ -803,6 +803,42 @@ class ManyToOneReplacer:
             replace_count += 1
         return expression
 
+    def replace_post_order(self, expression: Expression) -> Union[Expression, Sequence[Expression]]:
+        """Replace all occurrences of the patterns according to the replacement rules.
+
+        Replaces innermost expressions first.
+
+        Args:
+            expression:
+                The expression to which the replacement rules are applied.
+            max_count:
+                If given, at most *max_count* applications of the rules are performed. Otherwise, the rules
+                are applied until there is no more match. If the set of replacement rules is not confluent,
+                the replacement might not terminate without a *max_count* set.
+
+        Returns:
+            The resulting expression after the application of the replacement rules. This can also be a sequence of
+            expressions, if the root expression is replaced with a sequence of expressions by a rule.
+        """
+        return self._replace_post_order(expression)[0]
+
+    def _replace_post_order(self, expression):
+        any_replaced = False
+        while True:
+            if isinstance(expression, Operation):
+                new_operands = [self._replace_post_order(o) for o in op_iter(expression)]
+                if any(r for _, r in new_operands):
+                    new_operands = [o for o, _ in new_operands]
+                    expression = create_operation_expression(expression, new_operands)
+                    any_replaced = True
+            try:
+                replacement, subst = next(iter(self.matcher.match(expression)))
+                expression = replacement(**subst)
+                any_replaced = True
+            except StopIteration:
+                break
+        return expression, any_replaced
+
 
 Subgraph = BipartiteGraph[Tuple[int, int], Tuple[int, int], Substitution]
 Matching = Dict[Tuple[int, int], Tuple[int, int]]
