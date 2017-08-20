@@ -516,7 +516,7 @@ class ManyToOneMatcher:
                 head = None
                 label = Wildcard(label.min_count, label.fixed_size, optional=label.optional)
             elif isinstance(label, Symbol):
-                head = type(label)(label.name)
+                head = label = type(label)(label.name)
             else:
                 head = expression
 
