@@ -7,11 +7,13 @@ from .syntactic import OPERATION_END, is_operation
 from .many_to_one import _EPS
 from ..utils import get_short_lambda_source
 
-COLLAPSE_IF_RE = re.compile(r'\n(?P<indent1>\s*)if (?P<cond1>[^\n]+):\n+\1(?P<indent2>\s+)'
-                           r'(?P<comment>(?:\#[^\n]*\n+\1\3)*)'
-                           r'if (?P<cond2>[^\n]+):\n+'
-                           r'(?P<block>\1\3(?P<indent3>\s+)[^\n]*\n+(?:\1\3\7[^\n]*\n+)*)'
-                           r'(?!\1(?:\3|elif|else))')
+COLLAPSE_IF_RE = re.compile(
+    r'\n(?P<indent1>\s*)if (?P<cond1>[^\n]+):\n+\1(?P<indent2>\s+)'
+    r'(?P<comment>(?:\#[^\n]*\n+\1\3)*)'
+    r'if (?P<cond2>[^\n]+):\n+'
+    r'(?P<block>\1\3(?P<indent3>\s+)[^\n]*\n+(?:\1\3\7[^\n]*\n+)*)'
+    r'(?!\1(?:\3|elif|else))'
+)
 
 
 class CodeGenerator:
@@ -77,7 +79,8 @@ class CodeGenerator:
             associative = self.operation_symbol(state.matcher.associative)
             max_optional_count = repr(state.matcher.max_optional_count)
             anonymous_patterns = repr(state.matcher.anonymous_patterns)
-            self._global_code.append('''
+            self._global_code.append(
+                '''
 class CommutativeMatcher{0}(CommutativeMatcher):
 \t_instance = None
 \tpatterns = {1}
@@ -98,7 +101,11 @@ class CommutativeMatcher{0}(CommutativeMatcher):
 \t\treturn CommutativeMatcher{0}._instance
 
 \t@staticmethod
-{6}'''.strip().format(state.number, patterns, subjects, associative, max_optional_count, anonymous_patterns, code, subjects_by_id))
+{6}'''.strip().format(
+                    state.number, patterns, subjects, associative, max_optional_count, anonymous_patterns, code,
+                    subjects_by_id
+                )
+            )
             self.add_line('matcher = CommutativeMatcher{}.get()'.format(state.number))
             tmp = self.get_var_name('tmp')
             self.add_line('{} = {}'.format(tmp, self._subjects[-1]))
@@ -108,7 +115,9 @@ class CommutativeMatcher{0}(CommutativeMatcher):
             self.add_line('matcher.add_subject(s)')
             subjects = self._subjects.pop()
             self.dedent()
-            self.add_line('for pattern_index, subst{} in matcher.match({}, subst{}):'.format(self._substs + 1, tmp, self._substs))
+            self.add_line(
+                'for pattern_index, subst{} in matcher.match({}, subst{}):'.format(self._substs + 1, tmp, self._substs)
+            )
             self._substs += 1
             self.indent()
             self.add_line('pass')
@@ -122,7 +131,9 @@ class CommutativeMatcher{0}(CommutativeMatcher):
                 variables.update(*pvars)
                 constraints = []
                 if variables:
-                    constraints = sorted(set.union(*iter(self._matcher.constraint_vars.get(v, set()) for v in variables)))
+                    constraints = sorted(
+                        set.union(*iter(self._matcher.constraint_vars.get(v, set()) for v in variables))
+                    )
                 self.generate_constraints(constraints, transitions)
                 self.dedent()
             self.dedent()
@@ -149,16 +160,18 @@ class CommutativeMatcher{0}(CommutativeMatcher):
 
     def commutative_var_entry(self, entry):
         return '(VariableWithCount({!r}, {}, {}, {}), {})'.format(
-            entry[0][0], entry[0][1], entry[0][2], self.expr(entry[0][3]),
-            self.operation_symbol(entry[1]) if isinstance(entry[1], type) else repr(entry[1])
+            entry[0][0], entry[0][1], entry[0][2],
+            self.expr(entry[0][3]), self.operation_symbol(entry[1]) if isinstance(entry[1], type) else repr(entry[1])
         )
-
 
     def commutative_patterns(self, patterns):
         patterns = sorted(patterns.values(), key=lambda x: x[0])
         return '{{\n    {}\n}}'.format(
-    ',\n    '.join('{0}: ({0}, {1!r}, [\n      {2}\n])'.format(i, s, ',\n      '.join(map(self.commutative_var_entry, v))) for i, s, v in patterns))
-
+            ',\n    '.join(
+                '{0}: ({0}, {1!r}, [\n      {2}\n])'.format(i, s, ',\n      '.join(map(self.commutative_var_entry, v)))
+                for i, s, v in patterns
+            )
+        )
 
     def generate_transition_code(self, transition):
         enter_func = None
@@ -207,12 +220,12 @@ class CommutativeMatcher{0}(CommutativeMatcher):
             self.exit_variable_assignment()
         exit_func(value)
 
-    def get_args(self, operation):
-        return 'deque(op_iter({}))'.format(operation)
+    def get_args(self, operation, operation_type):
+        return 'op_iter({})'.format(operation)
 
-    def push_subjects(self, value):
+    def push_subjects(self, value, operation):
         self._subjects.append(self.get_var_name('subjects'))
-        self.add_line('{} = {}'.format(self._subjects[-1], self.get_args(value)))
+        self.add_line('{} = deque({})'.format(self._subjects[-1], self.get_args(value, operation)))
 
     def push_subst(self):
         new_subst = self.get_var_name('subst')
@@ -239,7 +252,7 @@ class CommutativeMatcher{0}(CommutativeMatcher):
             self._associative += 1
             self.add_line('associative{} = {}'.format(self._associative, tmp))
             self.add_line('associative_type{} = type({})'.format(self._associative, tmp))
-        self.push_subjects(tmp)
+        self.push_subjects(tmp, operation)
         return tmp
 
     def operation_symbol(self, operation):
@@ -333,9 +346,7 @@ class CommutativeMatcher{0}(CommutativeMatcher):
         self.exit_variable_assignment()
 
     def enter_symbol(self, symbol):
-        self.add_line(
-            'if len({0}) >= 1 and {0}[0] == {1}:'.format(self._subjects[-1], self.symbol_repr(symbol))
-        )
+        self.add_line('if len({0}) >= 1 and {0}[0] == {1}:'.format(self._subjects[-1], self.symbol_repr(symbol)))
         self.indent()
         tmp = self.get_var_name('tmp')
         self.add_line('{} = {}.popleft()'.format(tmp, self._subjects[-1]))
@@ -440,11 +451,14 @@ class CommutativeMatcher{0}(CommutativeMatcher):
             checked_patterns = self._patterns & patterns
             checked_transitions = [t for t in transitions if t.patterns & checked_patterns]
             if checked_patterns and checked_transitions:
+                cvars = ' and '.join('{!r} in subst{}'.format(v, self._substs) for v in constraint.variables)
+                if cvars:
+                    cvars += ' and '
                 cexpr, call = self.constraint_repr(constraint)
                 if call:
-                    self.add_line('if {}(subst{}):'.format(cexpr, self._substs))
+                    self.add_line('if {}{}(subst{}):'.format(cvars, cexpr, self._substs))
                 else:
-                    self.add_line('if {}:'.format(cexpr))
+                    self.add_line('if {}{}:'.format(cvars, cexpr))
                 self.indent()
                 self.add_line('pass')
                 self._patterns = checked_patterns
@@ -467,11 +481,12 @@ class CommutativeMatcher{0}(CommutativeMatcher):
     def constraint_repr(self, constraint):
         if isinstance(constraint, CustomConstraint) and isinstance(constraint.constraint, type(lambda: 0)):
             src = get_short_lambda_source(constraint.constraint)
-            mapping = {k: v for v, k in constraint._variables.items() }
-            params = constraint._variables.keys()
-            pstr = r'\b({})\b'.format('|'.join(map(re.escape, params)))
-            new_src = re.sub(pstr, lambda m: 'subst{}[{!r}]'.format(self._substs, constraint._variables[m[0]]), src)
-            return new_src, False
+            if src is not None:
+                mapping = {k: v for v, k in constraint._variables.items()}
+                params = constraint._variables.keys()
+                pstr = r'\b({})\b'.format('|'.join(map(re.escape, params)))
+                new_src = re.sub(pstr, lambda m: 'subst{}[{!r}]'.format(self._substs, constraint._variables[m[0]]), src)
+                return new_src, False
         return repr(constraint), True
 
     def exit_global_constraint(self, constraint_index):
@@ -492,6 +507,7 @@ class CommutativeMatcher{0}(CommutativeMatcher):
             if m['comment']:
                 result = '\n{}{}{}'.format(indent, m['comment'].strip(), result)
             return result
+
         count = 1
         while count > 0:
             code, count = COLLAPSE_IF_RE.subn(sub_cb, code)
