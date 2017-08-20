@@ -8,6 +8,7 @@ import os
 import tokenize
 import copy
 from types import LambdaType
+
 # pylint: disable=unused-import
 from typing import (Callable, Dict, Iterator, List, NamedTuple, Optional, Sequence, Tuple, TypeVar, cast, Union, Any)
 # pylint: enable=unused-import
@@ -230,6 +231,41 @@ def commutative_sequence_variable_partition_iter(values: 'Multiset[T]', variable
                 del subst[None]
             yield subst
 
+class LambdaNodeVisitor(ast.NodeVisitor):
+    def __init__(self, lines):
+        self.lines = lines
+        self.last_node = None
+        self.lambdas = []
+
+    def visit(self, node):
+        super().visit(node)
+        if self.last_node is not None:
+            fake_node = ast.Pass(lineno=len(self.lines), col_offset=len(self.lines[-1]))
+            self.generic_visit(fake_node)
+
+    def visit_Lambda(self, node):
+        self.generic_visit(node)
+        self.last_node = node
+
+    def generic_visit(self, node):
+        if self.last_node is not None and hasattr(node, 'col_offset'):
+            enode = ast.Expression(self.last_node)
+            lambda_code = compile(enode, '<unused>', 'eval')
+            lines = self.lines[self.last_node.lineno-1:node.lineno]
+            lines[-1] = lines[-1][:node.col_offset]
+            lines[0] = lines[0][self.last_node.col_offset:]
+            lambda_body_text = ' '.join(l.rstrip(' \t\\').strip() for l in lines)
+            while lambda_body_text:
+                try:
+                    code = compile(lambda_body_text, '<unused>', 'eval')
+                    if len(code.co_code) == len(lambda_code.co_code):
+                        break
+                except SyntaxError:
+                    pass
+                lambda_body_text = lambda_body_text[:-1]
+            self.lambdas.append((lambda_code, lambda_body_text.strip()))
+            self.last_node = None
+        super().generic_visit(node)
 
 def get_short_lambda_source(lambda_func: LambdaType) -> Optional[str]:
     """Return the source of a (short) lambda function.
@@ -250,69 +286,39 @@ def get_short_lambda_source(lambda_func: LambdaType) -> Optional[str]:
     Returns:
         The source of the lambda function without its signature.
     """
-    # Adapted from http://xion.io/post/code/python-get-lambda-code.html
     try:
         all_source_lines, lnum = inspect.findsource(lambda_func)
         source_lines, _ = inspect.getsourcelines(lambda_func)
     except (IOError, TypeError):
         return None
-
-    # Remove trailing whitespace from lines (including potential lingering \r and \n due to OS mismatch)
-    all_source_lines = [l.rstrip() for l in all_source_lines]
+    all_source_lines = [l.rstrip('\r\n') for l in all_source_lines]
     block_end = lnum + len(source_lines)
     source_ast = None
-
-    # Try to parse the source lines
-    # In case we have an indentation error, wrap it in a compound statement
-    # We need to find the correct starting point of the block though which might be any of the preceeding lines
     for i in range(lnum, -1, -1):
         try:
-            try:
-                block = all_source_lines[i:block_end]
-                source_ast = ast.parse(os.linesep.join(block))
-            except IndentationError:
+            block = all_source_lines[i:block_end]
+            if block[0].startswith(' ') or block[0].startswith('\t'):
                 block.insert(0, 'with 0:')
-                source_ast = ast.parse(os.linesep.join(block))
+            source_ast = ast.parse(os.linesep.join(block))
         except (SyntaxError, tokenize.TokenError):
             pass
         else:
             break
+    nv = LambdaNodeVisitor(block)
+    nv.visit(source_ast)
+    lambda_code = lambda_func.__code__
+    for candidate_code, lambda_text in nv.lambdas:
+        candidate_code = candidate_code.co_consts[0]
+        # We don't check for direct equivalence since the flags can be different
+        if (candidate_code.co_code == lambda_code.co_code and
+            candidate_code.co_consts == lambda_code.co_consts and
+            candidate_code.co_names == lambda_code.co_names and
+            candidate_code.co_varnames == lambda_code.co_varnames and
+            candidate_code.co_cellvars == lambda_code.co_cellvars and
+            candidate_code.co_freevars == lambda_code.co_freevars):
+            return lambda_text[lambda_text.index(':')+1:].strip()
 
-    if source_ast is None:
-        return None
-
-    # Find the first AST node that is a lambda definition
-    lambda_node = next((node for node in ast.walk(source_ast) if isinstance(node, ast.Lambda)), None)
-    if lambda_node is None:  # It is a def fn(): ...
-        return None
-
-    # Remove everything before the first lambda's body
-    # Remove indentation from lines
-    lines = block[lambda_node.lineno - 1:]
-    lines[0] = lines[0][lambda_node.body.col_offset:]
-    lambda_body_text = os.linesep.join(l.lstrip() for l in lines)
-
-    # Start with the full body and everything to the end of the source.
-    # Start shaving away characters at the end until the source parses
-    while True:
-        try:
-            code = compile(lambda_body_text, '<unused filename>', 'eval')
-
-            # Check the size of the generated bytecode to avoid stopping the shaving too early:
-            #
-            #   bloop = lambda x: True, 0
-            #
-            # Here, "True, 0" is already a valid expression, but it is not the original lambda's body.
-            # So compiling succeeds, but the bytecode doesn't check out
-            # Also, the code is not compared directly, as the result might differ depending on the (global) context
-            if len(code.co_code) == len(lambda_func.__code__.co_code):
-                return lambda_body_text.strip()
-        except SyntaxError:
-            pass
-        lambda_body_text = lambda_body_text[:-1]
-        if not lambda_body_text:
-            assert False, "Unreachable, because we always get the valid body at some point"
-
+    return None
 
 def extended_euclid(a: int, b: int) -> Tuple[int, int, int]:
     """Extended Euclidean algorithm that computes the Bézout coefficients as well as :math:`gcd(a, b)`

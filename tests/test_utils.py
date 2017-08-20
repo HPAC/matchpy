@@ -268,20 +268,22 @@ lambda_multiline_example = [
 # yapf: enable
 
 @pytest.mark.parametrize(
-    '   lambda_func,                    expected_source',
+    '   lambda_func,                                expected_source',
     [
-        ((lambda x: x == 1),            'x == 1'),
-        (lambda x: x == 1,              'x == 1'),
-        (lambda_example[0],             'a > 0'),
-        (lambda_multiline_example[0],   'x == y'),
-        (lambda x: x[0],                'x[0]'),
-        (lambda x: x == (0, 1),         'x == (0, 1)'),
+        ((lambda x: x == 1),                        'x == 1'),
+        (lambda x: x == 1,                          'x == 1'),
+        (lambda_example[0],                         'a > 0'),
+        (lambda_multiline_example[0],               'x == y'),
+        (lambda x: x[0],                            'x[0]'),
+        (lambda x: x == (0, 1),                     'x == (0, 1)'),
         # FORMATTING IS IMPORTANT HERE TOO
         (lambda x: x > 1 and \
-                   x < 5,               'x > 1 and \\{}x < 5'.format(os.linesep)),
-        ([lambda x: x == 42, 5][0],     'x == 42'),
-        (not_a_lambda,                  None),
-        (5,                             None),
+                   x < 5,                           'x > 1 and x < 5'),
+        ([lambda x: x == 42, 5][0],                 'x == 42'),
+        (not_a_lambda,                              None),
+        (5,                                         None),
+        ([lambda x: x == 3, lambda x: x == 4][0],   'x == 3'),
+        ([lambda x: x == 3, lambda x: x == 4][1],   'x == 4'),
     ]
 )  # yapf: disable
 def test_get_short_lambda_source(lambda_func, expected_source):
