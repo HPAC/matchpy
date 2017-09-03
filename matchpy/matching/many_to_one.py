@@ -299,7 +299,7 @@ class _MatchIter:
             self.constraints |= restore_constraints
             self.patterns |= restore_patterns
         self.substitution = substitution
-        self.subjects.append(subject)
+        self.subjects.appendleft(subject)
 
     def _match_regular_operation(self, transition: _Transition) -> Iterator[_State]:
         subject = self.subjects.popleft()
