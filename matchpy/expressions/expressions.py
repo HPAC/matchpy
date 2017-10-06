@@ -212,17 +212,11 @@ class Expression:
         raise NotImplementedError()
 
 
-# This class is needed so that Tuple and Enum play nicely with each other
-class _ArityMeta(TupleMeta, EnumMeta):
-    @classmethod
-    def __prepare__(mcs, cls, bases, **kwargs):  # pylint: disable=unused-argument
-        return super().__prepare__(cls, bases)
-
 
 _ArityBase = NamedTuple('_ArityBase', [('min_count', int), ('fixed_size', bool)])
 
 
-class Arity(_ArityBase, Enum, metaclass=_ArityMeta):
+class Arity(_ArityBase):
     """Arity of an operator as (`int`, `bool`) tuple.
 
     The first component is the minimum number of operands.
@@ -230,19 +224,15 @@ class Arity(_ArityBase, Enum, metaclass=_ArityMeta):
     describes the fixed number of operands required.
     If it is ``False``, the operator has variable width arity.
     """
+    pass
 
-    def __new__(cls, *data):
-        return tuple.__new__(cls, data)
 
-    nullary = (0, True)
-    unary = (1, True)
-    binary = (2, True)
-    ternary = (3, True)
-    polyadic = (2, False)
-    variadic = (0, False)
-
-    def __repr__(self):
-        return "{!s}.{!s}".format(type(self).__name__, self._name_)
+Arity.nullary = Arity(0, True)
+Arity.unary = Arity(1, True)
+Arity.binary = Arity(2, True)
+Arity.ternary = Arity(3, True)
+Arity.polyadic = Arity(2, False)
+Arity.variadic = Arity(0, False)
 
 
 class _OperationMeta(ABCMeta):
@@ -448,7 +438,7 @@ class Operation(Expression, metaclass=_OperationMeta):
 
         >>> Times = Operation.new('*', Arity.polyadic, 'Times', associative=True, commutative=True, one_identity=True)
         >>> Times
-        Times['*', Arity.polyadic, associative, commutative, one_identity]
+        Times['*', Arity(min_count=2, fixed_size=False), associative, commutative, one_identity]
         >>> str(Times(Symbol('a'), Symbol('b')))
         '*(a, b)'
 
