@@ -1,7 +1,7 @@
 MatchPy
 =======
 
-MatchPy is a pattern matching libary for python.
+MatchPy is a pattern matching library for python.
 
 **Work in progress**
 
@@ -10,26 +10,23 @@ MatchPy is a pattern matching libary for python.
 Installation
 ------------
 
-MatchPy is availiablle via `PyPI <https://pypi.python.org/pypi/matchpy>`_. You can install it using ``pip install matchpy``.
+MatchPy is available via `PyPI <https://pypi.python.org/pypi/matchpy>`_. It can be installed with ``pip install matchpy``.
 
 Overview
 --------
 
-This package implements `pattern matching <https://en.wikipedia.org/wiki/Pattern_matching>`_ in python. It is similar
-to the implementation in `Mathematica <https://reference.wolfram.com/language/guide/Patterns.html>`_.
-A `detailed example <https://matchpy.readthedocs.io/en/latest/example.html>`_ of how you can use matchpy can be found
+This package implements `pattern matching <https://en.wikipedia.org/wiki/Pattern_matching>`_ in Python. The functionality is similar to pattern matching in `Mathematica <https://reference.wolfram.com/language/guide/Patterns.html>`_. This includes function symbols than can be associative and/or commutative, as well as sequence variables.
+A `detailed example <https://matchpy.readthedocs.io/en/latest/example.html>`_ of how to use MatchPy can be found
 in the `documentation <https://matchpy.readthedocs.io/en/latest/>`_.
-Some of the implemented algorithms have been described in `this Master thesis <https://arxiv.org/abs/1705.00907>`_.
 
-In addition to the basic matching algorithm, there are data structures that can be used for more efficient many-to-one
-matching like the `ManyToOneMatcher <https://matchpy.readthedocs.io/en/latest/api/matchpy.matching.many_to_one.html>`_
-and the `DiscriminationNet <https://matchpy.readthedocs.io/en/latest/api/matchpy.matching.syntactic.html>`_.
+MatchPy supports both one-to-one and many-to-one pattern matching. The latter makes use of similarities between patterns to efficiently find matches for multiple patterns at the same time.
+
+The basic algorithms implemented in MachtPy have been described in `this Master thesis <https://arxiv.org/abs/1705.00907>`_.
 
 Expressions
 ...........
 
-Expressions and patterns both have a tree structure. Expressions consist of symbols (leafs) and operations
-(internal nodes):
+Expressions are tree-like data structures, consisting of operations (functions, internal nodes) and symbols (constants, leaves):
 
 >>> from matchpy import Operation, Symbol, Arity
 >>> f = Operation.new('f', Arity.binary)
@@ -37,54 +34,91 @@ Expressions and patterns both have a tree structure. Expressions consist of symb
 >>> print(f(a, a))
 f(a, a)
 
-Patterns are expressions which can additionally contain wildcards and subexpressions can have a variable name assigned
-to them. During matching, a subject matching a pattern with a variable will be captured so it can be accessed later.
-Wildcards are placeholders that stand for any expression. Usually, the wildcards are used in combination with a variable
-name:
+Patterns are expressions which may contain wildcards (variables):
 
 >>> from matchpy import Wildcard
 >>> x = Wildcard.dot('x')
 >>> print(Pattern(f(a, x)))
 f(a, x_)
 
-Here x is the name of the variable. However, unnamed wildcards can also be used:
+In the previous example, x is the name of the variable. However, it is also possible to use wildcards without names:
 
 >>> w = Wildcard.dot()
 >>> print(Pattern(f(w, w)))
 f(_, _)
 
-Or a more complex expression can be named with a variable:
+It is also possible to assign variable names to entire subexpressions:
 
 >>> print(Pattern(f(w, a, variable_name='y')))
 y: f(_, a)
 
-In addition, sequence wildcards that can match for multiple expressions are supported:
+Pattern Matching
+................
 
->>> z = Wildcard.plus('z')
->>> print(Pattern(f(z)))
-f(z__)
-
-
-Substitutions
-.............
-
-Matches are given in the form of substitutions, which are a mapping from variable names to expressions:
+Given a pattern and an expression (which is usually called subject), the idea of pattern matching is to find a substitution that maps wildcards to expressions such that the pattern becomes the subject. In MatchPy, a substitution is a dict that maps variable names to expressions.
 
 >>> from matchpy import match
 >>> y = Wildcard.dot('y')
 >>> b = Symbol('b')
->>> expression = f(a, b)
+>>> subject = f(a, b)
 >>> pattern = Pattern(f(x, y))
->>> substitution = next(match(expression, pattern))
+>>> substitution = next(match(subject, pattern))
 >>> substitution
 {'x': Symbol('a'), 'y': Symbol('b')}
 
-Replacing the variables in the pattern according to the substitution will yield the original subject expression:
+Applying the substitution to the pattern results in the original expression.
 
 >>> from matchpy import substitute
 >>> print(substitute(pattern, substitution))
 f(a, b)
 
+Sequence Wildcards
+..................
+
+Sequence wildcards are wildcards that can match a sequence of expressions instead of just a single expression:
+
+>>> z = Wildcard.plus('z')
+>>> pattern = Pattern(f(z))
+>>> subject = f(a, b)
+>>> substitution = next(match(subject, pattern))
+>>> substitution
+{'z': (Symbol('a'), Symbol('b'))}
+
+Associativity and Commutativity
+...............................
+
+MatchPy natively supports associative and/or commutative operations. Nested associative operators are automatically flattened, the operands in commutative operations are sorted:
+
+>>> g = Operation.new('g', Arity.polyadic, associative=True, commutative=True)
+>>> g(a, g(b, a))
+g(Symbol('a'), Symbol('a'), Symbol('b'))
+
+Associativity and commutativity is also considered for pattern matching:
+
+>>> pattern = Pattern(g(b, x))
+>>> subject = g(a, a, b)
+>>> list(match(subject, pattern))
+[{'x': g(Symbol('a'), Symbol('a'))}]
+>>> h = Operation.new('h', Arity.polyadic)
+>>> pattern = Pattern(h(b, x))
+>>> subject = h(a, a, b)
+>>> list(match(subject, pattern))
+[]
+
+Many-to-One Matching
+....................
+
+There are two classes for many-to-one matching: `DiscriminationNet <https://matchpy.readthedocs.io/en/latest/api/matchpy.matching.syntactic.html>`_ and `ManyToOneMatcher <https://matchpy.readthedocs.io/en/latest/api/matchpy.matching.many_to_one.html>`_. The DiscriminationNet class only supports syntactic pattern matching, that is, operations are neither associative nor commutative. Sequence variables are not supported either. The ManyToOneMatcher class supports associative and/or commutative matching with sequence variables. For syntactic pattern matching, the DiscriminationNet should be used, as it is usually faster.
+
+>>> pattern1 = Pattern(f(a, x))
+>>> pattern2 = Pattern(f(y, b))
+>>> matcher = ManyToOneMatcher(pattern1, pattern2)
+>>> subject = f(a, b)
+>>> matches = matcher.match(subject)
+>>> for matched_pattern, substitution in sorted(map(lambda m: (str(m[0]), str(m[1])), matches)):
+...     print('{} matched with {}'.format(matched_pattern, substitution))
+f(a, x_) matched with {x ↦ b}
+f(y_, b) matched with {y ↦ a}
 
 Roadmap
 -------
