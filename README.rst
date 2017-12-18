@@ -63,8 +63,8 @@ Given a pattern and an expression (which is usually called subject), the idea of
 >>> subject = f(a, b)
 >>> pattern = Pattern(f(x, y))
 >>> substitution = next(match(subject, pattern))
->>> substitution
-{'x': Symbol('a'), 'y': Symbol('b')}
+>>> print(substitution)
+{x ↦ a, y ↦ b}
 
 Applying the substitution to the pattern results in the original expression.
 
@@ -81,8 +81,8 @@ Sequence wildcards are wildcards that can match a sequence of expressions instea
 >>> pattern = Pattern(f(z))
 >>> subject = f(a, b)
 >>> substitution = next(match(subject, pattern))
->>> substitution
-{'z': (Symbol('a'), Symbol('b'))}
+>>> print(substitution)
+{z ↦ (a, b)}
 
 Associativity and Commutativity
 ...............................
@@ -90,15 +90,15 @@ Associativity and Commutativity
 MatchPy natively supports associative and/or commutative operations. Nested associative operators are automatically flattened, the operands in commutative operations are sorted:
 
 >>> g = Operation.new('g', Arity.polyadic, associative=True, commutative=True)
->>> g(a, g(b, a))
-g(Symbol('a'), Symbol('a'), Symbol('b'))
+>>> print(g(a, g(b, a)))
+g(a, a, b)
 
 Associativity and commutativity is also considered for pattern matching:
 
 >>> pattern = Pattern(g(b, x))
 >>> subject = g(a, a, b)
->>> list(match(subject, pattern))
-[{'x': g(Symbol('a'), Symbol('a'))}]
+>>> print(next(match(subject, pattern)))
+{x ↦ g(a, a)}
 >>> h = Operation.new('h', Arity.polyadic)
 >>> pattern = Pattern(h(b, x))
 >>> subject = h(a, a, b)
