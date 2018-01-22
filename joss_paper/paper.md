@@ -29,7 +29,7 @@ In many applications, a fixed set of patterns is matched repeatedly against diff
 
 The basic algorithms implemented in MachtPy have been described in a Master thesis [@krebber2017:1].
 
-## Use in Ongoing Reasearch
+## Use in Ongoing Research
 
 MatchPy is a central part of [Linnea](https://github.com/henrik227/linnea), an experimental tool for the automatic generation of optimized code for linear algebra problems.
 
