@@ -5,7 +5,7 @@ tags:
   - Python
 authors:
  - name: Manuel Krebber
-   orcid: 0000-0000-0000-0000
+   orcid: 0000-0001-5038-1102
    affiliation: 1
  - name: Henrik Barthels
    orcid: 0000-0001-6744-3605
@@ -13,7 +13,7 @@ authors:
 affiliations:
  - name: AICES, RWTH Aachen University
    index: 1
-date: 14 February 2016
+date: 22 January 2018
 bibliography: paper.bib
 ---
 
