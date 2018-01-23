@@ -31,7 +31,7 @@ The basic algorithms implemented in MachtPy have been described in a Master thes
 
 ## Use in Ongoing Research
 
-MatchPy is a central part of [Linnea](https://github.com/henrik227/linnea), an experimental tool for the automatic generation of optimized code for linear algebra problems.
+MatchPy is a central part of [@linnea], an experimental tool for the automatic generation of optimized code for linear algebra problems.
 
 
 # References
