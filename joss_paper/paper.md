@@ -2,7 +2,8 @@
 title: 'MatchPy: Pattern Matching in Python'
 tags:
   - pattern matching
-  - Python
+  - term rewriting
+  - many-to-one matching
 authors:
  - name: Manuel Krebber
    orcid: 0000-0001-5038-1102
