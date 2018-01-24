@@ -1,0 +1,30 @@
+{
+  "@context": "https://raw.githubusercontent.com/codemeta/codemeta/master/codemeta.jsonld",
+  "@type": "Code",
+  "author": [
+    {
+      "@id": "https://orcid.org/0000-0001-5038-1102",
+      "@type": "Person",
+      "email": "manuel.krebber@rwth-aachen.de",
+      "name": "Manuel Krebber",
+      "affiliation": "AICES, RWTH Aachen University"
+    },
+    {
+      "@id": " https://orcid.org/0000-0001-6744-3605",
+      "@type": "Person",
+      "email": "barthels@aices.rwth-aachen.de",
+      "name": "Henrik Barthels",
+      "affiliation": "AICES, RWTH Aachen University"
+    },
+  ],
+  "identifier": "",
+  "codeRepository": "https://github.com/HPAC/matchpy",
+  "datePublished": "2018-01-24",
+  "dateModified": "2018-01-24",
+  "dateCreated": "2018-01-24",
+  "description": "A pattern matching library for Python.",
+  "keywords": "pattern matching, term rewriting, many-to-one matching",
+  "license": "MIT",
+  "title": "MatchPy",
+  "version": "v0.4.4"
+}
