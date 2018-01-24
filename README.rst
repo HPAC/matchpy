@@ -1,7 +1,7 @@
 MatchPy
 =======
 
-MatchPy is a pattern matching library for python.
+MatchPy is a pattern matching library for Python.
 
 **Work in progress**
 
