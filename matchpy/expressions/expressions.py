@@ -84,6 +84,7 @@ class Expression:
     """
 
     def __init__(self, variable_name):
+        super().__init__()
         self.variable_name = variable_name
 
     @cached_property
