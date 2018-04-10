@@ -2,7 +2,8 @@
 title: 'MatchPy: Pattern Matching in Python'
 tags:
   - pattern matching
-  - Python
+  - term rewriting
+  - many-to-one matching
 authors:
  - name: Manuel Krebber
    orcid: 0000-0001-5038-1102
@@ -27,7 +28,7 @@ Among existing systems, Mathematica [@mathematica] arguably offers the most expr
 
 In many applications, a fixed set of patterns is matched repeatedly against different subjects. The simultaneous matching of multiple patterns is called many-to-one matching, as opposed to one-to-one matching which denotes matching with a single pattern. Many-to-one matching can achieve a significant speed increase compared to one-to-one matching by exploiting similarities between patterns. MatchPy includes efficient algorithms for many-to-one matching [@krebber2017:2], as opposed to Mathematica and SymPy.
 
-The basic algorithms implemented in MachtPy have been described in a Master thesis [@krebber2017:1].
+The basic algorithms implemented in MatchPy have been described in a Master thesis [@krebber2017:1].
 
 ## Use in Ongoing Research
 

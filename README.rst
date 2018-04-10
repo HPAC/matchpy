@@ -1,7 +1,7 @@
 MatchPy
 =======
 
-MatchPy is a pattern matching library for python.
+MatchPy is a pattern matching library for Python.
 
 **Work in progress**
 
@@ -132,9 +132,10 @@ Besides the existing features, we plan on adding the following to MatchPy:
   ``f((a a)..)`` would match any ``f`` with an even number of ``a`` arguments.
 - All these additional pattern features need to be supported in the ``ManyToOneMatcher`` as well.
 - Better integration with existing types such as ``dict``.
-- Code generation for both one-to-one and many-to-one matching.
+- Code generation for both one-to-one and many-to-one matching. There is already an experimental implementation, but it still has some dependencies on MatchPy which can probably be removed.
 - Improving the documentation with more examples.
 - Better test coverage with more randomized tests.
+- Implementation of the matching algorithms in a lower-level language, for example C, both for performance and to make MatchPy's functionality available in other languages.
 
 Contributing
 ------------
