@@ -2,9 +2,9 @@ Sphinx>=1.4,<2.0
 pylint>=1.6,<2.0
 graphviz>=0.5,<0.6
 coverage>=4.2,<5.0
-git+https://github.com/wheerd/sphinx-autodoc-typehints.git@napoleon-master#egg=sphinx-autodoc-napoleon-typehints
 hypothesis>=3.6,<4.0
 hopcroftkarp>=1.2,<2.0
 multiset>=2.0,<3.0
 pytest>=3.0,<4.0
 pytest-cov>=2.4,<3.0
+setuptools_scm
