@@ -15,7 +15,8 @@ MatchPy is available via `PyPI <https://pypi.python.org/pypi/matchpy>`_. It can 
 Overview
 --------
 
-This package implements `pattern matching <https://en.wikipedia.org/wiki/Pattern_matching>`_ in Python. The functionality is similar to pattern matching in `Mathematica <https://reference.wolfram.com/language/guide/Patterns.html>`_. This includes function symbols that can be associative and/or commutative, as well as sequence variables.
+This package implements `pattern matching <https://en.wikipedia.org/wiki/Pattern_matching>`_ in Python. Pattern matching is a powerful tool for symbolic computations, operating on symbolic expressions. Given a pattern and an expression (which is usually called *subject*), the goal of pattern matching is to find a substitution for all the variables in the pattern such that the pattern becomes the subject. As an example, consider the pattern :math:`f(x)`, where :math:`f` is a function and :math:`x` is a variable, and the subject :math:`f(a)`, where :math:`a` is a constant symbol. Then the substitution that replaces :math:`x` with :math:`a` is a match. MatchPy supports associative and/or commutative function symbols, as well as sequence variables, similar to pattern matching in `Mathematica <https://reference.wolfram.com/language/guide/Patterns.html>`_. 
+
 A `detailed example <https://matchpy.readthedocs.io/en/latest/example.html>`_ of how to use MatchPy can be found
 in the `documentation <https://matchpy.readthedocs.io/en/latest/>`_.
 
