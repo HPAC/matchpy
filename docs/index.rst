@@ -1,7 +1,7 @@
-matchpy
-==============
+.. include:: ../../README.rst
 
-Contents:
+Table of Contents
+==============
 
 .. toctree::
    :maxdepth: 2
@@ -12,7 +12,7 @@ Contents:
    api/matchpy
    glossary
 
-Indices and tables
+Indices and Tables
 ==================
 
 * :ref:`genindex`
