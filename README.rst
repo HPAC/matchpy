@@ -151,8 +151,8 @@ The Makefile has several tasks to help development:
 
 If you have any questions or need help with setting things up, please open an issue and we will try the best to assist you.
 
-.. |pypi| image:: https://img.shields.io/pypi/v/matchpy.svg?style=flat-square&label=latest%20version
-    :target: https://pypi.python.org/pypi/matchpy
+.. |pypi| image:: https://img.shields.io/pypi/v/matchpy.svg?style=flat&label=latest%20version
+    :target: https://pypi.org/project/matchpy/
     :alt: Latest version released on PyPi
 
 .. |coverage| image:: https://coveralls.io/repos/github/HPAC/matchpy/badge.svg?branch=master
