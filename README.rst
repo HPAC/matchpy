@@ -17,8 +17,7 @@ Overview
 
 This package implements `pattern matching <https://en.wikipedia.org/wiki/Pattern_matching>`_ in Python. Pattern matching is a powerful tool for symbolic computations, operating on symbolic expressions. Given a pattern and an expression (which is usually called *subject*), the goal of pattern matching is to find a substitution for all the variables in the pattern such that the pattern becomes the subject. As an example, consider the pattern :math:`f(x)`, where :math:`f` is a function and :math:`x` is a variable, and the subject :math:`f(a)`, where :math:`a` is a constant symbol. Then the substitution that replaces :math:`x` with :math:`a` is a match. MatchPy supports associative and/or commutative function symbols, as well as sequence variables, similar to pattern matching in `Mathematica <https://reference.wolfram.com/language/guide/Patterns.html>`_. 
 
-A `detailed example <https://matchpy.readthedocs.io/en/latest/example.html>`_ of how to use MatchPy can be found
-in the `documentation <https://matchpy.readthedocs.io/en/latest/>`_.
+A detailed example of how to use MatchPy can be found `here <https://matchpy.readthedocs.io/en/latest/example.html>`_.
 
 MatchPy supports both one-to-one and many-to-one pattern matching. The latter makes use of similarities between patterns to efficiently find matches for multiple patterns at the same time.
 
