@@ -5,7 +5,7 @@ MatchPy is a pattern matching library for Python.
 
 **Work in progress**
 
-|pypi| |coverage| |build| |docs|
+|pypi| |coverage| |build| |docs| |joss|
 
 Installation
 ------------
@@ -166,3 +166,7 @@ If you have any questions or need help with setting things up, please open an is
 .. |docs| image:: https://readthedocs.org/projects/matchpy/badge/?version=latest
     :target: https://matchpy.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status
+    
+.. |joss| image:: http://joss.theoj.org/papers/e456bc05880b533652980aee6550a3cb/status.svg
+    :target: http://joss.theoj.org/papers/e456bc05880b533652980aee6550a3cb
+    :alt: The Journal of Open Source Software
