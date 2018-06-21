@@ -19,12 +19,12 @@
   ],
   "identifier": "",
   "codeRepository": "https://github.com/HPAC/matchpy",
-  "datePublished": "2018-01-24",
-  "dateModified": "2018-01-24",
-  "dateCreated": "2018-01-24",
+  "datePublished": "2018-06-21",
+  "dateModified": "2018-06-21",
+  "dateCreated": "2018-06-21",
   "description": "A pattern matching library for Python.",
   "keywords": "pattern matching, term rewriting, many-to-one matching",
   "license": "MIT",
   "title": "MatchPy",
-  "version": "v0.4.4"
+  "version": "v0.4.5"
 }
