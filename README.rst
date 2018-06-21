@@ -5,7 +5,7 @@ MatchPy is a pattern matching library for Python.
 
 **Work in progress**
 
-|pypi| |coverage| |build| |docs| |joss|
+|pypi| |coverage| |build| |docs| |joss| |doi|
 
 Installation
 ------------
@@ -170,3 +170,7 @@ If you have any questions or need help with setting things up, please open an is
 .. |joss| image:: http://joss.theoj.org/papers/e456bc05880b533652980aee6550a3cb/status.svg
     :target: http://joss.theoj.org/papers/e456bc05880b533652980aee6550a3cb
     :alt: The Journal of Open Source Software
+    
+.. |doi| image:: https://zenodo.org/badge/DOI/10.5281/zenodo.1294930.svg
+   :target: https://doi.org/10.5281/zenodo.1294930
+   :alt: Digital Object Identifier
