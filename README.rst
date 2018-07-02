@@ -5,12 +5,12 @@ MatchPy is a pattern matching library for Python.
 
 **Work in progress**
 
-|pypi| |coverage| |build| |docs| |joss| |doi|
+|pypi| |conda| |coverage| |build| |docs| |joss| |doi|
 
 Installation
 ------------
 
-MatchPy is available via `PyPI <https://pypi.python.org/pypi/matchpy>`_. It can be installed with ``pip install matchpy``.
+MatchPy is available via `PyPI <https://pypi.python.org/pypi/matchpy>`_, and for Conda via `conda-forge <https://anaconda.org/conda-forge/matchpy>`_. It can be installed with ``pip install matchpy`` or ``conda install -c conda-forge matchpy``.
 
 Overview
 --------
@@ -151,9 +151,13 @@ The Makefile has several tasks to help development:
 
 If you have any questions or need help with setting things up, please open an issue and we will try the best to assist you.
 
-.. |pypi| image:: https://img.shields.io/pypi/v/matchpy.svg?style=flat&label=latest%20version
+.. |pypi| image:: https://img.shields.io/pypi/v/matchpy.svg?style=flat
     :target: https://pypi.org/project/matchpy/
     :alt: Latest version released on PyPi
+
+.. |conda| image:: https://img.shields.io/conda/vn/conda-forge/matchpy.svg
+    :target: https://anaconda.org/conda-forge/matchpy
+    :alt: Latest version released via conda-forge
 
 .. |coverage| image:: https://coveralls.io/repos/github/HPAC/matchpy/badge.svg?branch=master
     :target: https://coveralls.io/github/HPAC/matchpy?branch=master
