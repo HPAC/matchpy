@@ -21,7 +21,7 @@ A detailed example of how to use MatchPy can be found `here <https://matchpy.rea
 
 MatchPy supports both one-to-one and many-to-one pattern matching. The latter makes use of similarities between patterns to efficiently find matches for multiple patterns at the same time.
 
-The basic algorithms implemented in MachtPy have been described in `this Master thesis <https://arxiv.org/abs/1705.00907>`_.
+A list of publications about MatchPy can be found `below <https://github.com/HPAC/matchpy#publications>`_.
 
 Expressions
 ...........
@@ -150,6 +150,44 @@ The Makefile has several tasks to help development:
 - To run the style checker (`pylint <https://www.pylint.org/>`_) you can use ``make check`` .
 
 If you have any questions or need help with setting things up, please open an issue and we will try the best to assist you.
+
+Publications
+------------
+
+`MatchPy: Pattern Matching in Python <http://joss.theoj.org/papers/10.21105/joss.00670>`_ |br|
+Manuel Krebber and Henrik Barthels |br|
+Journal of Open Source Software, Volume 3(26), pp. 2, June 2018.
+
+`Efficient Pattern Matching in Python <https://dl.acm.org/citation.cfm?id=3149871>`_ |br|
+Manuel Krebber, Henrik Barthels and Paolo Bientinesi |br|
+Proceedings of the 7th Workshop on Python for High-Performance and Scientific Computing, November 2017.
+
+`MatchPy: A Pattern Matching Library <http://conference.scipy.org/proceedings/scipy2017/manuel_krebber.html>`_ |br|
+Manuel Krebber, Henrik Barthels and Paolo Bientinesi |br|
+Proceedings of the 15th Python in Science Conference, July 2017.
+
+`Non-linear Associative-Commutative Many-to-One Pattern Matching with Sequence Variables <https://arxiv.org/abs/1705.00907>`_ |br|
+Manuel Krebber |br|
+Master Thesis, RWTH Aachen University, May 2017
+
+If you want to cite MatchPy, please reference the JOSS paper::
+
+    @article{krebber2018,
+        author    = {Manuel Krebber and Henrik Barthels},
+        title     = {{M}atch{P}y: {P}attern {M}atching in {P}ython},
+        journal   = {Journal of Open Source Software},
+        year      = 2018,
+        pages     = 2,
+        month     = jun,
+        volume    = {3},
+        number    = {26},
+        doi       = "10.21105/joss.00670",
+        web       = "http://joss.theoj.org/papers/10.21105/joss.00670",
+    }
+
+.. |br| raw:: html
+
+   <br />
 
 .. |pypi| image:: https://img.shields.io/pypi/v/matchpy.svg?style=flat
     :target: https://pypi.org/project/matchpy/
