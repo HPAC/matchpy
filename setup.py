@@ -12,7 +12,7 @@ with open(os.path.join(root, 'README.rst'), encoding='utf-8') as f:
 setup(
     name="matchpy",
     use_scm_version=True,
-    description="A pattern matching library.",
+    description="A library for pattern matching on symbolic expressions.",
     long_description=readme,
     author="Manuel Krebber",
     author_email="admin@wheerd.de",
