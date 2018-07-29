@@ -51,7 +51,7 @@ from abc import ABCMeta
 import keyword
 from enum import Enum, EnumMeta
 # pylint: disable=unused-import
-from typing import (Callable, Iterator, List, NamedTuple, Optional, Set, Tuple, TupleMeta, Type, Union)
+from typing import Callable, Iterator, List, NamedTuple, Optional, Set, Tuple, Type, Union
 # pylint: enable=unused-import
 
 from multiset import Multiset
