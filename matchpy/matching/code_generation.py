@@ -451,9 +451,9 @@ class CommutativeMatcher{0}(CommutativeMatcher):
             checked_patterns = self._patterns & patterns
             checked_transitions = [t for t in transitions if t.patterns & checked_patterns]
             if checked_patterns and checked_transitions:
-                cvars = ' and '.join('{!r} in subst{}'.format(v, self._substs) for v in constraint.variables)
+                cvars = 'not (' + ' and '.join('{!r} in subst{}'.format(v, self._substs) for v in constraint.variables) + ')'
                 if cvars:
-                    cvars += ' and '
+                    cvars += ' or '
                 cexpr, call = self.constraint_repr(constraint)
                 if call:
                     self.add_line('if {}{}(subst{}):'.format(cvars, cexpr, self._substs))
