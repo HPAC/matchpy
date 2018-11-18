@@ -862,7 +862,7 @@ PARAM_MATCHES = {}
 
 for name, obj in TestMatch.__dict__.items():
     if name.startswith('test_') and hasattr(obj, 'parametrize'):
-        names, values = obj.parametrize.args
+        names, values = obj.parametrize.combined.args
         names = [n.strip() for n in names.split(',')]
         if names == ['expression', 'pattern', 'expected_matches']:
             for expression, pattern, expected_matches in values:
