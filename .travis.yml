@@ -2,6 +2,15 @@ language: python
 python:
   - 3.6
   - 3.7-dev
+stages:
+  - quality
+  - test
+matrix:
+  include:
+    - stage: quality
+      python: 3.6
+      script:
+        - make check
 install:
   - pip install .[tests,develop]
 script:

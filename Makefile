@@ -8,6 +8,9 @@ doctest:
 	py.test --doctest-modules -k "not tests" matchpy/ README.rst docs/example.rst
 
 check:
+	flake8
+
+lint:
 	pylint matchpy
 
 coverage:
