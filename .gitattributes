@@ -1,0 +1,5 @@
+*     text=auto
+*.py  text
+*.rst text
+*.cfg text
+*.yml text
