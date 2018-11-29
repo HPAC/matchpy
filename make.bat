@@ -11,7 +11,7 @@ if /I %1 == docs goto :docs
 goto :eof
 
 :init
-	pip install -r requirements.txt
+    pip install .[tests,develop]
 goto :eof
 
 :test

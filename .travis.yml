@@ -12,7 +12,7 @@ matrix:
       script:
         - make check
 install:
-  - pip install .[tests,develop]
+  - make init
 script:
   - make doctest
   - make coverage
