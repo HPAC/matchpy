@@ -1,5 +1,5 @@
 init:
-	pip install -r requirements.txt
+	pip install .[tests,develop]
 
 test:
 	py.test tests/ --doctest-modules matchpy/ README.rst docs/example.rst
@@ -8,6 +8,9 @@ doctest:
 	py.test --doctest-modules -k "not tests" matchpy/ README.rst docs/example.rst
 
 check:
+	flake8
+
+lint:
 	pylint matchpy
 
 coverage:
