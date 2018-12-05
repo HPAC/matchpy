@@ -18,10 +18,7 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import datetime
-import os
-import sys
-from setuptools_scm import get_version
-sys.path.insert(0, os.path.abspath(os.path.join('..')))
+import matchpy
 
 # -- General configuration ------------------------------------------------
 
@@ -65,7 +62,7 @@ author = 'Manuel Krebber'
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 # The full version, including alpha/beta/rc tags.
-release = get_version(root='..')
+release = matchpy.__version__
 # The short X.Y version.
 version = '.'.join(release.split('.')[:2]) # The short X.Y version.
 
