@@ -14,6 +14,7 @@ def visualize_expression(expr, comment='Matchpy Expression', with_attrs=True):
 
     dot = graphviz.Digraph(comment=comment)
     counter = itertools.count()
+    default_node_attr = dict(color='black', fillcolor='white', fontcolor='black')
 
     def _label_node(dot, expr):
         unique_id = str(next(counter))
@@ -24,7 +25,7 @@ def visualize_expression(expr, comment='Matchpy Expression', with_attrs=True):
             raise ValueError(f'matchpy expression does not have _repr_gviz_node_: "{repr(self)}"')
 
         if with_attrs:
-            dot.attr('node', **node_attr)
+            dot.attr('node', **{**default_node_attr, **node_attr})
         dot.node(unique_id, node_description)
         return unique_id
 
