@@ -1,5 +1,5 @@
 init:
-	pip install .[tests,develop]
+	pip install .[develop]
 
 test:
 	py.test tests/ --doctest-modules matchpy/ README.rst docs/example.rst
