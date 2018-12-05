@@ -57,6 +57,7 @@ from typing import Callable, Iterator, List, NamedTuple, Optional, Set, Tuple, T
 from multiset import Multiset
 
 from ..utils import cached_property
+from .visualization import visualize_expression
 
 __all__ = [
     'Expression', 'Arity', 'Atom', 'Symbol', 'Wildcard', 'Operation', 'SymbolWildcard', 'Pattern', 'make_dot_variable',
@@ -422,6 +423,25 @@ class Operation(Expression, metaclass=_OperationMeta):
             return '{!s}({!s}, variable_name={})'.format(type(self).__name__, operand_str, self.variable_name)
         return '{!s}({!s})'.format(type(self).__name__, operand_str)
 
+    def _repr_svg_(self):
+        try:
+            dot = self._repr_gviz_()
+            return dot.pipe(format='svg').decode(dot._encoding)
+        except ImportError as e:
+            return None
+
+    def _repr_gviz_(self):
+        return visualize_expression(self)
+
+    def _repr_gviz_node_(self):
+        description = 'Operation: {!s}\n'.format(self.__class__.__name__)
+        if self.variable_name:
+            description += ', variable_name={!s}'.format(self.variable_name)
+        return (
+            description,
+            dict(shape='oval', color='#455C7B', fillcolor='#9db0c8', style='filled')
+        )
+
     @staticmethod
     def new(
             name: str,
@@ -662,6 +682,25 @@ class Symbol(Atom):
         if self.variable_name:
             return '{!s}({!r}, variable_name={})'.format(type(self).__name__, self.name, self.variable_name)
         return '{!s}({!r})'.format(type(self).__name__, self.name)
+
+    def _repr_svg_(self):
+        try:
+            dot = self._repr_gviz_()
+            return dot.pipe(format='svg').decode(dot._encoding)
+        except ImportError as e:
+            return None
+
+    def _repr_gviz_(self):
+        return visualize_expression(self)
+
+    def _repr_gviz_node_(self):
+        description = 'Symbol: {!s}\n{!s}'.format(self.__class__.__name__, self.name)
+        if self.variable_name:
+            description += ', variable_name={!s}'.format(self.variable_name)
+        return (
+            description,
+            dict(shape='box', color='#AC6C82', fillcolor='#cfaab7', style='filled')
+        )
 
     def collect_symbols(self, symbols):
         symbols.add(self.name)
