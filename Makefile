@@ -21,7 +21,5 @@ api-docs:
 	sphinx-apidoc -n -e -T -o docs/api matchpy
 	make docs
 
-docs:
-	cd docs
-	make html
-	cd ..
+doc:
+	python setup.py build_sphinx -W
