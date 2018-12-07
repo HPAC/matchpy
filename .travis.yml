@@ -12,6 +12,7 @@ matrix:
       python: 3.6
       script:
         - make check
+        - make doc
 install:
   - make init
 script:

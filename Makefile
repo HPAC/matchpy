@@ -1,5 +1,5 @@
 init:
-	pip install .[tests,develop]
+	pip install .[develop]
 
 test:
 	py.test tests/ --doctest-modules matchpy/ README.rst docs/example.rst
@@ -21,7 +21,5 @@ api-docs:
 	sphinx-apidoc -n -e -T -o docs/api matchpy
 	make docs
 
-docs:
-	cd docs
-	make html
-	cd ..
+doc:
+	python setup.py build_sphinx -W
