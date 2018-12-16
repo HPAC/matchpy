@@ -20,7 +20,7 @@ class CodeGenerator:
     def __init__(self, matcher):
         self._matcher = matcher
         self._var_number = 0
-        self._indentation = '\t'
+        self._indentation = '    '
         self._level = 0
         self._code = ''
         self._subjects = ['subjects']
@@ -82,28 +82,28 @@ class CodeGenerator:
             self._global_code.append(
                 '''
 class CommutativeMatcher{0}(CommutativeMatcher):
-\t_instance = None
-\tpatterns = {1}
-\tsubjects = {2}
-\tsubjects_by_id = {7}
-\tbipartite = BipartiteGraph()
-\tassociative = {3}
-\tmax_optional_count = {4}
-\tanonymous_patterns = {5}
+{8}_instance = None
+{8}patterns = {1}
+{8}subjects = {2}
+{8}subjects_by_id = {7}
+{8}bipartite = BipartiteGraph()
+{8}associative = {3}
+{8}max_optional_count = {4}
+{8}anonymous_patterns = {5}
 
-\tdef __init__(self):
-\t\tself.add_subject(None)
+{8}def __init__(self):
+{8}{8}self.add_subject(None)
 
-\t@staticmethod
-\tdef get():
-\t\tif CommutativeMatcher{0}._instance is None:
-\t\t\tCommutativeMatcher{0}._instance = CommutativeMatcher{0}()
-\t\treturn CommutativeMatcher{0}._instance
+{8}@staticmethod
+{8}def get():
+{8}{8}if CommutativeMatcher{0}._instance is None:
+{8}{8}{8}CommutativeMatcher{0}._instance = CommutativeMatcher{0}()
+{8}{8}return CommutativeMatcher{0}._instance
 
-\t@staticmethod
+{8}@staticmethod
 {6}'''.strip().format(
                     state.number, patterns, subjects, associative, max_optional_count, anonymous_patterns, code,
-                    subjects_by_id
+                    subjects_by_id, self._indentation
                 )
             )
             self.add_line('matcher = CommutativeMatcher{}.get()'.format(state.number))
@@ -451,9 +451,9 @@ class CommutativeMatcher{0}(CommutativeMatcher):
             checked_patterns = self._patterns & patterns
             checked_transitions = [t for t in transitions if t.patterns & checked_patterns]
             if checked_patterns and checked_transitions:
-                cvars = ' and '.join('{!r} in subst{}'.format(v, self._substs) for v in constraint.variables)
+                cvars = ' or '.join('{!r} not in subst{}'.format(v, self._substs) for v in constraint.variables)
                 if cvars:
-                    cvars += ' and '
+                    cvars += ' or '
                 cexpr, call = self.constraint_repr(constraint)
                 if call:
                     self.add_line('if {}{}(subst{}):'.format(cvars, cexpr, self._substs))
