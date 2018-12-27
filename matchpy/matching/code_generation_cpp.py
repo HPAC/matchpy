@@ -58,23 +58,16 @@ class CppCodeGenerator:
         self.add_line(pointer_template.format(
             self._get_state_print_form(state_name, part)
         ))
+        if self._level_stack[-1] > 2:
+            self.add_line('return;')
 
     def add_transition(self, target, last=False):
         self.add_line("// {}".format(target))
         target_state_number: int = target.number
         self.add_pointer("state{}".format(target_state_number), 0)
-        if len(self._state_name_stack) == 1:
-            pass
-            #return
-        if len(self._level_stack) > 2:
-            pass
         self.dedent()
         state, part = self._state_name_stack[-1]
-        if last:
-            self.add_pointer(state, part+2)
-        else:
-            self.add_pointer(state, part+2)
-        self.add_new_state_part()
+        self.add_pointer(state, part+2)
 
     def add_class_field(self, vartype, name):
         if name in self._class_fields:
@@ -82,14 +75,12 @@ class CppCodeGenerator:
             return
         self._class_fields[name] = vartype
 
-    def add_new_state(self, name, part=0):
-        print("add_new_state", self._state_name_stack)
+    def add_new_state(self, name):
         self._level_stack.append(1)
-        self._state_name_stack.append([name, part])
+        self._state_name_stack.append([name, 0])
         self._state_stack.append("")
-        self.add_line("void {}()".format(self._get_state_print_form(name, part)))
+        self.add_line("void {}()".format(self._get_state_print_form(name, 0)))
         self.indent()
-        print("END add_new_state", self._state_name_stack)
 
     def end_state(self):
         self.dedent()
@@ -99,9 +90,6 @@ class CppCodeGenerator:
         self._code += state_code
 
     def add_new_state_part(self):
-        #if len(self._state_stack) == 1:
-            #return
-        print(self._state_name_stack)
         self._state_name_stack[-1][1] += 1
         name, part = self._state_name_stack[-1]
         next_state_name = self._get_state_print_form(name, part)
@@ -113,6 +101,11 @@ class CppCodeGenerator:
         self._level_stack.append(1)
         self.add_line("void {}()".format(next_state_name))
         self.indent()
+
+    def add_new_state_return(self, target_state):
+        self.add_new_state_part()
+        self.add_line("// Return from state {}".format(target_state))
+        return
 
     def _get_state_print_form(self, name, part):
         if part > 0:
@@ -162,7 +155,6 @@ class CppCodeGenerator:
 
         self.add_new_state("start")
         self.add_pointer("state{}".format(self._matcher.root.number), 0)
-        #self.add_transition(self._matcher.root)
         self.end_state()
         self.generate_state_code(self._matcher.root)
         self.add_new_state("stop")
@@ -266,7 +258,7 @@ class CommutativeMatcher{0} : public CommutativeMatcher {
             self.add_line('// State {}'.format(state.number))
             self.add_line('cout << "State {}" << endl;'.format(state.number))
             if state.number in self._matcher.finals:
-                self.add_line('if (({}).size() == 0) {{'.format(self._subjects[-1]))
+                self.add_line('if ({}.size() == 0) {{'.format(self._subjects[-1]))
                 self.indent(bracket=False)
                 for pattern_index in self._patterns:
                     constraints = self._matcher.patterns[pattern_index][0].global_constraints
@@ -282,7 +274,7 @@ class CommutativeMatcher{0} : public CommutativeMatcher {
                         self.generate_transition_code(transition)
         if len(self._state_name_stack) > 1:
             name, part = self._state_name_stack[-2]
-            self.add_pointer(name, part)
+            self.add_pointer(name, part+1)
         else:
             self.add_pointer("stop", 0)
         self.end_state()
@@ -343,15 +335,15 @@ class CommutativeMatcher{0} : public CommutativeMatcher {
         constraints = sorted(transition.check_constraints) if transition.check_constraints is not None else []
         self.generate_constraints(constraints, [transition])
 
-        state_name, state_count = self._state_name_stack[-1]
-        #self.add_new_state(state_name, state_count+1)
-        #self.add_new_state_part()
+        self.add_new_state_return(transition)
         if transition.subst is not None:
             self.exit_subst(transition.subst)
         if transition.variable_name is not None:
             self.exit_variable_assignment()
         exit_func(value)
-        #self.end_state()
+        state, part = self._state_name_stack[-1]
+        self.add_pointer(state, part+1)
+        self.add_new_state_part()
 
     def get_args(self, operation, operation_type):
         return 'op_iter({})'.format(operation)
@@ -405,7 +397,7 @@ class CommutativeMatcher{0} : public CommutativeMatcher {
 
     def enter_symbol_wildcard(self, wildcard):
         self.add_line(
-            'if (({0}).size() >= 1 && isinstance({0}[0], {1})) {{'.
+            'if ({0}.size() >= 1 && isinstance({0}[0], {1})) {{'.
             format(self._subjects[-1], self.symbol_type(wildcard.symbol_type))
         )
         self.indent(bracket=False)
@@ -423,7 +415,7 @@ class CommutativeMatcher{0} : public CommutativeMatcher {
         self.dedent()
 
     def enter_fixed_wildcard(self, wildcard):
-        self.add_line('if (({}).size() >= 1) {{'.format(self._subjects[-1]))
+        self.add_line('if ({}.size() >= 1) {{'.format(self._subjects[-1]))
         self.indent(bracket=False)
         tmp = self.get_var_name('tmp')
         self.add_class_field('RCP<const Basic>', tmp)
@@ -476,12 +468,12 @@ class CommutativeMatcher{0} : public CommutativeMatcher {
         self.exit_variable_assignment()
 
     def enter_symbol(self, symbol):
-        self.add_line('if (({0}).size() >= 1 && {0}[0]->__eq__(*{1})) {{'.format(self._subjects[-1], self.symbol_repr(symbol)))
+        self.add_line('if ({0}.size() >= 1 && {0}[0]->__eq__(*{1})) {{'.format(self._subjects[-1], self.symbol_repr(symbol)))
         self.indent(bracket=False)
         tmp = self.get_var_name('tmp')
         self.add_class_field('RCP<const Basic>', tmp)
         self.add_line('{} = {}.front();'.format(tmp, self._subjects[-1]))
-        self.add_line('{}.pop_front();'.format(tmp, self._subjects[-1]))
+        self.add_line('{}.pop_front();'.format(self._subjects[-1]))
         return tmp
 
     def symbol_repr(self, symbol):
@@ -489,12 +481,10 @@ class CommutativeMatcher{0} : public CommutativeMatcher {
 
     def exit_symbol(self, value):
         self.add_line('{}.push_front({});'.format(self._subjects[-1], value))
-        #self.dedent()
 
     def enter_operation_end(self, _):
-        self.add_line('if (({0}).size() == 0) {{'.format(self._subjects[-1]))
+        self.add_line('if ({0}.size() == 0) {{'.format(self._subjects[-1]))
         self.indent(bracket=False)
-        #self.add_line('pass')
         subjects = self._subjects.pop()
         atype = self._associative_stack.pop()
         if atype is not None:
@@ -515,7 +505,7 @@ class CommutativeMatcher{0} : public CommutativeMatcher {
         tmp2 = self.get_var_name('tmp')
         self.add_class_field('RCP<const Basic>', tmp)
         mc = wildcard.min_count if wildcard.optional is None or wildcard.min_count > 0 else 1
-        self.add_line('if (({}).size() >= {}) {{'.format(self._subjects[-1], mc))
+        self.add_line('if ({}.size() >= {}) {{'.format(self._subjects[-1], mc))
         self.indent(bracket=False)
         self.add_line('{} = []'.format(tmp))
         for _ in range(mc):
@@ -524,7 +514,7 @@ class CommutativeMatcher{0} : public CommutativeMatcher {
         self.add_line('while True:')
         self.indent()
         if self._associative_stack[-1] is not None and wildcard.fixed_size:
-            self.add_line('if (({}).size() > {}) {{'.format(tmp, wildcard.min_count))
+            self.add_line('if ({}.size() > {}) {{'.format(tmp, wildcard.min_count))
             self.indent(bracket=False)
             self.add_line(
                 '{} = {}'.format(
@@ -535,7 +525,7 @@ class CommutativeMatcher{0} : public CommutativeMatcher {
                 )
             )
             self.dedent()
-            self.add_line('else if (({}).size() == 1) {{'.format(tmp))
+            self.add_line('else if ({}.size() == 1) {{'.format(tmp))
             self.indent(bracket=False)
             self.add_line('{} = {}[0]'.format(tmp2, tmp))
             self.dedent()
@@ -551,7 +541,7 @@ class CommutativeMatcher{0} : public CommutativeMatcher {
         return 'create_operation_expression({}, {})'.format(operation, args)
 
     def exit_sequence_wildcard(self, value):
-        self.add_line('if (({}).size() == 0) {{'.format(self._subjects[-1]))
+        self.add_line('if ({}.size() == 0) {{'.format(self._subjects[-1]))
         self.indent(bracket=False)
         self.add_line('break')
         self.dedent()
@@ -578,10 +568,7 @@ class CommutativeMatcher{0} : public CommutativeMatcher {
             for i, transition in enumerate(transitions):
                 removed = self._patterns - transition.patterns
                 self._patterns.intersection_update(transition.patterns)
-                if i + 1 == len(transitions):
-                    self.add_transition(transition.target, True)
-                else:
-                    self.add_transition(transition.target, False)
+                self.add_transition(transition.target)
                 self.generate_state_code(transition.target)
                 self._patterns.update(removed)
         else:
