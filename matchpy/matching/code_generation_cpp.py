@@ -61,11 +61,16 @@ class CppCodeGenerator:
         if self._level_stack[-1] > 2:
             self.add_line('return;')
 
+    def return_to_base_level(self, dest=2):
+        while self._level_stack[-1] > dest:
+            self.dedent()
+
     def add_transition(self, target, last=False):
-        self.add_line("// {}".format(target))
+        self.add_line("// {}".format(target.number))
         target_state_number: int = target.number
         self.add_pointer("state{}".format(target_state_number), 0)
         self.dedent()
+        self.return_to_base_level()
         state, part = self._state_name_stack[-1]
         self.add_pointer(state, part+2)
 
@@ -104,8 +109,7 @@ class CppCodeGenerator:
 
     def add_new_state_return(self, target_state):
         self.add_new_state_part()
-        self.add_line("// Return from state {}".format(target_state))
-        return
+        self.add_line("// Return from state {0.target.number}".format(target_state))
 
     def _get_state_print_form(self, name, part):
         if part > 0:
@@ -272,6 +276,7 @@ class CommutativeMatcher{0} : public CommutativeMatcher {
                 for transitions in state.transitions.values():
                     for transition in transitions:
                         self.generate_transition_code(transition)
+
         if len(self._state_name_stack) > 1:
             name, part = self._state_name_stack[-2]
             self.add_pointer(name, part+1)
@@ -280,7 +285,7 @@ class CommutativeMatcher{0} : public CommutativeMatcher {
         self.end_state()
 
     def commutative_var_entry(self, entry):
-        return '(VariableWithCount({!r}, {}, {}, {}), {})'.format(
+        return '(VariableWithCount("{}", {}, {}, {}), {})'.format(
             entry[0][0], entry[0][1], entry[0][2],
             self.expr(entry[0][3]), self.operation_symbol(entry[1]) if isinstance(entry[1], type) else repr(entry[1])
         )
@@ -336,26 +341,29 @@ class CommutativeMatcher{0} : public CommutativeMatcher {
         self.generate_constraints(constraints, [transition])
 
         self.add_new_state_return(transition)
+
         if transition.subst is not None:
             self.exit_subst(transition.subst)
         if transition.variable_name is not None:
             self.exit_variable_assignment()
         exit_func(value)
+
         state, part = self._state_name_stack[-1]
         self.add_pointer(state, part+1)
         self.add_new_state_part()
 
-    def get_args(self, operation, operation_type):
-        return 'op_iter({})'.format(operation)
-
     def push_subjects(self, value, operation):
         self._subjects.append(self.get_var_name('subjects'))
-        self.add_line('{} = deque({})'.format(self._subjects[-1], self.get_args(value, operation)))
+        self.add_class_field('Deque', self._subjects[-1])
+        #self.add_line('{}.clear();'.format(self._subjects[-1]))
+        #self.add_line('{}.push_front({});'.format(self._subjects[-1], operation))
+        self.add_line('{} = get_deque({});'.format(self._subjects[-1], value))
+        #self.get_args(value, operation)))
 
     def push_subst(self):
         new_subst = self.get_var_name('subst')
         self.add_class_field("Substitution", new_subst)
-        self.add_line('subst{} = Substitution(subst{})'.format(self._substs + 1, self._substs))
+        self.add_line('subst{} = Substitution(subst{});'.format(self._substs + 1, self._substs))
         self._substs += 1
 
     def enter_eps(self, _):
@@ -366,13 +374,14 @@ class CommutativeMatcher{0} : public CommutativeMatcher {
 
     def enter_operation(self, operation):
         self.add_line(
-            'if len({0}) >= 1 and isinstance({0}[0], {1}):'.
-            format(self._subjects[-1], self.operation_symbol(operation))
+            'if ({0}.size() >= 1 && is_a<{1}>(*{0}[0])) {{'.format(
+                self._subjects[-1], self.operation_symbol(operation))
         )
-        self.indent()
+        self.indent(bracket=False)
         tmp = self.get_var_name('tmp')
         self.add_class_field('RCP<const Basic>', tmp)
-        self.add_line('{} = {}.popleft()'.format(tmp, self._subjects[-1]))
+        self.add_line('{} = {}.front();'.format(tmp, self._subjects[-1]))
+        self.add_line('{}.pop_front();'.format(self._subjects[-1]))
         atype = operation if issubclass(operation, AssociativeOperation) else None
         self._associative_stack.append(atype)
         if atype is not None:
@@ -389,15 +398,14 @@ class CommutativeMatcher{0} : public CommutativeMatcher {
 
     def exit_operation(self, value):
         self._subjects.pop()
-        self.add_line('{}.appendleft({})'.format(self._subjects[-1], value))
-        self.dedent()
+        self.add_line('{}.push_front({});'.format(self._subjects[-1], value))
         atype = self._associative_stack.pop()
         if atype is not None:
             self._associative -= 1
 
     def enter_symbol_wildcard(self, wildcard):
         self.add_line(
-            'if ({0}.size() >= 1 && isinstance({0}[0], {1})) {{'.
+            'if ({0}.size() >= 1 && is_a<{1}(*{0}[0])) {{'.
             format(self._subjects[-1], self.symbol_type(wildcard.symbol_type))
         )
         self.indent(bracket=False)
@@ -412,7 +420,6 @@ class CommutativeMatcher{0} : public CommutativeMatcher {
 
     def exit_symbol_wildcard(self, value):
         self.add_line('{}.push_front({});'.format(self._subjects[-1], value))
-        self.dedent()
 
     def enter_fixed_wildcard(self, wildcard):
         self.add_line('if ({}.size() >= 1) {{'.format(self._subjects[-1]))
@@ -420,16 +427,15 @@ class CommutativeMatcher{0} : public CommutativeMatcher {
         tmp = self.get_var_name('tmp')
         self.add_class_field('RCP<const Basic>', tmp)
         self.add_line('{} = {}.front();'.format(tmp, self._subjects[-1]))
-        self.add_line('{}.front();'.format(self._subjects[-1]))
+        self.add_line('{}.pop_front();'.format(self._subjects[-1]))
         return tmp
 
     def exit_fixed_wildcard(self, value):
         self.add_line('{}.push_front({});'.format(self._subjects[-1], value))
-        self.dedent()
 
     def enter_variable_assignment(self, variable_name, value):
         self.push_subst()
-        self.add_line('if (!try_add_variable(subst{}, {!r}, {})) {{'.format(self._substs, variable_name, value))
+        self.add_line('if (!try_add_variable(subst{}, "{}", {})) {{'.format(self._substs, variable_name, value))
         self.indent(bracket=False)
 
     def enter_subst(self, subst):
@@ -437,7 +443,7 @@ class CommutativeMatcher{0} : public CommutativeMatcher {
         self.add_line('try:')
         self.indent()
         for name, value in subst.items():
-            self.add_line('try_add_variable(subst{}, {!r}, {});'.format(self._substs, name, self.expr(value)))
+            self.add_line('try_add_variable(subst{}, "{}", {});'.format(self._substs, name, self.expr(value)))
         self.dedent()
         self.add_line('except ValueError:')
         self.indent()
@@ -452,11 +458,9 @@ class CommutativeMatcher{0} : public CommutativeMatcher {
 
     def exit_subst(self, subst):
         self._substs -= 1
-        self.dedent()
 
     def exit_variable_assignment(self):
         self._substs -= 1
-        self.dedent()
 
     def enter_optional_wildcard(self, wildcard, variable_name):
         self.enter_variable_assignment(variable_name, self.optional_expr(wildcard.optional))
@@ -494,7 +498,6 @@ class CommutativeMatcher{0} : public CommutativeMatcher {
     def exit_operation_end(self, value):
         subjects, atype = value
         self._subjects.append(subjects)
-        self.dedent()
         self._associative_stack.append(atype)
         if atype is not None:
             self._associative += 1
@@ -558,7 +561,7 @@ class CommutativeMatcher{0} : public CommutativeMatcher {
         if any(k != v for k, v in renaming.items()):
             self.add_class_field("Substitution", "tmp_subst")
             for original, renamed in renaming.items():
-                self.add_line('tmp_subst[{!r}] = subst{}[{!r}];'.format(original, self._substs, renamed))
+                self.add_line('tmp_subst["{}"] = subst{}["{}"];'.format(original, self._substs, renamed))
             subst_name = 'tmp_subst'
         self.add_line('// {}: {}'.format(pattern_index, self._matcher.patterns[pattern_index][0]))
         self.add_line('yield(make_tuple({}, {}));'.format(self.final_label(pattern_index, subst_name), subst_name))
@@ -611,7 +614,7 @@ class CommutativeMatcher{0} : public CommutativeMatcher {
                 mapping = {k: v for v, k in constraint._variables.items()}
                 params = constraint._variables.keys()
                 pstr = r'\b({})\b'.format('|'.join(map(re.escape, params)))
-                new_src = re.sub(pstr, lambda m: 'subst{}[{!r}]'.format(self._substs, constraint._variables[m[0]]), src)
+                new_src = re.sub(pstr, lambda m: 'subst{}["{}"]'.format(self._substs, constraint._variables[m[0]]), src)
                 return new_src, False
         return repr(constraint), True
 
