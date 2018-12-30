@@ -1,4 +1,5 @@
 import re
+from collections import defaultdict
 
 from matchpy.expressions.expressions import Wildcard, AssociativeOperation, SymbolWildcard
 from matchpy.expressions.constraints import CustomConstraint
@@ -16,8 +17,72 @@ COLLAPSE_IF_RE = re.compile(
 )
 
 
-class CppCodeGenerator:
+class _IndentedCodePrinter:
+    # Abstract class
+    def __init__(self, level):
+        self._level = level
+        self._code = ""
+        self._indentation = '    '
+
+    def indent(self, bracket=True):
+        if bracket:
+            self.add_line("{")
+        self._level += 1
+
+    def dedent(self, bracket=True):
+        self._level -= 1
+        if bracket:
+            self.add_line("}")
+
+    def add_line(self, line):
+        code = (self._indentation * self._level) + str(line) + '\n'
+        self._code += code
+
+
+class StatePartMethod(_IndentedCodePrinter):
+    state_name_counter = defaultdict(int)
+
+    def __init__(self, state_name):
+        super(StatePartMethod, self).__init__(level=1)
+        self.state_name = state_name
+        self.state_name_counter[state_name] += 1
+        part = self.state_name_counter[state_name] - 1
+        self.part = part
+        self.add_line("void {}()".format(self._get_state_print_form(state_name, part)))
+        self.indent()
+
+    def generate_code(self):
+        dest = 1
+        while self._level > dest:
+            self.dedent()
+        return self._code
+
+    def add_pointer(self, other_code):
+        state_name = other_code.state_name
+        part = other_code.part
+        pointer_template = "current = std::bind(&match_root::{}, this);"
+        self.add_line(pointer_template.format(
+            self._get_state_print_form(state_name, part)
+        ))
+        #if self._level > 2:
+            #self.add_line('return;')
+
+    def _get_state_print_form(self, name, part):
+        if part > 0:
+            return "{0}part{1:03}".format(name, part)
+        else:
+            return "{0}".format(name)
+
+    def add_transition(self, transition_target_code, return_target_code):
+        self.add_pointer(transition_target_code)
+        self.dedent()
+        self.add_line("// add_transition::self.add_pointer(return_target_code)")
+        self.add_pointer(return_target_code)
+
+
+class CppCodeGenerator(_IndentedCodePrinter):
     def __init__(self, matcher):
+        super(CppCodeGenerator, self).__init__(level=0)
         self._matcher = matcher
         self._var_number = 0
         self._indentation = '    '
@@ -30,49 +95,7 @@ class CppCodeGenerator:
         self._global_code = []
         self._imports = set()
         self._class_fields = {}
-        self._state_stack = []
-        self._state_name_stack = []
-        self._level_stack = [0]
-        self._reversed_states = []
-
-    def indent(self, bracket=True):
-        if bracket:
-            self.add_line("{")
-        self._level_stack[-1] += 1
-
-    def dedent(self, bracket=True):
-        if self._level_stack[-1] > 0:
-            self._level_stack[-1] -= 1
-        if bracket:
-            self.add_line("}")
-
-    def add_line(self, line):
-        code = (self._indentation * self._level_stack[-1]) + str(line) + '\n'
-        if len(self._state_stack) == 0:
-            self._code += code
-        else:
-            self._state_stack[-1] += code
-
-    def add_pointer(self, state_name, part):
-        pointer_template = "current = std::bind(&match_root::{}, this);"
-        self.add_line(pointer_template.format(
-            self._get_state_print_form(state_name, part)
-        ))
-        if self._level_stack[-1] > 2:
-            self.add_line('return;')
-
-    def return_to_base_level(self, dest=2):
-        while self._level_stack[-1] > dest:
-            self.dedent()
-
-    def add_transition(self, target, last=False):
-        self.add_line("// {}".format(target.number))
-        target_state_number: int = target.number
-        self.add_pointer("state{}".format(target_state_number), 0)
-        self.dedent()
-        self.return_to_base_level()
-        state, part = self._state_name_stack[-1]
-        self.add_pointer(state, part+2)
+        self._method_list = []
 
     def add_class_field(self, vartype, name):
         if name in self._class_fields:
@@ -81,41 +104,23 @@ class CppCodeGenerator:
         self._class_fields[name] = vartype
 
     def add_new_state(self, name):
-        self._level_stack.append(1)
-        self._state_name_stack.append([name, 0])
-        self._state_stack.append("")
-        self.add_line("void {}()".format(self._get_state_print_form(name, 0)))
-        self.indent()
+        if not isinstance(name, str):
+            name = "state{}".format(name.number)
+        state_printer = StatePartMethod(name)
+        self._method_list.append(state_printer)
+        return state_printer
 
-    def end_state(self):
-        self.dedent()
-        self._level_stack.pop()
-        self._state_name_stack.pop()
-        state_code = self._state_stack.pop()
-        self._code += state_code
+    def add_new_state_part(self, state_code):
+        #StatePartMethod.state_name_counter[state_code.state_name] += 1
+        #part = StatePartMethod.state_name_counter[state_code.state_name]
+        state_part = StatePartMethod(state_code.state_name)
+        self._method_list.append(state_part)
+        return state_part
 
-    def add_new_state_part(self):
-        self._state_name_stack[-1][1] += 1
-        name, part = self._state_name_stack[-1]
-        next_state_name = self._get_state_print_form(name, part)
-        self.dedent()
-        self._level_stack.pop()
-        state_code = self._state_stack.pop()
-        self._code += state_code
-        self._state_stack.append("")
-        self._level_stack.append(1)
-        self.add_line("void {}()".format(next_state_name))
-        self.indent()
-
-    def add_new_state_return(self, target_state):
-        self.add_new_state_part()
-        self.add_line("// Return from state {0.target.number}".format(target_state))
-
-    def _get_state_print_form(self, name, part):
-        if part > 0:
-            return "{0}part{1:03}".format(name, part)
-        else:
-            return "{0}".format(name)
+    def add_new_state_return(self, state_code, target_state):
+        state_part = self.add_new_state_part(state_code)
+        state_part.add_line("// Return from state {0.target.number}".format(target_state))
+        return state_part
 
     def get_var_name(self, prefix):
         self._var_number += 1
@@ -142,6 +147,32 @@ class CppCodeGenerator:
         self.add_line('typedef deque<RCP<const Basic>> Deque;')
         self.add_line('')
 
+        self._code += """
+int try_add_variable(Substitution &subst, string variable_name,
+                     RCP<const Basic> &replacement)
+{
+    if (subst.find(variable_name) == subst.end()) {
+        subst[variable_name] = replacement;
+    } else {
+    }
+    return 0;
+}
+
+Deque get_deque(RCP<const Basic> expr)
+{
+    Deque d;
+    for (RCP<const Basic> i : expr->get_args()) {
+        d.push_back(i);
+    }
+    return d;
+}
+
+RCP<const Basic> x = symbol("x");
+RCP<const Basic> y = symbol("y");
+RCP<const Basic> z = symbol("z");
+RCP<const Basic> w = symbol("w");
+
+"""
         self.add_line('class {} : public GeneratorTrick<tuple<int, Substitution>>'.format(func_name))
         self.add_line('{')
         self.add_line('public:')
@@ -157,13 +188,17 @@ class CppCodeGenerator:
         self.indent(bracket=False)
         self.add_class_field("Deque", "subjects")
 
-        self.add_new_state("start")
-        self.add_pointer("state{}".format(self._matcher.root.number), 0)
-        self.end_state()
-        self.generate_state_code(self._matcher.root)
-        self.add_new_state("stop")
-        self.add_line("generator_stop = true;")
-        self.end_state()
+        start = self.add_new_state("start")
+        stop = self.add_new_state("stop")
+        first_state = self.add_new_state(self._matcher.root)
+
+        start.add_pointer(first_state)
+        stop.add_line("generator_stop = true;")
+
+        last_method = self.generate_state_code(self._matcher.root, first_state)
+        last_method.add_pointer(stop)
+
+        self.generate_state_methods()
         self.generate_class_fields()
         self.dedent(False)
         self.add_line('};')
@@ -173,6 +208,10 @@ class CppCodeGenerator:
 
         return self.clean_code('\n\n'.join(p for p in self._global_code if p)), self.clean_code(self._code)
 
+    def generate_state_methods(self):
+        for state_code in self._method_list:
+            self._code += state_code.generate_code()
+
     def generate_class_fields(self):
         for name, vartype in self._class_fields.items():
             self.add_line('{0} {1};'.format(vartype, name))
@@ -180,8 +219,7 @@ class CppCodeGenerator:
     def final_label(self, index, subst_name):
         return str(index)
 
-    def generate_state_code(self, state):
-        self.add_new_state("state{}".format(state.number))
+    def generate_state_code(self, state, state_code):
         if state.matcher is not None:
             self._imports.add('from matchpy.matching.many_to_one import CommutativeMatcher')
             self._imports.add('from multiset import Multiset')
@@ -222,26 +260,26 @@ class CommutativeMatcher{0} : public CommutativeMatcher {{
                     subjects_by_id, self._indentation
                 )
             )
-            self.add_line('matcher = CommutativeMatcher{}.get()'.format(state.number))
+            state_code.add_line('matcher = CommutativeMatcher{}.get()'.format(state.number))
             tmp = self.get_var_name('tmp')
             self.add_class_field('RCP<const Basic>', tmp)
-            self.add_line('{} = {}'.format(tmp, self._subjects[-1]))
-            self.add_line('{} = []'.format(self._subjects[-1]))
-            self.add_line('for s in {}:'.format(tmp))
-            self.indent()
-            self.add_line('matcher.add_subject(s)')
+            state_code.add_line('{} = {}'.format(tmp, self._subjects[-1]))
+            state_code.add_line('{} = []'.format(self._subjects[-1]))
+            state_code.add_line('for s in {}:'.format(tmp))
+            state_code.indent()
+            state_code.add_line('matcher.add_subject(s)')
             subjects = self._subjects.pop()
-            self.dedent()
-            self.add_line(
+            state_code.dedent()
+            state_code.add_line(
                 'for pattern_index, subst{} in matcher.match({}, subst{}):'.format(self._substs + 1, tmp, self._substs)
             )
             self._substs += 1
-            self.indent()
-            self.add_line('pass')
+            state_code.indent()
+            state_code.add_line('pass')
             for pattern_index, transitions in state.transitions.items():
-                self.add_line('if pattern_index == {}:'.format(pattern_index))
-                self.indent()
-                self.add_line('pass')
+                state_code.add_line('if pattern_index == {}:'.format(pattern_index))
+                state_code.indent()
+                state_code.add_line('pass')
                 patterns, variables = next((p, v) for i, p, v in state.matcher.patterns.values() if i == pattern_index)
                 variables = set(v[0][0] for v in variables)
                 pvars = iter(get_variables(state.matcher.automaton.patterns[i][0].expression) for i in patterns)
@@ -251,36 +289,36 @@ class CommutativeMatcher{0} : public CommutativeMatcher {{
                     constraints = sorted(
                         set.union(*iter(self._matcher.constraint_vars.get(v, set()) for v in variables))
                     )
-                self.generate_constraints(constraints, transitions)
-                self.dedent()
-            self.dedent()
+                self.generate_constraints(state_code, constraints, transitions)
+                state_code.dedent()
+            state_code.dedent()
             self._substs -= 1
             self._subjects.append(subjects)
         else:
-            self.add_line('// State {}'.format(state.number))
-            self.add_line('cout << "State {}" << endl;'.format(state.number))
+            state_code.add_line('// State {}'.format(state.number))
+            state_code.add_line('cout << "State {}" << endl;'.format(state.number))
             if state.number in self._matcher.finals:
-                self.add_line('if ({}.size() == 0) {{'.format(self._subjects[-1]))
-                self.indent(bracket=False)
+                state_code.add_line('if ({}.size() == 0) {{'.format(self._subjects[-1]))
+                state_code.indent(bracket=False)
                 for pattern_index in self._patterns:
                     constraints = self._matcher.patterns[pattern_index][0].global_constraints
                     for constraint in constraints:
                         self.enter_global_constraint(constraint)
-                    self.yield_final_substitution(pattern_index)
+                    self.yield_final_substitution(state_code, pattern_index)
                     for constraint in constraints:
                         self.exit_global_constraint(constraint)
-                self.dedent()
+                state_code.dedent()
             else:
                 for transitions in state.transitions.values():
                     for transition in transitions:
-                        self.generate_transition_code(transition)
+                        #next_method = self.add_new_state_part(state_code)
+                        #next_method.add_line("// generate_state_code::next_method 289")
+                        next_method = self.generate_transition_code(state_code, transition)
+                        state_code = next_method
 
-        if len(self._state_name_stack) > 1:
-            name, part = self._state_name_stack[-2]
-            self.add_pointer(name, part+1)
-        else:
-            self.add_pointer("stop", 0)
-        self.end_state()
+        next_method = self.add_new_state_part(state_code)
+        state_code.add_pointer(next_method)
+        return next_method
 
     def commutative_var_entry(self, entry):
         return '(VariableWithCount("{}", {}, {}, {}), {})'.format(
@@ -297,7 +335,7 @@ class CommutativeMatcher{0} : public CommutativeMatcher {{
             )
         )
 
-    def generate_transition_code(self, transition):
+    def generate_transition_code(self, state_code, transition):
         enter_func = None
         exit_func = None
         if is_operation(transition.label):
@@ -309,10 +347,12 @@ class CommutativeMatcher{0} : public CommutativeMatcher {{
         elif isinstance(transition.label, Wildcard):
             wc = transition.label
             if wc.optional is not None:
-                self.enter_variable_assignment(transition.variable_name, self.optional_expr(wc.optional))
+                raise ValueError
+                self.enter_variable_assignment(state_code, transition.variable_name, self.optional_expr(wc.optional))
                 constraints = sorted(transition.check_constraints) if transition.check_constraints is not None else []
-                self.generate_constraints(constraints, [transition])
-                self.exit_variable_assignment()
+                next_method = self.generate_constraints(state_code, constraints, [transition])
+                next_method.add_pointer(state_return)
+                self.exit_variable_assignment(state_return, next_method)
             if isinstance(wc, SymbolWildcard):
                 enter_func = self.enter_symbol_wildcard
                 exit_func = self.exit_symbol_wildcard
@@ -329,64 +369,74 @@ class CommutativeMatcher{0} : public CommutativeMatcher {{
             enter_func = self.enter_symbol
             exit_func = self.exit_symbol
 
-        value = enter_func(transition.label)
+        value = enter_func(state_code, transition.label)
         value, var_value = value if isinstance(value, tuple) else (value, value)
         if transition.variable_name is not None:
-            self.enter_variable_assignment(transition.variable_name, var_value)
+            self.enter_variable_assignment(state_code, transition.variable_name, var_value)
         if transition.subst is not None:
-            self.enter_subst(transition.subst)
+            self.enter_subst(state_code, transition.subst)
         constraints = sorted(transition.check_constraints) if transition.check_constraints is not None else []
-        self.generate_constraints(constraints, [transition])
+        ret_method = self.generate_constraints(state_code, constraints, [transition])
 
-        self.add_new_state_return(transition)
+        transition_return = self.add_new_state_part(state_code)
+        next_method = self.add_new_state_part(state_code)
+        ret_method.add_pointer(transition_return)
+        transition_return.add_line("// line 312")
+
+        state_code.add_line('} else {')
+        state_code.indent(bracket=False)
+        state_code.add_line("// 357")
+        state_code.add_pointer(next_method)
+        state_code.dedent()
 
         if transition.subst is not None:
             self.exit_subst(transition.subst)
         if transition.variable_name is not None:
-            self.exit_variable_assignment()
-        exit_func(value)
+            self.exit_variable_assignment(state_code, transition_return)
+        exit_func(transition_return, value)
 
-        state, part = self._state_name_stack[-1]
-        self.add_pointer(state, part+1)
-        self.add_new_state_part()
+        #state_code.add_pointer(transition_return)
+        transition_return.add_line("// generate_transition_code transition_return.add_pointer(next_method)")
+        transition_return.add_pointer(next_method)
+        return next_method
 
-    def push_subjects(self, value, operation):
+    def push_subjects(self, state_code, value, operation):
         self._subjects.append(self.get_var_name('subjects'))
         self.add_class_field('Deque', self._subjects[-1])
-        #self.add_line('{}.clear();'.format(self._subjects[-1]))
-        #self.add_line('{}.push_front({});'.format(self._subjects[-1], operation))
-        self.add_line('{} = get_deque({});'.format(self._subjects[-1], value))
+        #state_code.add_line('{}.clear();'.format(self._subjects[-1]))
+        #state_code.add_line('{}.push_front({});'.format(self._subjects[-1], operation))
+        state_code.add_line('{} = get_deque({});'.format(self._subjects[-1], value))
         #self.get_args(value, operation)))
 
-    def push_subst(self):
+    def push_subst(self, state_code):
         new_subst = self.get_var_name('subst')
         self.add_class_field("Substitution", new_subst)
-        self.add_line('subst{} = Substitution(subst{});'.format(self._substs + 1, self._substs))
+        state_code.add_line('subst{} = Substitution(subst{});'.format(self._substs + 1, self._substs))
         self._substs += 1
 
-    def enter_eps(self, _):
+    def enter_eps(self, state_code, _):
         return '{0}'.format(self._subjects[-1])
 
-    def exit_eps(self, _):
+    def exit_eps(self, state_code, _):
         pass
 
-    def enter_operation(self, operation):
-        self.add_line(
+    def enter_operation(self, state_code, operation):
+        state_code.add_line(
             'if ({0}.size() >= 1 && is_a<{1}>(*{0}[0])) {{'.format(
                 self._subjects[-1], self.operation_symbol(operation))
         )
-        self.indent(bracket=False)
+        state_code.indent(bracket=False)
         tmp = self.get_var_name('tmp')
         self.add_class_field('RCP<const Basic>', tmp)
-        self.add_line('{} = {}.front();'.format(tmp, self._subjects[-1]))
-        self.add_line('{}.pop_front();'.format(self._subjects[-1]))
+        state_code.add_line('{} = {}.front();'.format(tmp, self._subjects[-1]))
+        state_code.add_line('{}.pop_front();'.format(self._subjects[-1]))
         atype = operation if issubclass(operation, AssociativeOperation) else None
         self._associative_stack.append(atype)
         if atype is not None:
             self._associative += 1
-            self.add_line('associative{} = {}'.format(self._associative, tmp))
-            self.add_line('associative_type{} = type({})'.format(self._associative, tmp))
-        self.push_subjects(tmp, operation)
+            state_code.add_line('associative{} = {}'.format(self._associative, tmp))
+            state_code.add_line('associative_type{} = type({})'.format(self._associative, tmp))
+        self.push_subjects(state_code, tmp, operation)
         return tmp
 
     def operation_symbol(self, operation):
@@ -394,62 +444,62 @@ class CommutativeMatcher{0} : public CommutativeMatcher {{
             return 'None'
         return operation.__name__
 
-    def exit_operation(self, value):
+    def exit_operation(self, return_code, value):
         self._subjects.pop()
-        self.add_line('{}.push_front({});'.format(self._subjects[-1], value))
+        return_code.add_line('{}.push_front({});'.format(self._subjects[-1], value))
         atype = self._associative_stack.pop()
         if atype is not None:
             self._associative -= 1
 
-    def enter_symbol_wildcard(self, wildcard):
-        self.add_line(
+    def enter_symbol_wildcard(self, state_code, wildcard):
+        state_code.add_line(
             'if ({0}.size() >= 1 && is_a<{1}(*{0}[0])) {{'.
             format(self._subjects[-1], self.symbol_type(wildcard.symbol_type))
         )
-        self.indent(bracket=False)
+        state_code.indent(bracket=False)
         tmp = self.get_var_name('tmp')
         self.add_class_field('RCP<const Basic>', tmp)
-        self.add_line('{} = {}.front();'.format(tmp, self._subjects[-1]))
-        self.add_line('{}.pop_front();'.format(self._subjects[-1]))
+        state_code.add_line('{} = {}.front();'.format(tmp, self._subjects[-1]))
+        state_code.add_line('{}.pop_front();'.format(self._subjects[-1]))
         return tmp
 
     def symbol_type(self, symbol):
         return symbol.__name__
 
-    def exit_symbol_wildcard(self, value):
-        self.add_line('{}.push_front({});'.format(self._subjects[-1], value))
+    def exit_symbol_wildcard(self, state_code, value):
+        state_code.add_line('{}.push_front({});'.format(self._subjects[-1], value))
 
-    def enter_fixed_wildcard(self, wildcard):
-        self.add_line('if ({}.size() >= 1) {{'.format(self._subjects[-1]))
-        self.indent(bracket=False)
+    def enter_fixed_wildcard(self, state_code, wildcard):
+        state_code.add_line('if ({}.size() >= 1) {{'.format(self._subjects[-1]))
+        state_code.indent(bracket=False)
         tmp = self.get_var_name('tmp')
         self.add_class_field('RCP<const Basic>', tmp)
-        self.add_line('{} = {}.front();'.format(tmp, self._subjects[-1]))
-        self.add_line('{}.pop_front();'.format(self._subjects[-1]))
+        state_code.add_line('{} = {}.front();'.format(tmp, self._subjects[-1]))
+        state_code.add_line('{}.pop_front();'.format(self._subjects[-1]))
         return tmp
 
-    def exit_fixed_wildcard(self, value):
-        self.add_line('{}.push_front({});'.format(self._subjects[-1], value))
+    def exit_fixed_wildcard(self, state_code, value):
+        state_code.add_line('{}.push_front({});'.format(self._subjects[-1], value))
 
-    def enter_variable_assignment(self, variable_name, value):
-        self.push_subst()
-        self.add_line('if (!try_add_variable(subst{}, "{}", {})) {{'.format(self._substs, variable_name, value))
-        self.indent(bracket=False)
+    def enter_variable_assignment(self, state_code, variable_name, value):
+        self.push_subst(state_code)
+        state_code.add_line('if (!try_add_variable(subst{}, "{}", {})) {{'.format(self._substs, variable_name, value))
+        state_code.indent(bracket=False)
 
-    def enter_subst(self, subst):
-        self.push_subst()
-        self.add_line('try:')
-        self.indent()
+    def enter_subst(self, state_code, subst):
+        self.push_subst(state_code)
+        state_code.add_line('try:')
+        state_code.indent()
         for name, value in subst.items():
-            self.add_line('try_add_variable(subst{}, "{}", {});'.format(self._substs, name, self.expr(value)))
-        self.dedent()
-        self.add_line('except ValueError:')
-        self.indent()
-        self.add_line('pass')
-        self.dedent()
-        self.add_line('else:')
-        self.indent()
-        self.add_line('pass')
+            state_code.add_line('try_add_variable(subst{}, "{}", {});'.format(self._substs, name, self.expr(value)))
+        state_code.dedent()
+        state_code.add_line('except ValueError:')
+        state_code.indent()
+        state_code.add_line('pass')
+        state_code.dedent()
+        state_code.add_line('else:')
+        state_code.indent()
+        state_code.add_line('pass')
 
     def expr(self, expr):
         return repr(expr)
@@ -457,7 +507,9 @@ class CommutativeMatcher{0} : public CommutativeMatcher {{
     def exit_subst(self, subst):
         self._substs -= 1
 
-    def exit_variable_assignment(self):
+    def exit_variable_assignment(self, state_code, next_method):
+        state_code.add_line("// exit_variable_assignment")
+        state_code.add_pointer(next_method)
         self._substs -= 1
 
     def enter_optional_wildcard(self, wildcard, variable_name):
@@ -466,58 +518,58 @@ class CommutativeMatcher{0} : public CommutativeMatcher {{
     def optional_expr(self, expr):
         return repr(expr)
 
-    def exit_optional_wildcard(self, value):
-        self.exit_variable_assignment()
+    def exit_optional_wildcard(self, state_code, value):
+        self.exit_variable_assignment(state_code)
 
-    def enter_symbol(self, symbol):
-        self.add_line('if ({0}.size() >= 1 && {0}[0]->__eq__(*{1})) {{'.format(self._subjects[-1], self.symbol_repr(symbol)))
-        self.indent(bracket=False)
+    def enter_symbol(self, state_code, symbol):
+        state_code.add_line('if ({0}.size() >= 1 && {0}[0]->__eq__(*{1})) {{'.format(self._subjects[-1], self.symbol_repr(symbol)))
+        state_code.indent(bracket=False)
         tmp = self.get_var_name('tmp')
         self.add_class_field('RCP<const Basic>', tmp)
-        self.add_line('{} = {}.front();'.format(tmp, self._subjects[-1]))
-        self.add_line('{}.pop_front();'.format(self._subjects[-1]))
+        state_code.add_line('{} = {}.front();'.format(tmp, self._subjects[-1]))
+        state_code.add_line('{}.pop_front();'.format(self._subjects[-1]))
         return tmp
 
     def symbol_repr(self, symbol):
         return repr(symbol)
 
-    def exit_symbol(self, value):
-        self.add_line('{}.push_front({});'.format(self._subjects[-1], value))
+    def exit_symbol(self, state_code, value):
+        state_code.add_line('{}.push_front({});'.format(self._subjects[-1], value))
 
-    def enter_operation_end(self, _):
-        self.add_line('if ({0}.size() == 0) {{'.format(self._subjects[-1]))
-        self.indent(bracket=False)
+    def enter_operation_end(self, state_code, _):
+        state_code.add_line('if ({0}.size() == 0) {{'.format(self._subjects[-1]))
+        state_code.indent(bracket=False)
         subjects = self._subjects.pop()
         atype = self._associative_stack.pop()
         if atype is not None:
             self._associative -= 1
         return [subjects, atype]
 
-    def exit_operation_end(self, value):
+    def exit_operation_end(self, state_code, value):
         subjects, atype = value
         self._subjects.append(subjects)
         self._associative_stack.append(atype)
         if atype is not None:
             self._associative += 1
 
-    def enter_sequence_wildcard(self, wildcard):
+    def enter_sequence_wildcard(self, state_code, wildcard):
         tmp = self.get_var_name('tmp')
         self.add_class_field('RCP<const Basic>', tmp)
         tmp2 = self.get_var_name('tmp')
         self.add_class_field('RCP<const Basic>', tmp)
         mc = wildcard.min_count if wildcard.optional is None or wildcard.min_count > 0 else 1
-        self.add_line('if ({}.size() >= {}) {{'.format(self._subjects[-1], mc))
-        self.indent(bracket=False)
-        self.add_line('{} = []'.format(tmp))
+        state_code.add_line('if ({}.size() >= {}) {{'.format(self._subjects[-1], mc))
+        state_code.indent(bracket=False)
+        state_code.add_line('{} = []'.format(tmp))
         for _ in range(mc):
-            self.add_line('{}.push_back({}.front());'.format(tmp, self._subjects[-1]))
-            self.add_line('{}.pop_front();'.format(self._subjects[-1]))
-        self.add_line('while True:')
-        self.indent()
+            state_code.add_line('{}.push_back({}.front());'.format(tmp, self._subjects[-1]))
+            state_code.add_line('{}.pop_front();'.format(self._subjects[-1]))
+        state_code.add_line('while True:')
+        state_code.indent()
         if self._associative_stack[-1] is not None and wildcard.fixed_size:
-            self.add_line('if ({}.size() > {}) {{'.format(tmp, wildcard.min_count))
-            self.indent(bracket=False)
-            self.add_line(
+            state_code.add_line('if ({}.size() > {}) {{'.format(tmp, wildcard.min_count))
+            state_code.indent(bracket=False)
+            state_code.add_line(
                 '{} = {}'.format(
                     tmp2,
                     self.create_operation(
@@ -525,52 +577,58 @@ class CommutativeMatcher{0} : public CommutativeMatcher {{
                     )
                 )
             )
-            self.dedent()
-            self.add_line('else if ({}.size() == 1) {{'.format(tmp))
-            self.indent(bracket=False)
-            self.add_line('{} = {}[0]'.format(tmp2, tmp))
-            self.dedent()
-            self.add_line('else')
-            self.indent()
-            self.add_line('assert(False, "Unreachable");')
-            self.dedent()
+            state_code.dedent()
+            state_code.add_line('else if ({}.size() == 1) {{'.format(tmp))
+            state_code.indent(bracket=False)
+            state_code.add_line('{} = {}[0]'.format(tmp2, tmp))
+            state_code.dedent()
+            state_code.add_line('else')
+            state_code.indent()
+            state_code.add_line('assert(False, "Unreachable");')
+            state_code.dedent()
         else:
-            self.add_line('{} = tuple({})'.format(tmp2, tmp))
+            state_code.add_line('{} = tuple({})'.format(tmp2, tmp))
         return tmp, tmp2
 
     def create_operation(self, operation, operation_type, args):
         return 'create_operation_expression({}, {})'.format(operation, args)
 
-    def exit_sequence_wildcard(self, value):
-        self.add_line('if ({}.size() == 0) {{'.format(self._subjects[-1]))
-        self.indent(bracket=False)
-        self.add_line('break')
-        self.dedent()
-        self.add_line('{}.push_back({}.front());'.format(value, self._subjects[-1]))
-        self.add_line('{}.pop_front();'.format(self._subjects[-1]))
-        self.dedent()
-        self.add_line('{}.extendleft(reversed({}))'.format(self._subjects[-1], value))
-        self.dedent()
+    def exit_sequence_wildcard(self, state_code, value):
+        state_code.add_line('if ({}.size() == 0) {{'.format(self._subjects[-1]))
+        state_code.indent(bracket=False)
+        state_code.add_line('break')
+        state_code.dedent()
+        state_code.add_line('{}.push_back({}.front());'.format(value, self._subjects[-1]))
+        state_code.add_line('{}.pop_front();'.format(self._subjects[-1]))
+        state_code.dedent()
+        state_code.add_line('{}.extendleft(reversed({}))'.format(self._subjects[-1], value))
+        state_code.dedent()
 
-    def yield_final_substitution(self, pattern_index):
+    def yield_final_substitution(self, state_code, pattern_index):
         renaming = self._matcher.pattern_vars[pattern_index]
         subst_name = 'subst{}'.format(self._substs)
         self.add_class_field("Substitution", subst_name)
         if any(k != v for k, v in renaming.items()):
             self.add_class_field("Substitution", "tmp_subst")
             for original, renamed in renaming.items():
-                self.add_line('tmp_subst["{}"] = subst{}["{}"];'.format(original, self._substs, renamed))
+                state_code.add_line('tmp_subst["{}"] = subst{}["{}"];'.format(original, self._substs, renamed))
             subst_name = 'tmp_subst'
-        self.add_line('// {}: {}'.format(pattern_index, self._matcher.patterns[pattern_index][0]))
-        self.add_line('yield(make_tuple({}, {}));'.format(self.final_label(pattern_index, subst_name), subst_name))
+        state_code.add_line('// {}: {}'.format(pattern_index, self._matcher.patterns[pattern_index][0]))
+        state_code.add_line('yield(make_tuple({}, {}));'.format(self.final_label(pattern_index, subst_name), subst_name))
 
-    def generate_constraints(self, constraints, transitions):
+    def generate_constraints(self, state_code, constraints, transitions):
         if len(constraints) == 0:
             for i, transition in enumerate(transitions):
                 removed = self._patterns - transition.patterns
                 self._patterns.intersection_update(transition.patterns)
-                self.add_transition(transition.target)
-                self.generate_state_code(transition.target)
+                transition_target_code = self.add_new_state(transition.target)
+                transition_target_code.add_line("// Add new STATE line 582")
+                #next_target_code = self.add_new_state_part(state_code)
+                #next_target_code.add_line("// line 584")
+                #next_method = state_code.add_transition(transition_target_code, next_target_code)
+                state_code.add_pointer(transition_target_code)
+                state_code.dedent(bracket=False)
+                state_code = self.generate_state_code(transition.target, transition_target_code)
                 self._patterns.update(removed)
         else:
             constraint_index, *remaining = constraints
@@ -579,23 +637,31 @@ class CommutativeMatcher{0} : public CommutativeMatcher {{
             remaining_transitions = [t for t in transitions if t.patterns & remaining_patterns]
             checked_patterns = self._patterns & patterns
             checked_transitions = [t for t in transitions if t.patterns & checked_patterns]
+            other_code = self.add_new_state_part(state_code)
             if checked_patterns and checked_transitions:
                 cvars = ' || '.join('(subst{1}.find("{0}") == subst{1}.end())'.format(v, self._substs) for v in constraint.variables)
                 if cvars:
                     cvars += ' || '
                 cexpr, call = self.constraint_repr(constraint)
                 if call:
-                    self.add_line('if ({}{}(subst{})) {{'.format(cvars, cexpr, self._substs))
+                    state_code.add_line('if ({}{}(subst{})) {{'.format(cvars, cexpr, self._substs))
                 else:
-                    self.add_line('if ({}{}) {{'.format(cvars, cexpr))
-                self.indent(bracket=False)
+                    state_code.add_line('if ({}{}) {{'.format(cvars, cexpr))
+                state_code.indent(bracket=False)
                 self._patterns = checked_patterns
-                self.generate_constraints(remaining, checked_transitions)
-                #self.dedent()
+                self.generate_constraints(state_code, other_code, remaining, checked_transitions)
+                state_code.dedent(bracket=False)
+                state_code.add_line('} else {')
+                state_code.indent(bracket=False)
+                state_code.add_line("// generate_constraints::state_code.add_pointer(other_code)")
+                state_code.add_pointer(other_code)
+                #state_code.dedent()
+                state_code = other_code
             if remaining_patterns and remaining_transitions:
                 self._patterns = remaining_patterns
-                self.generate_constraints(remaining, remaining_transitions)
+                self.generate_constraints(state_code, other_code, remaining, remaining_transitions)
             self._patterns = remaining_patterns | checked_patterns
+        return state_code
 
     def enter_global_constraint(self, constraint):
         cexpr, call = self.constraint_repr(constraint)
