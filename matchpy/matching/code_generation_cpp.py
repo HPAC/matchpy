@@ -198,28 +198,26 @@ class CppCodeGenerator:
             anonymous_patterns = repr(state.matcher.anonymous_patterns)
             self._global_code.append(
                 '''
-class CommutativeMatcher{0} : public CommutativeMatcher {
-{8}_instance = None
-{8}patterns = {1}
-{8}subjects = {2}
-{8}subjects_by_id = {7}
-{8}bipartite = BipartiteGraph()
-{8}associative = {3}
-{8}max_optional_count = {4}
-{8}anonymous_patterns = {5}
+class CommutativeMatcher{0} : public CommutativeMatcher {{
+{8}CommutativeMatcher{0} _instance;
+{8}patterns = {1};
+{8}Deque subjects = {2};
+{8}Deque subjects_by_id = {7};
+{8}BipartiteGraph bipartite;
+{8}bool associative = {3};
+{8}int max_optional_count = {4};
+{8}anonymous_patterns = {5};
 
-{8}CommutativeMatcher{0}() {
-{8}{8}self.add_subject(None)
-{8}}
-
-{8}@staticmethod
-{8}def get():
-{8}{8}if CommutativeMatcher{0}._instance is None:
-{8}{8}{8}CommutativeMatcher{0}._instance = CommutativeMatcher{0}()
-{8}{8}return CommutativeMatcher{0}._instance
+{8}CommutativeMatcher{0}() {{
+{8}{8}// self.add_subject(None)
+{8}}}
 
 {8}@staticmethod
-{6}'''.strip().format(
+{8}CommutativeMatcher{0} get() {{
+{8}{8}return _instance;
+{8}}}
+
+{8}static {6}'''.strip().format(
                     state.number, patterns, subjects, associative, max_optional_count, anonymous_patterns, code,
                     subjects_by_id, self._indentation
                 )
@@ -582,7 +580,7 @@ class CommutativeMatcher{0} : public CommutativeMatcher {
             checked_patterns = self._patterns & patterns
             checked_transitions = [t for t in transitions if t.patterns & checked_patterns]
             if checked_patterns and checked_transitions:
-                cvars = ' || '.join('(subst{1}.find({0:!r}) == subst{1}.end())'.format(v, self._substs) for v in constraint.variables)
+                cvars = ' || '.join('(subst{1}.find("{0}") == subst{1}.end())'.format(v, self._substs) for v in constraint.variables)
                 if cvars:
                     cvars += ' || '
                 cexpr, call = self.constraint_repr(constraint)
@@ -593,7 +591,7 @@ class CommutativeMatcher{0} : public CommutativeMatcher {
                 self.indent(bracket=False)
                 self._patterns = checked_patterns
                 self.generate_constraints(remaining, checked_transitions)
-                self.dedent()
+                #self.dedent()
             if remaining_patterns and remaining_transitions:
                 self._patterns = remaining_patterns
                 self.generate_constraints(remaining, remaining_transitions)
