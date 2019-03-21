@@ -170,8 +170,8 @@ def _commutative_single_variable_partiton_iter(values: 'Multiset[T]',
             yield {name: new_values} if name is not None else {}
 
 
-def commutative_sequence_variable_partition_iter(values: 'Multiset[T]', variables: List[VariableWithCount]
-                                                ) -> Iterator[Dict[str, 'Multiset[T]']]:
+def commutative_sequence_variable_partition_iter(values: Multiset, variables: List[VariableWithCount]
+                                                ) -> Iterator[Dict[str, Multiset]]:
     """Yield all possible variable substitutions for given values and variables.
 
     .. note::
@@ -437,7 +437,7 @@ def solve_linear_diop(total: int, *coeffs: int) -> Iterator[Tuple[int, ...]]:
 
     1. Compute :math:`d := gcd(c_2, \dots , c_n)`
     2. Solve :math:`c_1 x + d y = total`
-    3. Recursively solve :math:`c_2 x_2 + \dots + c_n x_n = y` for each solution for `y`
+    3. Recursively solve :math:`c_2 x_2 + \dots + c_n x_n = y` for each solution for :math:`y`
     4. Combine these solutions to form a solution for the whole equation
 
     Args:

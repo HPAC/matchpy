@@ -1,3 +1,4 @@
+from functools import singledispatch
 from typing import Dict
 
 from .expressions import (
@@ -6,8 +7,8 @@ from .expressions import (
 
 __all__ = [
     'is_constant', 'is_syntactic', 'get_head', 'match_head', 'preorder_iter', 'preorder_iter_with_position',
-    'is_anonymous', 'contains_variables_from_set', 'register_operation_factory', 'create_operation_expression',
-    'rename_variables', 'op_iter', 'op_len', 'register_operation_iterator', 'get_variables'
+    'is_anonymous', 'contains_variables_from_set', 'create_operation_expression',
+    'rename_variables', 'op_iter', 'op_len', 'get_variables'
 ]
 
 
@@ -138,58 +139,34 @@ def rename_variables(expression: Expression, renaming: Dict[str, str]) -> Expres
     return expression
 
 
-def simple_operation_factory(op, args, variable_name):
-    if variable_name not in (True, False, None):
-        raise NotImplementedError('Expressions of type {} cannot have a variable name.'.format(type(op)))
-    return type(op)(args)
-
-
-_operation_factories = {
-    list: simple_operation_factory,
-    tuple: simple_operation_factory,
-    set: simple_operation_factory,
-    frozenset: simple_operation_factory,
-    dict: simple_operation_factory,
-}
-
-_operation_iterators = {
-    dict: (lambda d: d.items(), len),
-}
-
-
-def register_operation_factory(operation, factory):
-    _operation_factories[operation] = factory
-
-
-def register_operation_iterator(operation, iterator=iter, length=len):
-    _operation_iterators[operation] = (iterator, length)
-
-
+@singledispatch
 def create_operation_expression(old_operation, new_operands, variable_name=True):
-    operation = type(old_operation)
-    for parent in operation.__mro__:
-        if parent in _operation_factories:
-            return _operation_factories[parent](old_operation, new_operands, variable_name)
     if variable_name is True:
         variable_name = getattr(old_operation, 'variable_name', None)
     if variable_name is False:
         return operation(*new_operands)
-    return operation(*new_operands, variable_name=variable_name)
+    return type(old_operation)(*new_operands, variable_name=variable_name)
 
 
+@create_operation_expression.register(list)
+@create_operation_expression.register(tuple)
+@create_operation_expression.register(set)
+@create_operation_expression.register(frozenset)
+@create_operation_expression.register(dict)
+def _(old_operation, new_operands, variable_name=True):
+    return type(old_operation)(new_operands)
+
+
+@singledispatch
 def op_iter(operation):
-    op_type = type(operation)
-    for parent in op_type.__mro__:
-        if parent in _operation_iterators:
-            iterator, _ = _operation_iterators[parent]
-            return iterator(operation)
     return iter(operation)
 
 
+@op_iter.register(dict)
+def _(operation):
+    return iter(operation.items())
+
+
+@singledispatch
 def op_len(operation):
-    op_type = type(operation)
-    for parent in op_type.__mro__:
-        if parent in _operation_iterators:
-            _, length = _operation_iterators[parent]
-            return length(operation)
     return len(operation)

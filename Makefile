@@ -1,5 +1,5 @@
 init:
-	pip install -r requirements.txt
+	pip install .[develop]
 
 test:
 	py.test tests/ --doctest-modules matchpy/ README.rst docs/example.rst
@@ -8,6 +8,9 @@ doctest:
 	py.test --doctest-modules -k "not tests" matchpy/ README.rst docs/example.rst
 
 check:
+	flake8
+
+lint:
 	pylint matchpy
 
 coverage:
@@ -18,7 +21,5 @@ api-docs:
 	sphinx-apidoc -n -e -T -o docs/api matchpy
 	make docs
 
-docs:
-	cd docs
-	make html
-	cd ..
+doc:
+	python setup.py build_sphinx -W

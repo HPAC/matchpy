@@ -36,7 +36,7 @@ f(a, a)
 
 Patterns are expressions which may contain wildcards (variables):
 
->>> from matchpy import Wildcard
+>>> from matchpy import Pattern, Wildcard
 >>> x = Wildcard.dot('x')
 >>> print(Pattern(f(a, x)))
 f(a, x_)

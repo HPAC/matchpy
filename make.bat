@@ -3,6 +3,7 @@ if /I %1 == init goto :init
 if /I %1 == test goto :test
 if /I %1 == doctest goto :doctest
 if /I %1 == check goto :check
+if /I %1 == lint goto :lint
 if /I %1 == coverage goto :coverage
 if /I %1 == api-docs goto :apidocs
 if /I %1 == docs goto :docs
@@ -10,7 +11,7 @@ if /I %1 == docs goto :docs
 goto :eof
 
 :init
-	pip install -r requirements.txt
+    pip install .[tests,develop]
 goto :eof
 
 :test
@@ -22,6 +23,10 @@ goto :eof
 goto :eof
 
 :check
+    flake8
+goto :eof
+
+:lint
 	pylint --reports=no matchpy
 goto :eof
 

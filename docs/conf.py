@@ -18,10 +18,7 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import datetime
-import os
-import sys
-from setuptools_scm import get_version
-sys.path.insert(0, os.path.abspath(os.path.join('..')))
+import matchpy
 
 # -- General configuration ------------------------------------------------
 
@@ -65,7 +62,7 @@ author = 'Manuel Krebber'
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 # The full version, including alpha/beta/rc tags.
-release = get_version(root='..')
+release = matchpy.__version__
 # The short X.Y version.
 version = '.'.join(release.split('.')[:2]) # The short X.Y version.
 
@@ -161,7 +158,7 @@ html_theme = 'sphinx_rtd_theme'
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+#html_static_path = ['_static']
 
 # Add any extra paths that contain custom files (such as robots.txt or
 # .htaccess) here, relative to this directory. These files are copied

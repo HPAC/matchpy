@@ -163,7 +163,7 @@ class CustomConstraint(Constraint):  # pylint: disable=too-few-public-methods
 
         Raises:
             ValueError:
-                If the callback has positional-only or variable parameters (*args and **kwargs).
+                If the callback has positional-only or variable parameters (\*args and \*\*kwargs).
         """
         self.constraint = constraint
         signature = inspect.signature(constraint)
