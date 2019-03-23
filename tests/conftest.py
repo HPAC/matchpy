@@ -17,6 +17,8 @@ def pytest_generate_tests(metafunc):
         metafunc.parametrize('match', ['one-to-one', 'many-to-one', 'generated'], indirect=True)
     if 'match_syntactic' in metafunc.fixturenames:
         metafunc.parametrize('match_syntactic', ['one-to-one', 'many-to-one', 'syntactic', 'generated'], indirect=True)
+    if 'match_many' in metafunc.fixturenames:
+        metafunc.parametrize('match_many', ['many-to-one', 'generated'], indirect=True)
 
 
 def match_many_to_one(expression, *patterns):
@@ -90,6 +92,17 @@ def match_syntactic(request):
         return match_many_to_one
     elif request.param == 'syntactic':
         return syntactic_matcher
+    elif request.param == 'generated':
+        return match_generated
+    else:
+        raise ValueError("Invalid internal test config")
+
+
+@pytest.fixture
+def match_many(request):
+    pytest.matcher = request.param
+    if request.param == 'many-to-one':
+        return match_many_to_one
     elif request.param == 'generated':
         return match_generated
     else:
