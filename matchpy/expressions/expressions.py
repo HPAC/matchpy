@@ -964,7 +964,7 @@ class Pattern:
 
     @property
     def local_constraints(self):
-        """The subset of the patterns contrainst which are local.
+        """The subset of the pattern constraints which are local.
 
         A local constraint has a defined non-empty set of dependency variables.
         These constraints can be evaluated once their dependency variables have a substitution.
@@ -973,7 +973,7 @@ class Pattern:
 
     @property
     def global_constraints(self):
-        """The subset of the patterns contrainst which are global.
+        """The subset of the pattern constraints which are global.
 
         A global constraint does not define dependency variables and can only be evaluated, once the
         match has been completed.
