@@ -815,6 +815,23 @@ class TestMatch:
         assert {'x': Symbol('aa')} in result
         assert {'x': Symbol('bb')} in result
 
+    def test_double_custom_constraint(self, match_many):
+        constraint1 = CustomConstraint(lambda x, y: (x > 0) and (y > 0))
+        constraint2 = CustomConstraint(lambda x, y: (x > 0) or (y > 0))
+
+        pattern1 = Pattern(f(x_, a, y_), constraint1)
+        pattern2 = Pattern(f(x_, b, y_), constraint2)
+
+        subject1 = f(3, a, 4)
+        result = list(match_many(subject1, pattern1, pattern2))
+        assert len(result) == 1
+        assert {'x': 3, 'y': 4} in result
+
+        subject2 = f(3, b, 4)
+        result = list(match_many(subject2, pattern1, pattern2))
+        assert len(result) == 1
+        assert {'x': 3, 'y': 4} in result
+
 
 def func_wrap_strategy(args, func):
     min_size = func.arity[0]

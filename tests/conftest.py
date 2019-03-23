@@ -17,10 +17,13 @@ def pytest_generate_tests(metafunc):
         metafunc.parametrize('match', ['one-to-one', 'many-to-one', 'generated'], indirect=True)
     if 'match_syntactic' in metafunc.fixturenames:
         metafunc.parametrize('match_syntactic', ['one-to-one', 'many-to-one', 'syntactic', 'generated'], indirect=True)
+    if 'match_many' in metafunc.fixturenames:
+        metafunc.parametrize('match_many', ['many-to-one', 'generated'], indirect=True)
 
 
-def match_many_to_one(expression, pattern):
+def match_many_to_one(expression, *patterns):
     try:
+        pattern = patterns[0]
         commutative = next(
             p for p in preorder_iter(pattern.expression) if isinstance(p, CommutativeOperation)
         )
@@ -29,7 +32,7 @@ def match_many_to_one(expression, pattern):
         pass
     else:
         pytest.xfail('Matcher does not support fixed wildcards with length != 1 in commutative operations')
-    matcher = ManyToOneMatcher(pattern)
+    matcher = ManyToOneMatcher(*patterns)
     for _, substitution in matcher.match(expression):
         yield substitution
 
@@ -46,8 +49,8 @@ from tests.utils import *
 '''.strip()
 
 
-def match_generated(expression, pattern):
-    matcher = ManyToOneMatcher(pattern)
+def match_generated(expression, *patterns):
+    matcher = ManyToOneMatcher(*patterns)
     generator = CodeGenerator(matcher)
     gc, code = generator.generate_code()
     code = GENERATED_TEMPLATE.format(gc, code)
@@ -89,6 +92,17 @@ def match_syntactic(request):
         return match_many_to_one
     elif request.param == 'syntactic':
         return syntactic_matcher
+    elif request.param == 'generated':
+        return match_generated
+    else:
+        raise ValueError("Invalid internal test config")
+
+
+@pytest.fixture
+def match_many(request):
+    pytest.matcher = request.param
+    if request.param == 'many-to-one':
+        return match_many_to_one
     elif request.param == 'generated':
         return match_generated
     else:
