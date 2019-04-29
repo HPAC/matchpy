@@ -3,3 +3,4 @@
 *.rst text
 *.cfg text
 *.yml text
+matchpy/_version.py export-subst
