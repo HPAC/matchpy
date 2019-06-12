@@ -9,8 +9,8 @@ from matchpy.matching.syntactic import DiscriminationNet
 from matchpy.expressions.functions import preorder_iter
 from matchpy.matching.code_generation import CodeGenerator
 
-def pytest_namespace():
-    return { 'matcher': None }
+def pytest_configure():
+    pytest.matcher = None
 
 def pytest_generate_tests(metafunc):
     if 'match' in metafunc.fixturenames:
