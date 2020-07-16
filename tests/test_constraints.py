@@ -143,3 +143,14 @@ def test_custom_constraint_with_renamed_vars():
     assert c2({'x': 1, 'z': 3, 'y': 3}) is True
     assert actual_x == 3
     assert actual_y == 3
+
+
+def test_custom_constraint_repeated_renaming():
+    c1 = CustomConstraint(lambda x1, y: True)
+    assert c1.variables == {'x1', 'y'}
+    c2 = c1.with_renamed_vars({'x1': 'x2'})
+    assert c2.variables == {'x2', 'y'}
+    c3 = c2.with_renamed_vars({'x2': 'x3'})
+    assert c3.variables == {'x3', 'y'}
+    c4 = c3.with_renamed_vars({'z1': 'z2'})
+    assert c4.variables == {'x3', 'y'}
