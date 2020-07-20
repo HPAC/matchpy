@@ -638,6 +638,33 @@ class TestMatch:
             assert len(result) == 0
 
     @pytest.mark.parametrize(
+        '   expression,     pattern,                        expected_matches',
+        [
+            (a,             a_x,                            [{'x': a}]),
+            (f(a),          f(a_x),                         [{'x': a}]),
+            (f(b),          f(a_x),                         []),
+            (f(a, b),       f(a_x, b),                      [{'x': a}]),
+            (f(a),          f(a, variable_name='x'),        [{'x': f(a)}]),
+            (f2(a),         f(a, variable_name='x'),        []),
+            (f(a, b),       f(a, b, variable_name='x'),     [{'x': f(a, b)}]),
+            (f2(f(a)),      f2(f(a, variable_name='x')),    [{'x': f(a)}]),
+            (f2(f(a, b)),   f2(f(a, b, variable_name='x')), [{'x': f(a, b)}]),
+        ]
+    )  # yapf: disable
+    def test_variable_name(self, match, expression, pattern, expected_matches):
+        expression = expression
+        pattern = Pattern(pattern)
+        result = list(match(expression, pattern))
+        for expected_match in expected_matches:
+            assert expected_match in result, "Expression {!s} and {!s} did not yield the match {!s} but were supposed to".format(
+                expression, pattern, expected_match
+            )
+        for result_match in result:
+            assert result_match in expected_matches, "Expression {!s} and {!s} yielded the unexpected match {!s}".format(
+                expression, pattern, result_match
+            )
+
+    @pytest.mark.parametrize(
         '   expression,         pattern,                        expected_matches',
         [
             (f(a),                  f_i(oa_, f(a)),             [{'o': a}]),
