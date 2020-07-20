@@ -34,6 +34,7 @@ Also contains the :class:`ManyToOneReplacer` which can replace a set :class:`Rep
 import math
 import html
 import itertools
+import copy
 from collections import deque
 from operator import itemgetter
 from typing import Container, Dict, Iterable, Iterator, List, NamedTuple, Optional, Sequence, Set, Tuple, Type, Union
@@ -516,7 +517,9 @@ class ManyToOneMatcher:
                 head = None
                 label = Wildcard(label.min_count, label.fixed_size, optional=label.optional)
             elif isinstance(label, Symbol):
-                head = label = type(label)(label.name)
+                label_copy = copy.copy(label)
+                label_copy.variable_name = None
+                head = label = label_copy
             else:
                 head = expression
 
