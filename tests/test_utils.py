@@ -2,7 +2,7 @@
 import itertools
 import os
 
-from hypothesis import assume, example, given
+from hypothesis import assume, example, given, settings
 import hypothesis.strategies as st
 import pytest
 from multiset import Multiset
@@ -143,6 +143,7 @@ class TestSolveLinearDiop:
 
     @given(st.lists(st.integers(min_value=1, max_value=100), max_size=5), st.integers(min_value=0, max_value=100))
     @example([1, 2, 2], 4)
+    @settings(deadline=400)
     def test_completeness(self, coeffs, c):
         self._limit_possible_solution_count(coeffs, c)
         solutions = set(solve_linear_diop(c, *coeffs))
