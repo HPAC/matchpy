@@ -178,6 +178,7 @@ def sequence_vars(draw):
 
 class TestCommutativeSequenceVariablePartitionIter:
     @given(sequence_vars(), st.lists(st.integers(1, 4), min_size=1, max_size=10))
+    @settings(deadline=400)
     def test_correctness_randomized(self, variables, values):
         values = Multiset(values)
         for subst in commutative_sequence_variable_partition_iter(values, variables):
