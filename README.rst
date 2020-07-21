@@ -15,7 +15,7 @@ MatchPy is available via `PyPI <https://pypi.python.org/pypi/matchpy>`_, and for
 Overview
 --------
 
-This package implements `pattern matching <https://en.wikipedia.org/wiki/Pattern_matching>`_ in Python. Pattern matching is a powerful tool for symbolic computations, operating on symbolic expressions. Given a pattern and an expression (which is usually called *subject*), the goal of pattern matching is to find a substitution for all the variables in the pattern such that the pattern becomes the subject. As an example, consider the pattern :math:`f(x)`, where :math:`f` is a function and :math:`x` is a variable, and the subject :math:`f(a)`, where :math:`a` is a constant symbol. Then the substitution that replaces :math:`x` with :math:`a` is a match. MatchPy supports associative and/or commutative function symbols, as well as sequence variables, similar to pattern matching in `Mathematica <https://reference.wolfram.com/language/guide/Patterns.html>`_. 
+This package implements `pattern matching <https://en.wikipedia.org/wiki/Pattern_matching>`_ in Python. Pattern matching is a powerful tool for symbolic computations, operating on symbolic expressions. Given a pattern and an expression (which is usually called *subject*), the goal of pattern matching is to find a substitution for all the variables in the pattern such that the pattern becomes the subject. As an example, consider the pattern ``f(x)``, where ``f`` is a function and ``x`` is a variable, and the subject ``f(a)``, where ``a`` is a constant symbol. Then the substitution that replaces ``x`` with ``a`` is a match. MatchPy supports associative and/or commutative function symbols, as well as sequence variables, similar to pattern matching in `Mathematica <https://reference.wolfram.com/language/guide/Patterns.html>`_. 
 
 A detailed example of how to use MatchPy can be found `here <https://matchpy.readthedocs.io/en/latest/example.html>`_.
 
@@ -41,7 +41,7 @@ Patterns are expressions which may contain wildcards (variables):
 >>> print(Pattern(f(a, x)))
 f(a, x_)
 
-In the previous example, x is the name of the variable. However, it is also possible to use wildcards without names:
+In the previous example, ``x`` is the name of the variable. However, it is also possible to use wildcards without names:
 
 >>> w = Wildcard.dot()
 >>> print(Pattern(f(w, w)))
@@ -154,21 +154,25 @@ If you have any questions or need help with setting things up, please open an is
 Publications
 ------------
 
-`MatchPy: Pattern Matching in Python <http://joss.theoj.org/papers/10.21105/joss.00670>`_ |br|
-Manuel Krebber and Henrik Barthels |br|
-Journal of Open Source Software, Volume 3(26), pp. 2, June 2018.
+| `MatchPy: Pattern Matching in Python <http://joss.theoj.org/papers/10.21105/joss.00670>`_
+| Manuel Krebber and Henrik Barthels
+| Journal of Open Source Software, Volume 3(26), pp. 2, June 2018.
+|
 
-`Efficient Pattern Matching in Python <https://dl.acm.org/citation.cfm?id=3149871>`_ |br|
-Manuel Krebber, Henrik Barthels and Paolo Bientinesi |br|
-Proceedings of the 7th Workshop on Python for High-Performance and Scientific Computing, November 2017.
+| `Efficient Pattern Matching in Python <https://dl.acm.org/citation.cfm?id=3149871>`_
+| Manuel Krebber, Henrik Barthels and Paolo Bientinesi
+| Proceedings of the 7th Workshop on Python for High-Performance and Scientific Computing, November 2017.
+|
 
-`MatchPy: A Pattern Matching Library <http://conference.scipy.org/proceedings/scipy2017/manuel_krebber.html>`_ |br|
-Manuel Krebber, Henrik Barthels and Paolo Bientinesi |br|
-Proceedings of the 15th Python in Science Conference, July 2017.
+| `MatchPy: A Pattern Matching Library <http://conference.scipy.org/proceedings/scipy2017/manuel_krebber.html>`_
+| Manuel Krebber, Henrik Barthels and Paolo Bientinesi
+| Proceedings of the 15th Python in Science Conference, July 2017.
+|
 
-`Non-linear Associative-Commutative Many-to-One Pattern Matching with Sequence Variables <https://arxiv.org/abs/1705.00907>`_ |br|
-Manuel Krebber |br|
-Master Thesis, RWTH Aachen University, May 2017
+| `Non-linear Associative-Commutative Many-to-One Pattern Matching with Sequence Variables <https://arxiv.org/abs/1705.00907>`_
+| Manuel Krebber
+| Master Thesis, RWTH Aachen University, May 2017
+|
 
 If you want to cite MatchPy, please reference the JOSS paper::
 
@@ -184,10 +188,6 @@ If you want to cite MatchPy, please reference the JOSS paper::
         doi       = "10.21105/joss.00670",
         web       = "http://joss.theoj.org/papers/10.21105/joss.00670",
     }
-
-.. |br| raw:: html
-
-   <br />
 
 .. |pypi| image:: https://img.shields.io/pypi/v/matchpy.svg?style=flat
     :target: https://pypi.org/project/matchpy/
