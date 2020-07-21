@@ -21,7 +21,7 @@ A detailed example of how to use MatchPy can be found `here <https://matchpy.rea
 
 MatchPy supports both one-to-one and many-to-one pattern matching. The latter makes use of similarities between patterns to efficiently find matches for multiple patterns at the same time.
 
-A list of publications about MatchPy can be found `below <#publications>`_.
+A list of publications about MatchPy can be found `below <Publications_>`_.
 
 Expressions
 ...........
