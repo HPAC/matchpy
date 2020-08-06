@@ -43,7 +43,7 @@ class BipartiteGraph(Generic[TLeft, TRight, TEdgeValue], MutableMapping[Tuple[TL
     >>> graph[1, 2] = 42
     """
 
-    __slots__ = ('_edges', '_matching', '_dfs_paths', '_dfs_parent', '_left', '_right', '_graph')
+    __slots__ = ('_edges', '_left', '_right', '_graph')
 
     def __init__(self, *args, **kwargs):
         self._edges = dict(*args, **kwargs)
@@ -53,10 +53,6 @@ class BipartiteGraph(Generic[TLeft, TRight, TEdgeValue], MutableMapping[Tuple[TL
         for l, r in self._edges:
             self._graph.setdefault((LEFT, l), set()).add((RIGHT, r))
             self._graph.setdefault((RIGHT, r), set()).add((LEFT, l))
-
-        self._matching = {}
-        self._dfs_paths = []
-        self._dfs_parent = {}
 
     def __setitem__(self, key: Edge, value: TEdgeValue) -> None:
         if not isinstance(key, tuple) or len(key) != 2:
