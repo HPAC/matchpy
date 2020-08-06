@@ -321,7 +321,7 @@ class _MatchIter:
 
 
 class ManyToOneMatcher:
-    __slots__ = ('patterns', 'states', 'root', 'pattern_vars', 'constraints', 'constraint_vars', 'finals', 'rename')
+    __slots__ = ('patterns', 'states', 'root', 'pattern_vars', 'constraints', 'constraint_vars', 'finals', 'rename', 'commutative_matchers')
 
     _state_id = 0
 
@@ -338,9 +338,14 @@ class ManyToOneMatcher:
         self.constraint_vars = {}
         self.finals = set()
         self.rename = rename
+        self.commutative_matchers = []
 
         for pattern in patterns:
             self.add(pattern)
+
+    def clear(self):
+        for commutative_matcher in self.commutative_matchers:
+            commutative_matcher.clear()
 
     def add(self, pattern: Pattern, label=None) -> None:
         """Add a new pattern to the matcher.
@@ -479,6 +484,7 @@ class ManyToOneMatcher:
         else:
             if commutative:
                 matcher = CommutativeMatcher(type(expression) if isinstance(expression, AssociativeOperation) else None)
+                self.commutative_matchers.append(matcher)
             state = self._create_state(matcher)
             if variable_name is not None:
                 constraints = set(self.constraint_vars[variable_name] if variable_name in self.constraint_vars else [])
@@ -862,6 +868,12 @@ class CommutativeMatcher(object):
         self.max_optional_count = 0
         self.anonymous_patterns = set()
 
+    def clear(self):
+        self.subjects = {}
+        self.subjects_by_id = {}
+        self.automaton.clear()
+        self.bipartite.clear()
+
     def add_pattern(self, operands: Iterable[Expression], constraints) -> int:
         pattern_set, pattern_vars = self._extract_sequence_wildcards(operands, constraints)
         sorted_vars = tuple(sorted(pattern_vars.values(), key=lambda v: (v[0][0] or '', v[0][1], v[0][2], v[1])))
@@ -880,7 +892,6 @@ class CommutativeMatcher(object):
             for pattern_index in match_iter.patterns:
                 substitution = Substitution(match_iter.substitution)
                 yield pattern_index, substitution
-
 
     def add_subject(self, subject: Expression) -> None:
         if subject not in self.subjects:
