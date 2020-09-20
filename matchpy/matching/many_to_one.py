@@ -344,6 +344,7 @@ class ManyToOneMatcher:
             self.add(pattern)
 
     def clear(self):
+        """Removes all cached data."""
         for commutative_matcher in self.commutative_matchers:
             commutative_matcher.clear()
 
@@ -869,6 +870,7 @@ class CommutativeMatcher(object):
         self.anonymous_patterns = set()
 
     def clear(self):
+        """Removes all cached data."""
         self.subjects = {}
         self.subjects_by_id = {}
         self.automaton.clear()

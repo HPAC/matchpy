@@ -87,6 +87,7 @@ class BipartiteGraph(Generic[TLeft, TRight, TEdgeValue], MutableMapping[Tuple[TL
         return self._edges.keys()
 
     def clear(self):
+        """Removes all cached data."""
         self._edges.clear()
         self._left.clear()
         self._right.clear()
