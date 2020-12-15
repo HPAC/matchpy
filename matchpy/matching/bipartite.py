@@ -9,11 +9,12 @@ The function `enum_maximum_matchings_iter` can be used to enumerate all maximum 
 
 from typing import (Dict, Generic, Hashable, Iterator, List, Set, Tuple, TypeVar, Union, cast, MutableMapping)
 
+from matchpy.matching.hopcroft_karp import HopcroftKarp
+
 try:
     from graphviz import Digraph, Graph
 except ImportError:
     Digraph = Graph = None
-from hopcroftkarp import HopcroftKarp
 
 __all__ = ['BipartiteGraph', 'enum_maximum_matchings_iter']
 
@@ -141,8 +142,7 @@ class BipartiteGraph(Generic[TLeft, TRight, TEdgeValue], MutableMapping[Tuple[TL
     def find_matching(self) -> Dict[TLeft, TRight]:
         """Finds a matching in the bipartite graph.
 
-        This is done using the Hopcroft-Karp algorithm with an implementation from the
-        `hopcroftkarp` package.
+        This is done using the Hopcroft-Karp algorithm.
 
         Returns:
             A dictionary where each edge of the matching is represented by a key-value pair
@@ -164,7 +164,7 @@ class BipartiteGraph(Generic[TLeft, TRight, TEdgeValue], MutableMapping[Tuple[TL
             else:
                 directed_graph[tail].add(head)
 
-        matching = HopcroftKarp(directed_graph).maximum_matching()
+        matching = HopcroftKarp(directed_graph).get_maximum_matching()
 
         # Filter out the partitions (LEFT and RIGHT) and only return the matching edges
         # that go from LEFT to RIGHT
