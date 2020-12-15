@@ -28,16 +28,14 @@ class HopcroftKarp(Generic[TLeft, TRight]):
 
         self._pos2left: List[TLeft] = sorted(set(_graph_left), key=sorting_key)
         self._pos2right: List[TRight] = sorted({j for i in _graph_left.values() for j in i}, key=sorting_key)
-        map_left2pos = {e: i for i, e in enumerate(self._pos2left)}
         map_right2pos = {e: i for i, e in enumerate(self._pos2right)}
         # Convert the graph to integers:
-        self._graph_left: Dict[int, Set[int]] = {map_left2pos[k]: {map_right2pos[j] for j in v} for k, v in _graph_left.items()}
+        self._graph_left: List[Set[int]] = [{map_right2pos[j] for j in _graph_left[i]} for i in self._pos2left]
         self._reference_distance = INT_MAX
         self._pair_left: Dict[int, int] = {}
         self._pair_right: Dict[int, int] = {}
-        self._left: List[int] = []
+        self._left: List[int] = list(range(len(self._graph_left)))
         self._dist_left: Dict[int, int] = {}
-        self._get_left_indices_vector(self._graph_left)
 
     def hopcroft_karp(self) -> int:
         self._pair_left.clear()
@@ -64,11 +62,6 @@ class HopcroftKarp(Generic[TLeft, TRight]):
     def get_maximum_matching_num(self) -> Tuple[int, Dict[TLeft, TRight]]:
         matchings = self.hopcroft_karp()
         return matchings, {self._pos2left[k]: self._pos2right[v] for k, v in self._pair_left.items()}
-
-    def _get_left_indices_vector(self, m: Dict[int, Set[int]]) -> None:
-        p: int
-        for p in m:
-            self._left.append(p)
 
     def _bfs_hopcroft_karp(self) -> bool:
         vertex_queue: List[int] = []
