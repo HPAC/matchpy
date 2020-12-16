@@ -154,15 +154,15 @@ class BipartiteGraph(Generic[TLeft, TRight, TEdgeValue], MutableMapping[Tuple[TL
         # In addition, the graph stores which part of the bipartite graph a node originated from
         # to avoid problems when a value exists in both halfs.
         # Only one direction of the undirected edge is needed for the HopcroftKarp class
-        directed_graph = {}  # type: Dict[Tuple[int, TLeft], Set[Tuple[int, TRight]]]
+        directed_graph = {}  # type: Dict[Tuple[int, TLeft], List[Tuple[int, TRight]]]
 
         for (left, right) in self._edges:
             tail = (LEFT, left)
             head = (RIGHT, right)
             if tail not in directed_graph:
-                directed_graph[tail] = {head}
+                directed_graph[tail] = [head]
             else:
-                directed_graph[tail].add(head)
+                directed_graph[tail].append(head)
 
         matching = HopcroftKarp(directed_graph).get_maximum_matching()
 

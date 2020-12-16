@@ -1,17 +1,17 @@
 from collections import deque
 from typing import Generic, Dict, Set, TypeVar, Hashable, List, Tuple, Deque
 
-TLeft = TypeVar('TLeft', bound=Hashable)
-TRight = TypeVar('TRight', bound=Hashable)
+THLeft = TypeVar('THLeft', bound=Hashable)
+THRight = TypeVar('THRight', bound=Hashable)
 
 INT_MAX = 10000000000000
 
 
-class HopcroftKarp(Generic[TLeft, TRight]):
+class HopcroftKarp(Generic[THLeft, THRight]):
     """
     Implementation of the Hopcroft-Karp algorithm on a bipartite graph.
 
-    The bipartite graph has types TLeft and TRight on the two partitions.
+    The bipartite graph has types THLeft and THRight on the two partitions.
 
     The constructor accepts a `dict` mapping the left vertices to the set of
     connected right vertices.
@@ -22,27 +22,19 @@ class HopcroftKarp(Generic[TLeft, TRight]):
     returns both cardinality and an instance of maximum matching.
     """
 
-    def __init__(self, _graph_left: Dict[TLeft, Set[TRight]]):
-
-        def sorting_key(x):
-            return tuple(ord(i) for i in str(x))
-
-        self._pos2left: List[TLeft] = sorted(set(_graph_left), key=sorting_key)
-        self._pos2right: List[TRight] = sorted({j for i in _graph_left.values() for j in i}, key=sorting_key)
-        map_right2pos = {e: i for i, e in enumerate(self._pos2right)}
-        # Convert the graph to integers:
-        self._graph_left: List[List[int]] = [sorted({map_right2pos[j] for j in _graph_left[i]}) for i in self._pos2left]
+    def __init__(self, _graph_left: Dict[THLeft, List[THRight]]):
+        self._graph_left: Dict[THLeft, List[THRight]] = _graph_left
         self._reference_distance = INT_MAX
-        self._pair_left: Dict[int, int] = {}
-        self._pair_right: Dict[int, int] = {}
-        self._left: List[int] = list(range(len(self._graph_left)))
-        self._dist_left: Dict[int, int] = {}
+        self._pair_left: Dict[THLeft, THRight] = {}
+        self._pair_right: Dict[THRight, THLeft] = {}
+        self._left: List[THLeft] = list(self._graph_left.keys())
+        self._dist_left: Dict[THLeft, int] = {}
 
     def hopcroft_karp(self) -> int:
         self._pair_left.clear()
         self._pair_right.clear()
         self._dist_left.clear()
-        left: int
+        left: THLeft
         for left in self._left:
             self._dist_left[left] = INT_MAX
         matchings: int = 0
@@ -56,17 +48,17 @@ class HopcroftKarp(Generic[TLeft, TRight]):
                     matchings += 1
         return matchings
 
-    def get_maximum_matching(self) -> Dict[TLeft, TRight]:
+    def get_maximum_matching(self) -> Dict[THLeft, THRight]:
         matchings, maximum_matching = self.get_maximum_matching_num()
         return maximum_matching
 
-    def get_maximum_matching_num(self) -> Tuple[int, Dict[TLeft, TRight]]:
+    def get_maximum_matching_num(self) -> Tuple[int, Dict[THLeft, THRight]]:
         matchings = self.hopcroft_karp()
-        return matchings, {self._pos2left[k]: self._pos2right[v] for k, v in self._pair_left.items()}
+        return matchings, self._pair_left
 
     def _bfs_hopcroft_karp(self) -> bool:
-        vertex_queue: Deque[int] = deque([])
-        left_vert: int
+        vertex_queue: Deque[THLeft] = deque([])
+        left_vert: THLeft
         for left_vert in self._left:
             if left_vert not in self._pair_left:
                 vertex_queue.append(left_vert)
@@ -77,34 +69,34 @@ class HopcroftKarp(Generic[TLeft, TRight]):
         while True:
             if len(vertex_queue) == 0:
                 break
-            left_vertex: int = vertex_queue.popleft()
+            left_vertex: THLeft = vertex_queue.popleft()
             if self._dist_left[left_vertex] >= self._reference_distance:
                 continue
-            right_vertex: int
+            right_vertex: THRight
             for right_vertex in self._graph_left[left_vertex]:
                 if right_vertex not in self._pair_right:
                     if self._reference_distance == INT_MAX:
                         self._reference_distance = self._dist_left[left_vertex] + 1
                 else:
-                    other_left: int = self._pair_right[right_vertex]
+                    other_left: THLeft = self._pair_right[right_vertex]
                     if self._dist_left[other_left] == INT_MAX:
                         self._dist_left[other_left] = self._dist_left[left_vertex] + 1
                         vertex_queue.append(other_left)
         return self._reference_distance < INT_MAX
 
-    def _swap_lr(self, left: int, right: int) -> None:
+    def _swap_lr(self, left: THLeft, right: THRight) -> None:
         self._pair_left[left] = right
         self._pair_right[right] = left
 
-    def _dfs_hopcroft_karp(self, left: int) -> bool:
-        right: int
+    def _dfs_hopcroft_karp(self, left: THLeft) -> bool:
+        right: THRight
         for right in self._graph_left[left]:
             if right not in self._pair_right:
                 if self._reference_distance == self._dist_left[left] + 1:
                     self._swap_lr(left, right)
                     return True
             else:
-                other_left: int = self._pair_right[right]
+                other_left: THLeft = self._pair_right[right]
                 if self._dist_left[other_left] == self._dist_left[left] + 1:
                     if self._dfs_hopcroft_karp(other_left):
                         self._swap_lr(left, right)
