@@ -1,4 +1,5 @@
-from typing import Generic, Dict, Set, TypeVar, Hashable, List, Tuple
+from collections import deque
+from typing import Generic, Dict, Set, TypeVar, Hashable, List, Tuple, Deque
 
 TLeft = TypeVar('TLeft', bound=Hashable)
 TRight = TypeVar('TRight', bound=Hashable)
@@ -30,7 +31,7 @@ class HopcroftKarp(Generic[TLeft, TRight]):
         self._pos2right: List[TRight] = sorted({j for i in _graph_left.values() for j in i}, key=sorting_key)
         map_right2pos = {e: i for i, e in enumerate(self._pos2right)}
         # Convert the graph to integers:
-        self._graph_left: List[Set[int]] = [{map_right2pos[j] for j in _graph_left[i]} for i in self._pos2left]
+        self._graph_left: List[List[int]] = [sorted({map_right2pos[j] for j in _graph_left[i]}) for i in self._pos2left]
         self._reference_distance = INT_MAX
         self._pair_left: Dict[int, int] = {}
         self._pair_right: Dict[int, int] = {}
@@ -64,7 +65,7 @@ class HopcroftKarp(Generic[TLeft, TRight]):
         return matchings, {self._pos2left[k]: self._pos2right[v] for k, v in self._pair_left.items()}
 
     def _bfs_hopcroft_karp(self) -> bool:
-        vertex_queue: List[int] = []
+        vertex_queue: Deque[int] = deque([])
         left_vert: int
         for left_vert in self._left:
             if left_vert not in self._pair_left:
@@ -76,7 +77,7 @@ class HopcroftKarp(Generic[TLeft, TRight]):
         while True:
             if len(vertex_queue) == 0:
                 break
-            left_vertex: int = vertex_queue.pop(0)
+            left_vertex: int = vertex_queue.popleft()
             if self._dist_left[left_vertex] >= self._reference_distance:
                 continue
             right_vertex: int
