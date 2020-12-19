@@ -84,7 +84,7 @@ def _substitute(expression: Expression, substitution: Substitution) -> Tuple[Rep
             if isinstance(result, (list, tuple)):
                 new_operands.extend(result)
             elif isinstance(result, Multiset):
-                new_operands.extend(sorted(result))
+                new_operands.extend(result)
             else:
                 new_operands.append(result)
         if any_replaced:
