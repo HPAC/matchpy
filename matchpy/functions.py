@@ -71,6 +71,9 @@ def substitute(expression: Union[Expression, Pattern], substitution: Substitutio
     return _substitute(expression, substitution)[0]
 
 
+_custom_sorting_key = [None]
+
+
 def _substitute(expression: Expression, substitution: Substitution) -> Tuple[Replacement, bool]:
     if getattr(expression, 'variable_name', False) and expression.variable_name in substitution:
         return substitution[expression.variable_name], True
@@ -84,7 +87,10 @@ def _substitute(expression: Expression, substitution: Substitution) -> Tuple[Rep
             if isinstance(result, (list, tuple)):
                 new_operands.extend(result)
             elif isinstance(result, Multiset):
-                new_operands.extend(sorted(result))
+                if _custom_sorting_key[0] is not None:
+                    new_operands.extend(sorted(result, key=_custom_sorting_key[0]))
+                else:
+                    new_operands.extend(sorted(result))
             else:
                 new_operands.append(result)
         if any_replaced:

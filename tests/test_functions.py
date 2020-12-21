@@ -2,9 +2,11 @@
 from hypothesis import assume, given
 import hypothesis.strategies as st
 import pytest
+from multiset import Multiset
 
 from matchpy.expressions.expressions import Arity, Operation, Symbol, Wildcard, Pattern
-from matchpy.functions import ReplacementRule, replace, replace_all, substitute, replace_many, is_match
+from matchpy.functions import ReplacementRule, replace, replace_all, substitute, replace_many, is_match, \
+    _custom_sorting_key
 from matchpy.matching.one_to_one import match_anywhere
 from matchpy.matching.one_to_one import match as match_one_to_one
 from matchpy.matching.many_to_one import ManyToOneReplacer
@@ -52,6 +54,24 @@ class TestSubstitute:
             assert result is not expression, "When substituting, the original expression may not be modified"
         else:
             assert result is expression, "When nothing is substituted, the original expression has to be returned"
+
+    def test_substitute_custom_sorting_key(self):
+        # Check custom sorting key for elements in Multiset when the argument
+        # is passed to `substitute`.
+
+        # Reverse alphabetical sorting:
+        _custom_sorting_key[0] = lambda x: -ord(str(x))
+        expression = f(x_, y_)
+        substitution = {'x': a, 'y': Multiset([b, c])}
+        result = substitute(expression, substitution)
+        assert result == f(a, c, b)
+        assert result != f(a, b, c)
+
+        # Remove custom sorting key, sorting is again alphabetical:
+        _custom_sorting_key[0] = None
+        result = substitute(expression, substitution)
+        assert result != f(a, c, b)
+        assert result == f(a, b, c)
 
 
 def many_replace_wrapper(expression, position, replacement):
