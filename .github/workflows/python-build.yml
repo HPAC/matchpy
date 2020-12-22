@@ -20,11 +20,16 @@ jobs:
         run: make init
       - name: Lint
         run: make check
+        if: matrix.python-version == '3.6'
       - name: Build docs
         run: make doc
+        if: matrix.python-version == '3.6'
       - name: Run doctests
         run: make doctest
       - name: Run tests
         run: make coverage
       - name: Upload coverage
         run: coveralls
+        if: matrix.python-version == '3.6'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
