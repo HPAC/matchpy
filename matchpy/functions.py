@@ -11,7 +11,7 @@
 
 import itertools
 import math
-from typing import Callable, List, NamedTuple, Sequence, Tuple, Union, Iterable
+from typing import Callable, List, NamedTuple, Sequence, Tuple, Union, Iterable, Optional, Any
 
 from multiset import Multiset
 
@@ -27,7 +27,8 @@ __all__ = ['substitute', 'replace', 'replace_all', 'replace_many', 'is_match', '
 Replacement = Union[Expression, List[Expression]]
 
 
-def substitute(expression: Union[Expression, Pattern], substitution: Substitution) -> Replacement:
+def substitute(expression: Union[Expression, Pattern], substitution: Substitution,
+               sort_key: Optional[Callable[[Expression], Any]] = None) -> Replacement:
     """Replaces variables in the given *expression* using the given *substitution*.
 
     >>> print(substitute(f(x_), {'x': a}))
@@ -68,10 +69,11 @@ def substitute(expression: Union[Expression, Pattern], substitution: Substitutio
     """
     if isinstance(expression, Pattern):
         expression = expression.expression
-    return _substitute(expression, substitution)[0]
+    return _substitute(expression, substitution, sort_key)[0]
 
 
-def _substitute(expression: Expression, substitution: Substitution) -> Tuple[Replacement, bool]:
+def _substitute(expression: Expression, substitution: Substitution,
+                sort_key: Optional[Callable[[Expression], Any]] = None) -> Tuple[Replacement, bool]:
     if getattr(expression, 'variable_name', False) and expression.variable_name in substitution:
         return substitution[expression.variable_name], True
     elif isinstance(expression, Operation):
@@ -84,7 +86,10 @@ def _substitute(expression: Expression, substitution: Substitution) -> Tuple[Rep
             if isinstance(result, (list, tuple)):
                 new_operands.extend(result)
             elif isinstance(result, Multiset):
-                new_operands.extend(sorted(result))
+                if sort_key is not None:
+                    new_operands.extend(sorted(result, key=sort_key))
+                else:
+                    new_operands.extend(sorted(result))
             else:
                 new_operands.append(result)
         if any_replaced:
