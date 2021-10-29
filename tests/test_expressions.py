@@ -5,7 +5,11 @@ import itertools
 import pytest
 from multiset import Multiset
 
-from matchpy.expressions.expressions import (Arity, Operation, Symbol, SymbolWildcard, Wildcard, Expression)
+from matchpy.expressions.expressions import (Arity, Operation, Symbol, SymbolWildcard, Wildcard, Expression, Pattern)
+from matchpy import match
+from dataclasses import dataclass, field, fields
+from typing import ClassVar, Optional
+
 from .common import *
 
 SIMPLE_EXPRESSIONS = [
@@ -349,3 +353,32 @@ class TestOperation:
     def test_infix_error(self):
         with pytest.raises(TypeError):
             Operation.new('Invalid', Arity.unary, infix=True)
+
+
+class AbstractDataclassOp(Operation):
+    @property
+    def operands(self):
+        return tuple(getattr(self, field.name)
+                     for field in fields(self)
+                     if not field.metadata.get("not_an_operand", False))
+
+
+@dataclass
+class MySum(AbstractDataclassOp):
+    x1: Expression
+    x2: Expression
+    arity: ClassVar[Arity] = Arity.binary
+    variable_name: Optional[str] = field(default=None, metadata={"not_an_operand": True})
+    unpacked_args_to_init: ClassVar[bool] = True
+
+
+
+def test_dataclass_operation_subclass():
+    x1_ = Wildcard.dot("x1")
+    x2_ = Wildcard.dot("x2")
+
+    matches = match(MySum(Symbol("foo"), Symbol("bar")), Pattern(MySum(x1_, x2_)))
+    subst, = list(matches)
+
+    assert subst["x1"].name == "foo"
+    assert subst["x2"].name == "bar"

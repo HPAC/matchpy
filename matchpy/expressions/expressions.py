@@ -280,7 +280,10 @@ class _OperationMeta(ABCMeta):
             return operands[0]
 
         operation = Expression.__new__(cls)
-        operation.__init__(operands, variable_name=variable_name)
+        if not cls.unpacked_args_to_init:
+            operation.__init__(operands, variable_name=variable_name)
+        else:
+            operation.__init__(*operands, variable_name=variable_name)
 
         return operation
 
@@ -357,6 +360,10 @@ class Operation(Expression, metaclass=_OperationMeta):
 
     infix = False
     """bool: True if the name of the operation should be used as an infix operator by str()."""
+
+
+    unpacked_args_to_init = False
+    """bool: True if the class must be instantiated with ``*operands`` instead of ``operands``."""
 
     def __init__(self, operands: List[Expression], variable_name=None) -> None:
         """Create an operation expression.
